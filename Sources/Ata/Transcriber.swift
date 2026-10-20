@@ -43,6 +43,7 @@ struct TranscribeOptions {
     var language: String
     var openAIModel: String
     var localModel: String
+    var recogniseVoices: Bool = false
     var summarize: Bool
     var summaryModel: String
 
@@ -56,6 +57,7 @@ struct TranscribeOptions {
             language: Pref.d.string(forKey: Pref.language) ?? "auto",
             openAIModel: Pref.d.string(forKey: Pref.openAIModel) ?? Pref.defaultOpenAIModel,
             localModel: LocalModel.current.id,
+            recogniseVoices: Pref.d.bool(forKey: Pref.recogniseVoices),
             summarize: Pref.d.bool(forKey: Pref.summarize),
             summaryModel: Pref.d.string(forKey: Pref.summaryModel) ?? Pref.defaultSummaryModel)
     }
@@ -189,6 +191,13 @@ enum Transcriber {
             segments = removeEcho(segments, me: Speakers.me)
         }
 
+        if options.recogniseVoices, let diarizer = Diarization.current {
+            progress(0.97)
+            segments = await recogniseSpeakers(segments, meeting: meeting, diarizer: diarizer,
+                                               system: prepared.first { $0.speaker == Speakers.others }?.audio,
+                                               mic: prepared.first { $0.speaker == Speakers.me }?.audio)
+        }
+
         var stored = StoredTranscript(
             segments: segments.map { StoredTranscript.Line(start: $0.start, end: $0.end, text: $0.text, speaker: $0.speaker) },
             coarse: coarse, summary: nil, engine: options.engine.rawValue, model: options.modelID)
@@ -222,6 +231,64 @@ enum Transcriber {
             othersSpeechSeconds: talk.others,
             archivedAs: nil)
         return TranscriptionOutcome(record: record, archivedPrevious: archived)
+    }
+
+    // MARK: - Voices
+
+    /// Splits the "others" lines by speaker and matches each speaker against the
+    /// voice library. Anything going wrong here leaves the lines as "others":
+    /// a transcript is never lost to voice recognition.
+    private static func recogniseSpeakers(_ segments: [Segment], meeting: Meeting, diarizer: Diarizer,
+                                          system: URL?, mic: URL?) async -> [Segment] {
+        var speakers: [MeetingSpeaker] = []
+        var turns: [SpeakerTurn] = []
+        var relabelled = segments
+
+        if let system {
+            do {
+                let found = try await diarizer.diarize(system)
+                // Whatever the diarizer calls them, they become S1, S2… in order of first appearance.
+                var rename: [String: String] = [:]
+                for t in found.turns.sorted(by: { $0.start < $1.start }) where rename[t.label] == nil {
+                    rename[t.label] = "S\(rename.count + 1)"
+                }
+                turns = found.turns.map { SpeakerTurn(start: $0.start, end: $0.end, label: rename[$0.label] ?? $0.label) }
+                for (raw, label) in rename {
+                    guard let e = found.embeddings[raw] else { continue }
+                    let seconds = turns.filter { $0.label == label }.reduce(0.0) { $0 + Double($1.end - $1.start) / 1000 }
+                    speakers.append(MeetingSpeaker(label: label, embedding: e, seconds: seconds, voiceID: nil))
+                }
+                relabelled = segments.map { s in
+                    guard s.speaker == Speakers.others,
+                          let label = SpeakerAssignment.label(start: s.start, end: s.end, turns: turns) else { return s }
+                    return Segment(speaker: label, start: s.start, end: s.end, text: s.text)
+                }
+            } catch {
+                NSLog("Ata: diarization failed: \(error.localizedDescription)")
+                return segments
+            }
+        }
+        if let mic, let e = try? await diarizer.embed(mic) {
+            speakers.append(MeetingSpeaker(label: Speakers.me, embedding: e, seconds: 0, voiceID: nil))
+        }
+        guard !speakers.isEmpty else { return relabelled }
+
+        let found = speakers
+        let assigned = await MainActor.run { PeopleModel.shared.assign(found, meetingID: meeting.id) }
+        try? MeetingVoices(speakers: assigned, turns: turns).save(for: meeting)
+
+        // A few seconds of each new voice, so the user can hear who it is.
+        if let system {
+            for speaker in assigned where speaker.label != Speakers.me {
+                guard let id = speaker.voiceID else { continue }
+                let hasSample = await MainActor.run { PeopleModel.shared.voices.first { $0.id == id }?.sample != nil }
+                if hasSample { continue }
+                if let file = await VoiceSamples.extract(label: speaker.label, turns: turns, from: system, voice: id) {
+                    await MainActor.run { PeopleModel.shared.setSample(id, file: file) }
+                }
+            }
+        }
+        return relabelled
     }
 
     // MARK: - Versions

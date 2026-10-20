@@ -67,6 +67,7 @@ enum Pref {
     static let summarize = "summarize"       // append an AI summary
     static let summaryModel = "summaryModel"
     static let audioRetentionDays = "audioRetentionDays" // 0 = keep forever
+    static let recogniseVoices = "recogniseVoices" // diarize and match voices; off by default
     static let autoUpdate = "autoUpdate"     // check GitHub for new releases
     static let updateFeed = "updateFeed"     // override the release feed (forks)
 
@@ -97,6 +98,7 @@ enum Pref {
             summaryModel: defaultSummaryModel,
             autoUpdate: true,
             audioRetentionDays: 0,
+            recogniseVoices: false,
         ])
     }
 
