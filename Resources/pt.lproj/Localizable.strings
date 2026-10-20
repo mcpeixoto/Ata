@@ -111,8 +111,10 @@
 "Listening for voices" = "À escuta de vozes";
 "Voices show up here after your next meetings are transcribed. Ata asks about a voice once it has heard it in at least two meetings." = "As vozes aparecem aqui depois de as próximas meetings serem transcritas. A Ata pergunta por uma voz quando já a ouviu em pelo menos duas meetings.";
 "Play a sample" = "Ouvir uma amostra";
+"Unknown voice %d" = "Voz desconhecida %d";
 "Name" = "Nome";
-"%d meetings · last %@" = "%d meetings · última %@";
+"Type their name…" = "Escreve o nome…";
+"%d meetings · heard %@" = "%d meetings · ouvida %@";
 "Rename…" = "Mudar o nome…";
 "Same person as" = "Mesma pessoa que";
 "Forget this voice" = "Esquecer esta voz";

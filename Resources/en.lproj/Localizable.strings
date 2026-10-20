@@ -111,8 +111,10 @@
 "Listening for voices" = "Listening for voices";
 "Voices show up here after your next meetings are transcribed. Ata asks about a voice once it has heard it in at least two meetings." = "Voices show up here after your next meetings are transcribed. Ata asks about a voice once it has heard it in at least two meetings.";
 "Play a sample" = "Play a sample";
+"Unknown voice %d" = "Unknown voice %d";
 "Name" = "Name";
-"%d meetings · last %@" = "%d meetings · last %@";
+"Type their name…" = "Type their name…";
+"%d meetings · heard %@" = "%d meetings · heard %@";
 "Rename…" = "Rename…";
 "Same person as" = "Same person as";
 "Forget this voice" = "Forget this voice";

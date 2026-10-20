@@ -15,7 +15,9 @@ struct PeopleView: View {
             } else {
                 if !people.worthAsking.isEmpty {
                     section(L("Who's this?"), footnote: L("Heard in several meetings. Play a sample, then type a name.")) {
-                        ForEach(people.worthAsking) { VoiceRow(voice: $0, asking: true) }
+                        ForEach(Array(people.worthAsking.enumerated()), id: \.element.id) { i, voice in
+                            VoiceRow(voice: voice, asking: true, number: i + 1)
+                        }
                     }
                 }
                 if !people.named.isEmpty {
@@ -101,6 +103,7 @@ private struct VoiceRow: View {
     @StateObject private var people = PeopleModel.shared
     let voice: Voice
     let asking: Bool
+    var number = 0
     @State private var name = ""
     @State private var editing = false
     @FocusState private var focused: Bool
@@ -119,18 +122,22 @@ private struct VoiceRow: View {
             .disabled(voice.sample == nil)
             .help(L("Play a sample"))
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 3) {
+                if asking {
+                    Text(L("Unknown voice %d", number)).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                } else if !editing {
+                    Text(voice.name ?? "").font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                }
                 if asking || editing {
-                    TextField(L("Name"), text: $name)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 12, weight: .semibold))
+                    TextField(L("Name"), text: $name, prompt: Text(L("Type their name…")))
+                        .textFieldStyle(.roundedBorder)
+                        .controlSize(.small)
+                        .font(.system(size: 11))
                         .focused($focused)
                         .onSubmit { save() }
                         .onExitCommand { editing = false; name = "" }
-                } else {
-                    Text(voice.name ?? "").font(.system(size: 12, weight: .semibold)).lineLimit(1)
                 }
-                Text(L("%d meetings · last %@", voice.meetings,
+                Text(L("%d meetings · heard %@", voice.meetings,
                        voice.lastSeen.formatted(.relative(presentation: .named))))
                     .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
             }

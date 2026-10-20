@@ -13,7 +13,7 @@ OUT="docs/images"
 FIXTURES=$(mktemp -d)
 trap 'rm -rf "$FIXTURES"' EXIT
 
-python3 -I scripts/lib/make-fixtures.py "$FIXTURES"
+ATA_FIXTURE_SUPPORT="$FIXTURES/support" python3 -I scripts/lib/make-fixtures.py "$FIXTURES"
 
 echo "Building…"
 # The binary only finds its .lproj tables inside a bundle, so run it from one.
@@ -42,7 +42,7 @@ open -n -W build/Ata.app \
   -AppleLanguages '(en)' -AppleLocale en_US \
   -myName Alex -language auto -engine local \
   -summarize YES -keepAudio YES -compressAudio YES -audioRetentionDays 90 \
-  -autoDetect YES -autoStart NO -autoStop YES -autoUpdate YES -onboarded YES
+  -autoDetect YES -autoStart NO -autoStop YES -autoUpdate YES -onboarded YES -recogniseVoices YES
 kill "$WATCHDOG" 2>/dev/null || true
 cat "$LOG"
 ls "$RENDER"/*.png >/dev/null 2>&1 || { echo "no screenshots were rendered" >&2; exit 1; }

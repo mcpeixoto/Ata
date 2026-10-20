@@ -44,6 +44,11 @@ enum Snapshots {
                                   width: 350, appearance: appearance)
             write(frame(insights, appearance), to: out, name: "menu-insights-\(appearance.name)")
 
+            // The People tab, with made-up voices.
+            let people = render(PopoverView(tab: .people).environmentObject(store).environmentObject(store.setup),
+                                width: 350, appearance: appearance)
+            write(frame(people, appearance), to: out, name: "menu-people-\(appearance.name)")
+
             // Mid-meeting.
             store.applySnapshotFixture(recordingApp: "Zoom", elapsed: 23 * 60 + 14, mic: 0.64, system: 0.47,
                                        transcribingID: nil, progress: 0)
