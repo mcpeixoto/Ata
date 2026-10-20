@@ -49,7 +49,7 @@ struct OnboardingView: View {
                         Picker("", selection: Binding(
                             get: { engine },
                             set: { engine = $0; setup.setEngine(Engine(rawValue: $0) ?? .local) })) {
-                            Text("On this Mac — private, free, 1.6 GB download")
+                            Text(L("On this Mac — private, free, %@ download", LocalModel.current.sizeText))
                                 .tag(Engine.local.rawValue)
                             Text("OpenAI API — nothing to install, you pay per minute")
                                 .tag(Engine.openAI.rawValue)
@@ -115,8 +115,9 @@ struct OnboardingView: View {
             }
         }
         Divider()
-        CheckRow(ok: setup.model, title: L("Whisper large-v3-turbo model"),
-                 detail: setup.downloadError ?? L("1.6 GB, downloaded once. Excellent in English and Portuguese.")) {
+        CheckRow(ok: setup.model, title: L("Whisper model: %@", LocalModel.current.title),
+                 detail: setup.downloadError
+                    ?? L("%@, downloaded once. %@", LocalModel.current.sizeText, LocalModel.current.detail)) {
             if let p = setup.downloadProgress {
                 VStack(alignment: .trailing, spacing: 2) {
                     ProgressView(value: p).frame(width: 110)

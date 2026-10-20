@@ -82,7 +82,13 @@ struct OpenAIClient {
 
     // MARK: - Chat (summary)
 
-    func complete(system: String, user: String, model: String) async throws -> String {
+    struct Completion {
+        let text: String
+        let inputTokens: Int
+        let outputTokens: Int
+    }
+
+    func complete(system: String, user: String, model: String) async throws -> Completion {
         var req = URLRequest(url: Self.base.appendingPathComponent("chat/completions"))
         req.httpMethod = "POST"
         req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -101,7 +107,9 @@ struct OpenAIClient {
               let text = parsed.choices.first?.message.content else {
             throw OpenAIError.badResponse
         }
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return Completion(text: text.trimmingCharacters(in: .whitespacesAndNewlines),
+                          inputTokens: parsed.usage?.prompt_tokens ?? 0,
+                          outputTokens: parsed.usage?.completion_tokens ?? 0)
     }
 
     /// Verifies the key works, without spending tokens on audio.
@@ -176,7 +184,9 @@ struct OpenAIClient {
 
     private struct ChatResponse: Decodable {
         struct Choice: Decodable { struct Message: Decodable { let content: String }; let message: Message }
+        struct Usage: Decodable { let prompt_tokens: Int; let completion_tokens: Int }
         let choices: [Choice]
+        let usage: Usage?
     }
 
     private struct ErrorResponse: Decodable {

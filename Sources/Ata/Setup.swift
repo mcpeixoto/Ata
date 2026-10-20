@@ -236,7 +236,8 @@ final class SetupModel: ObservableObject {
         // VAD first (1 MB), then the main model (1.6 GB).
         fetch(Paths.vadModelURL, to: Paths.vadModel, skipIf: Paths.hasVADModel, weight: 0) { [weak self] ok in
             guard let self else { return }
-            self.fetch(Paths.whisperModelURL, to: Paths.whisperModel, skipIf: Paths.hasWhisperModel, weight: 1) { ok2 in
+            let model = LocalModel.current
+            self.fetch(model.url, to: model.path, skipIf: model.isInstalled, weight: 1) { ok2 in
                 self.downloadProgress = nil
                 self.refresh()
                 if !ok2 && self.downloadError == nil { self.downloadError = L("The download failed. Try again.") }

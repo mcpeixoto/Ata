@@ -57,8 +57,8 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Settings").font(.system(size: 20, weight: .bold, design: .rounded))
                 Text(usesOpenAI
-                     ? "Ata \(Updater.currentVersion) · transcribing with OpenAI"
-                     : "Ata \(Updater.currentVersion) · everything runs on your Mac")
+                     ? L("Ata %@ · transcribing with OpenAI", Updater.currentVersion)
+                     : L("Ata %@ · everything runs on your Mac", Updater.currentVersion))
                     .font(.system(size: 11)).foregroundStyle(.secondary)
             }
             Spacer()
@@ -93,11 +93,14 @@ struct SettingsView: View {
                 Text("OpenAI API").tag(Engine.openAI.rawValue)
             }
             Text(usesOpenAI
-                 ? "Recorded audio is uploaded to OpenAI for transcription. Everything else stays on your Mac."
-                 : "Nothing leaves your Mac. Uses the GPU, needs the 1.6 GB model.")
+                 ? L("Recorded audio is uploaded to OpenAI for transcription. Everything else stays on your Mac.")
+                 : L("Nothing leaves your Mac. Runs on the GPU."))
                 .font(.system(size: 11))
                 .foregroundStyle(usesOpenAI ? .orange : .secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            if !usesOpenAI {
+                LocalModelRows()
+            }
 
             TextField("Your name in the transcript", text: $myName, prompt: Text("Me"))
             Picker("Language", selection: $language) {
@@ -138,7 +141,7 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             case .idle:
                 HStack {
-                    Text(setup.hasOpenAIKey ? "Stored in your login keychain." : "No key stored yet.")
+                    Text(setup.hasOpenAIKey ? L("Stored in your login keychain.") : L("No key stored yet."))
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                     Spacer()
                     if setup.hasOpenAIKey {
@@ -176,9 +179,9 @@ struct SettingsView: View {
                 .disabled(!keepAudio)
             Text(keepAudio
                  ? (compressAudio
-                    ? "Recordings are kept next to each transcript, about 10× smaller than the raw WAV."
-                    : "Recordings are kept as WAV — roughly 115 MB per hour, per track.")
-                 : "Audio is deleted once the transcript is written. A failed transcription never deletes it.")
+                    ? L("Recordings are kept next to each transcript, about 10× smaller than the raw WAV.")
+                    : L("Recordings are kept as WAV — roughly 115 MB per hour, per track."))
+                 : L("Audio is deleted once the transcript is written. A failed transcription never deletes it."))
                 .font(.system(size: 11)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Picker("Delete saved audio after", selection: $audioRetentionDays) {
@@ -238,6 +241,58 @@ struct SettingsView: View {
     }
 }
 
+/// Model picker for the local engine, with download and clean-up.
+struct LocalModelRows: View {
+    @EnvironmentObject var setup: SetupModel
+    @AppStorage(Pref.localModel) private var selected = LocalModel.defaultID
+    /// Bumped after a delete so installed sizes are read again.
+    @State private var generation = 0
+
+    private var model: LocalModel { LocalModel.find(selected) ?? LocalModel.current }
+    private var others: [LocalModel] { LocalModel.installed.filter { $0.id != model.id } }
+
+    var body: some View {
+        Picker("Model", selection: Binding(get: { selected }, set: { selected = $0; setup.refresh() })) {
+            ForEach(LocalModel.all) { m in
+                Text(m.id == LocalModel.defaultID ? L("%@ — recommended", m.title) : m.title).tag(m.id)
+            }
+        }
+        LabeledContent {
+            if model.isInstalled {
+                Label("Downloaded", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+            } else if let p = setup.downloadProgress {
+                HStack(spacing: 6) {
+                    ProgressView(value: p).frame(width: 90)
+                    Text("\(Int(p * 100))%").font(.system(size: 10)).monospacedDigit()
+                }
+            } else {
+                Button(L("Download %@", model.sizeText)) { setup.downloadModels() }
+            }
+        } label: {
+            Text(model.detail).font(.system(size: 11)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        if !others.isEmpty {
+            LabeledContent {
+                Button("Remove") {
+                    for m in others { try? FileManager.default.removeItem(at: m.path) }
+                    generation += 1
+                    setup.refresh()
+                }
+            } label: {
+                Text(L("Other models on disk: %@",
+                       ByteCountFormatter.string(fromByteCount: others.reduce(0) { $0 + $1.bytes },
+                                                 countStyle: .file)))
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            .id(generation)
+        }
+        if let error = setup.downloadError {
+            Text(error).font(.system(size: 11)).foregroundStyle(.red)
+        }
+    }
+}
+
 /// "Check for updates" / "Install" in one spot, driven by `Updater.state`.
 struct UpdateControl: View {
     @StateObject private var updater = Updater.shared
@@ -249,10 +304,10 @@ struct UpdateControl: View {
         case .checking:
             HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Checking…").font(.system(size: 11)) }
         case .upToDate:
-            Label("Ata \(Updater.currentVersion) is the latest", systemImage: "checkmark.circle.fill")
+            Label(L("Ata %@ is the latest", Updater.currentVersion), systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green).font(.system(size: 11))
         case .available(let version, _):
-            Button("Install \(version)") { updater.installUpdate() }
+            Button(L("Install %@", version)) { updater.installUpdate() }
                 .buttonStyle(.borderedProminent)
         case .downloading(let p):
             HStack(spacing: 6) {

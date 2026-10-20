@@ -13,32 +13,7 @@ OUT="docs/images"
 FIXTURES=$(mktemp -d)
 trap 'rm -rf "$FIXTURES"' EXIT
 
-ago() { date -u -v-"$1" +%Y-%m-%dT%H:%M:%SZ; }
-
-meeting() { # folder app status minutes-ago duration-min audio-mb
-  local dir="$FIXTURES/$1"
-  mkdir -p "$dir"
-  cat > "$dir/meeting.json" <<JSON
-{
-  "app" : "$2",
-  "duration" : $(( $5 * 60 )),
-  "endedAt" : "$(ago "$(( $4 - $5 ))M")",
-  "id" : "$1",
-  "startedAt" : "$(ago "${4}M")",
-  "status" : "$3"
-}
-JSON
-  if [ "$6" -gt 0 ]; then
-    mkfile -n "$(( $6 / 2 ))m" "$dir/mic.m4a"
-    mkfile -n "$(( $6 / 2 ))m" "$dir/system.m4a"
-  fi
-}
-
-meeting fixture-slack  Slack    transcribing 40   32 0
-meeting fixture-zoom   Zoom     done         190  47 22
-meeting fixture-meet   Chrome   done         1500 28 13
-meeting fixture-teams  Teams    done         2950 61 28
-meeting fixture-ft     FaceTime done         4400 12 6
+python3 -I scripts/lib/make-fixtures.py "$FIXTURES"
 
 echo "Building…"
 # The binary only finds its .lproj tables inside a bundle, so run it from one.

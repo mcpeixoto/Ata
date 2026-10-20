@@ -5,10 +5,10 @@ enum LocalEngine {
     /// Current whisper process, so it can be terminated when the app quits.
     nonisolated(unsafe) static var currentProcess: Process?
 
-    static func transcribe(audio: URL, speaker: String, language: String,
+    static func transcribe(audio: URL, speaker: String, model: LocalModel, language: String,
                            progress: @escaping @Sendable (Double) -> Void) async throws -> [Segment] {
         guard let cli = Paths.whisperCLI() else { throw TranscriberError.whisperMissing }
-        guard Paths.hasWhisperModel else { throw TranscriberError.modelMissing }
+        guard model.isInstalled else { throw TranscriberError.modelMissing }
 
         let outBase = audio.deletingPathExtension().appendingPathExtension("whisper")
         let jsonURL = outBase.appendingPathExtension("json")
@@ -16,7 +16,7 @@ enum LocalEngine {
 
         let threads = max(4, ProcessInfo.processInfo.activeProcessorCount - 2)
         var args = [
-            "-m", Paths.whisperModel.path,
+            "-m", model.path.path,
             "-f", audio.path,
             "-l", language,
             "-t", String(threads),

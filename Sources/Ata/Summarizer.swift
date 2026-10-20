@@ -11,7 +11,12 @@ enum Summarizer {
     /// meeting Ata is likely to see, but keeps a runaway file from being uploaded.
     private static let maxCharacters = 100_000
 
-    static func summarize(markdown: String, options: TranscribeOptions) async -> String? {
+    struct Result {
+        let text: String
+        let costUSD: Double
+    }
+
+    static func summarize(markdown: String, options: TranscribeOptions) async -> Result? {
         guard let client = OpenAIClient() else { return nil }
 
         let transcript = String(markdown.prefix(maxCharacters))
@@ -35,8 +40,12 @@ enum Summarizer {
         """
 
         do {
-            let text = try await client.complete(system: system, user: transcript, model: options.summaryModel)
-            return text.isEmpty ? nil : text
+            let reply = try await client.complete(system: system, user: transcript, model: options.summaryModel)
+            guard !reply.text.isEmpty else { return nil }
+            return Result(text: reply.text,
+                          costUSD: Pricing.chat(model: options.summaryModel,
+                                                inputTokens: reply.inputTokens,
+                                                outputTokens: reply.outputTokens))
         } catch {
             NSLog("Ata: summary failed: \(error.localizedDescription)")
             return nil

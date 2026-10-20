@@ -39,6 +39,11 @@ enum Snapshots {
                               width: 350, appearance: appearance)
             write(frame(idle, appearance), to: out, name: "menu-idle-\(appearance.name)")
 
+            // The Insights tab, with eight weeks of made-up history.
+            let insights = render(PopoverView(tab: .insights).environmentObject(store).environmentObject(store.setup),
+                                  width: 350, appearance: appearance)
+            write(frame(insights, appearance), to: out, name: "menu-insights-\(appearance.name)")
+
             // Mid-meeting.
             store.applySnapshotFixture(recordingApp: "Zoom", elapsed: 23 * 60 + 14, mic: 0.64, system: 0.47,
                                        transcribingID: nil, progress: 0)
