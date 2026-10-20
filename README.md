@@ -186,11 +186,11 @@ says so wherever you choose it.
 Ideas with an issue attached are up for grabs — see
 [good first issues](https://github.com/mcpeixoto/Ata/issues?q=is%3Aopen+label%3A%22good+first+issue%22).
 
-- [ ] Tell remote speakers apart ("Others" is everyone together today)
-- [ ] Global keyboard shortcut to start and stop
-- [ ] More UI languages (English and Portuguese today)
-- [ ] Export to `.txt`, `.srt` and `.docx`
-- [ ] A transcript viewer with search across meetings
+- [ ] Tell remote speakers apart — "Others" is everyone together today ([#5](https://github.com/mcpeixoto/Ata/issues/5))
+- [ ] Global keyboard shortcut to start and stop ([#2](https://github.com/mcpeixoto/Ata/issues/2))
+- [ ] Subtitles (`.srt`) and plain text next to each transcript ([#3](https://github.com/mcpeixoto/Ata/issues/3))
+- [ ] More languages — Spanish first ([#4](https://github.com/mcpeixoto/Ata/issues/4))
+- [ ] A transcript window with search across meetings ([#6](https://github.com/mcpeixoto/Ata/issues/6))
 
 ## Contributing
 
