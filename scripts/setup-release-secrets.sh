@@ -1,4 +1,8 @@
 #!/bin/bash
+# Optional: lets CI publish releases instead of ./scripts/release-local.sh.
+# Exporting the private key needs your login keychain password; if you don't
+# have it, skip this — release-local.sh signs in place and needs neither.
+#
 # One-time setup for the release workflow. Run it yourself — it touches your
 # signing identity and your App Store Connect key, and nothing it reads is
 # printed or stored anywhere but GitHub's encrypted secrets.

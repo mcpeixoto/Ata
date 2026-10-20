@@ -228,14 +228,24 @@ tag:
 git tag v2.1.0 && git push origin v2.1.0
 ```
 
-`.github/workflows/release.yml` builds, signs with the Developer ID, notarizes with Apple,
-staples, and publishes `Ata-<version>.dmg` + `.zip` to a GitHub release. The in-app updater
-reads that release, so the tag is the whole deploy.
+Then publish from the maintainer's Mac — this is how releases ship:
 
-Required repo secrets: `MACOS_CERTIFICATE` (base64 p12), `MACOS_CERTIFICATE_PWD`,
-`AC_API_KEY` (base64 .p8), `AC_API_KEY_ID`, `AC_API_ISSUER_ID`. `./scripts/setup-release-secrets.sh`
-sets all five from the local keychain and an App Store Connect key — the user runs it, not an
-agent, since it exports a private signing key.
+```bash
+./scripts/release-local.sh v2.1.0
+```
+
+It builds the exact tagged source in a temporary worktree, signs with the Developer ID key
+where it sits in the login keychain (no export, no keychain password — the user does not know
+it), notarizes with the App Store Connect key in `~/.appstoreconnect/private_keys/`, staples,
+and publishes `Ata-<version>.dmg`, the `.zip` the in-app updater reads, and `SHA256SUMS.txt`.
+The issuer ID is read from `~/.appstoreconnect/issuer_id` (copied from
+`polaris/ios/scripts/asc-setup.py`); it is deliberately not in this public repo. An agent may
+run this script — it exports nothing.
+
+`.github/workflows/release.yml` also runs on every tag, but only publishes if the five signing
+secrets exist; without them it posts a notice and stops green. Setting them needs
+`./scripts/setup-release-secrets.sh`, which exports the private key and therefore the keychain
+password — not available, so do not plan around CI publishing.
 
 ## Live check
 

@@ -94,9 +94,12 @@ up on its own and tells you if a line is missing.
 1. Bump `CFBundleShortVersionString` and `CFBundleVersion` in `Resources/Info.plist`.
 2. Add a section to `CHANGELOG.md`.
 3. Merge, then tag: `git tag v2.2.0 && git push origin v2.2.0`.
+4. Publish from a Mac that has the Developer ID certificate: `./scripts/release-local.sh v2.2.0`.
 
-The [release workflow](.github/workflows/release.yml) signs, notarizes and publishes the DMG,
-and every running copy of Ata offers the update within a day.
+The script signs with the key where it already lives in the keychain, notarizes, and publishes
+the DMG; every running copy of Ata offers the update within a day. The
+[release workflow](.github/workflows/release.yml) can do the same from CI once signing secrets
+are configured (`./scripts/setup-release-secrets.sh`).
 
 ## Questions
 
