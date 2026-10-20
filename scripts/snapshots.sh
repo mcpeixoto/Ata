@@ -52,10 +52,9 @@ RENDER="$FIXTURES/render"
 mkdir -p "$RENDER"
 LOG="$FIXTURES/snapshots.log"
 
-# Launched through LaunchServices rather than directly: macOS only lets an app
-# that `open` started become active, and switches only draw in their accent
-# colour while the app is active. -n forces a fresh instance even if Ata is
-# already running in your menu bar; -W waits for it to finish.
+# Launched through `open` so the app gets a normal GUI session the way a user's
+# launch would. -n forces a fresh instance even if Ata is already running in
+# your menu bar; -W waits for it to finish.
 # Watchdog: if anything stops the renderer (a permission prompt, a hang), kill
 # it after two minutes instead of waiting forever.
 ( sleep 120; pkill -f "Ata.app/Contents/MacOS/Ata --snapshots" ) &

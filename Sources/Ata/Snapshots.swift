@@ -28,18 +28,6 @@ enum Snapshots {
         // controls still lay out right after a UI change.
         rendering = ProcessInfo.processInfo.environment["ATA_SNAPSHOT_NATIVE"] != "1"
         Pref.registerDefaults()
-        // Switches and progress bars only draw in their active, accent-coloured
-        // state while the app itself is active. This is a dev tool run on
-        // purpose, so taking focus for a few seconds is fine.
-        NSApp.setActivationPolicy(.accessory)
-        NSApp.activate(ignoringOtherApps: true)
-        let deadline = Date().addingTimeInterval(3)
-        while !NSApp.isActive && Date() < deadline {
-            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
-        }
-        if !NSApp.isActive {
-            FileHandle.standardError.write(Data("note: app did not become active; switches will look inactive\n".utf8))
-        }
         let store = AppStore.shared
         store.setup.applySnapshotFixture()
 
