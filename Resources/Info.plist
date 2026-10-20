@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key><string>ai.interactive.ata</string>
+    <key>CFBundleName</key><string>Ata</string>
+    <key>CFBundleDisplayName</key><string>Ata</string>
+    <key>CFBundleExecutable</key><string>Ata</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>2.0</string>
+    <key>CFBundleVersion</key><string>2</string>
+    <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>LSUIElement</key><true/>
+    <key>NSHumanReadableCopyright</key><string>InteractiveAI</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>A Ata grava o teu microfone durante as meetings para as transcrever localmente, no teu Mac.</string>
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>A Ata grava o som do sistema (os outros participantes) para transcrever as meetings localmente.</string>
+</dict>
+</plist>
