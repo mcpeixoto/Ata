@@ -1,0 +1,38 @@
+name: Bug report
+description: Something in Ata does not work
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Ata version
+      description: Settings → the line under the title, e.g. 2.1.0
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and Mac
+      placeholder: "15.1 on an M2 Air"
+    validations:
+      required: true
+  - type: dropdown
+    id: engine
+    attributes:
+      label: Transcription engine
+      options: ["On this Mac (whisper.cpp)", "OpenAI API"]
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Anything in the logs
+      description: "`log show --predicate 'process == \"Ata\"' --last 30m` — remove anything private first."
+      render: shell

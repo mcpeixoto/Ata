@@ -6,3 +6,4 @@ build/
 *.dmg
 *.zip
 dist/
+.claude/worktrees/

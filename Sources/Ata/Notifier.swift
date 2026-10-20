@@ -13,41 +13,50 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sen
         static let record = "RECORD"
         static let stop = "STOP"
         static let open = "OPEN"
+        static let update = "UPDATE_AVAILABLE"
+        static let install = "INSTALL"
     }
 
     private var center: UNUserNotificationCenter { .current() }
 
     func setUp() {
         center.delegate = self
-        let record = UNNotificationAction(identifier: ID.record, title: "Gravar", options: [])
-        let stop = UNNotificationAction(identifier: ID.stop, title: "Parar e transcrever", options: [])
-        let open = UNNotificationAction(identifier: ID.open, title: "Abrir", options: [.foreground])
+        let record = UNNotificationAction(identifier: ID.record, title: L("Record"), options: [])
+        let stop = UNNotificationAction(identifier: ID.stop, title: L("Stop and transcribe"), options: [])
+        let open = UNNotificationAction(identifier: ID.open, title: L("Open"), options: [.foreground])
+        let install = UNNotificationAction(identifier: ID.install, title: L("Update"), options: [.foreground])
         center.setNotificationCategories([
             UNNotificationCategory(identifier: ID.detected, actions: [record], intentIdentifiers: [], options: []),
             UNNotificationCategory(identifier: ID.recording, actions: [stop], intentIdentifiers: [], options: []),
             UNNotificationCategory(identifier: ID.ready, actions: [open], intentIdentifiers: [], options: []),
+            UNNotificationCategory(identifier: ID.update, actions: [install], intentIdentifiers: [], options: []),
         ])
     }
 
     func meetingDetected(app: String) {
-        post(id: "detected", category: ID.detected, title: "Meeting no \(app)",
-             body: "Queres gravar e transcrever esta meeting?", info: ["app": app])
+        post(id: "detected", category: ID.detected, title: L("Meeting in %@", app),
+             body: L("Record and transcribe this meeting?"), info: ["app": app])
     }
 
     func recordingStarted(app: String?) {
-        post(id: "recording", category: ID.recording, title: "A gravar\(app.map { " · \($0)" } ?? "")",
-             body: "A Ata está a gravar o teu micro e o som do Mac.", info: [:], sound: false)
+        post(id: "recording", category: ID.recording, title: L("Recording") + (app.map { " · \($0)" } ?? ""),
+             body: L("Ata is recording your microphone and your Mac's audio."), info: [:], sound: false)
     }
 
     func transcriptReady(_ m: Meeting) {
         clear("recording")
-        post(id: "ready-\(m.id)", category: ID.ready, title: "Transcrição pronta",
+        post(id: "ready-\(m.id)", category: ID.ready, title: L("Transcript ready"),
              body: "\(m.title) · \(m.subtitle)", info: ["path": m.transcriptURL.path])
     }
 
     func transcriptFailed(_ m: Meeting, error: String) {
-        post(id: "failed-\(m.id)", category: "", title: "A transcrição falhou",
-             body: "\(m.title): \(error). O áudio está guardado — podes tentar de novo na Ata.", info: [:])
+        post(id: "failed-\(m.id)", category: "", title: L("Transcription failed"),
+             body: L("%@: %@. The audio is safe — you can try again from Ata.", m.title, error), info: [:])
+    }
+
+    func updateAvailable(version: String) {
+        post(id: "update", category: ID.update, title: L("Ata %@ is available", version),
+             body: L("Install it from the Ata menu, or tap Update."), info: [:], sound: false)
     }
 
     func clear(_ id: String) {
@@ -88,6 +97,8 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sen
                     store.startRecording(app: app)
                 case (ID.recording, ID.stop):
                     store.stopRecording()
+                case (ID.update, ID.install), (ID.update, UNNotificationDefaultActionIdentifier):
+                    Updater.shared.installUpdate()
                 case (ID.ready, _):
                     if let path, action != UNNotificationDismissActionIdentifier {
                         NSWorkspace.shared.open(URL(fileURLWithPath: path))

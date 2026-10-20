@@ -80,7 +80,7 @@ struct RecordButton: View {
         }
         .buttonStyle(.plain)
         .onHover { hover = $0 }
-        .help("Começar a gravar (⌘R)")
+        .help(L("Start recording (⌘R)"))
     }
 }
 
@@ -102,7 +102,7 @@ struct Card<Content: View>: View {
     }
 }
 
-/// Botão "fantasma" pequeno usado no rodapé e nas linhas.
+/// Small "ghost" button used in the footer and in rows.
 struct GhostButton: View {
     let title: String
     let systemImage: String

@@ -4,76 +4,280 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var store: AppStore
     @EnvironmentObject var setup: SetupModel
+    @StateObject private var updater = Updater.shared
+
     @AppStorage(Pref.autoDetect) private var autoDetect = true
     @AppStorage(Pref.autoStart) private var autoStart = false
     @AppStorage(Pref.autoStop) private var autoStop = true
-    @AppStorage(Pref.keepAudio) private var keepAudio = false
+    @AppStorage(Pref.keepAudio) private var keepAudio = true
+    @AppStorage(Pref.compressAudio) private var compressAudio = true
     @AppStorage(Pref.language) private var language = "auto"
-    @AppStorage(Pref.myName) private var myName = "Eu"
+    @AppStorage(Pref.myName) private var myName = ""
+    @AppStorage(Pref.engine) private var engine = Engine.local.rawValue
+    @AppStorage(Pref.openAIModel) private var openAIModel = Pref.defaultOpenAIModel
+    @AppStorage(Pref.summarize) private var summarize = false
+    @AppStorage(Pref.summaryModel) private var summaryModel = Pref.defaultSummaryModel
+    @AppStorage(Pref.autoUpdate) private var autoUpdate = true
+    @AppStorage(Pref.audioRetentionDays) private var audioRetentionDays = 0
+
+    @State private var apiKey = ""
+
+    private var usesOpenAI: Bool { engine == Engine.openAI.rawValue }
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                AppGlyph(size: 40)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Definições").font(.system(size: 20, weight: .bold, design: .rounded))
-                    Text("Ata 2.0 · tudo corre localmente no teu Mac").font(.system(size: 11)).foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 34)
-            .padding(.bottom, 8)
-
+            header
             Form {
-                Section("Gravação") {
-                    Toggle("Detetar meetings automaticamente", isOn: Binding(
-                        get: { autoDetect }, set: { store.setAutoDetect($0); autoDetect = $0 }))
-                    Picker("Quando deteto uma meeting", selection: $autoStart) {
-                        Text("Perguntar").tag(false)
-                        Text("Gravar automaticamente").tag(true)
-                    }
-                    .disabled(!autoDetect)
-                    Toggle("Parar sozinho quando a meeting acaba", isOn: $autoStop)
-                        .disabled(!autoDetect)
-                }
-
-                Section("Transcrição") {
-                    TextField("O teu nome na transcrição", text: $myName)
-                    Picker("Idioma", selection: $language) {
-                        Text("Automático").tag("auto")
-                        Text("Português").tag("pt")
-                        Text("English").tag("en")
-                        Text("Español").tag("es")
-                        Text("Français").tag("fr")
-                    }
-                    Toggle("Guardar o áudio depois de transcrever", isOn: $keepAudio)
-                }
-
-                Section("Sistema") {
-                    Toggle("Abrir ao iniciar sessão", isOn: Binding(
-                        get: { setup.launchAtLogin }, set: { setup.setLaunchAtLogin($0) }))
-                    LabeledContent("Estado") {
-                        if setup.ready {
-                            Label("Tudo pronto", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-                        } else {
-                            Button("Resolver…") { WindowManager.shared.showOnboarding() }
-                        }
-                    }
-                    LabeledContent("Pasta das meetings") {
-                        Button("Abrir") { NSWorkspace.shared.open(Paths.meetingsDir) }
-                    }
-                }
-
-                Section {
-                    Text("Avisa sempre os participantes de que estás a gravar. Usa auscultadores para a transcrição separar melhor quem fala.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
+                recordingSection
+                transcriptionSection
+                if usesOpenAI || summarize { openAISection }
+                audioSection
+                systemSection
+                aboutSection
             }
             .formStyle(.grouped)
         }
-        .frame(width: 520, height: 600)
-        .onAppear { setup.refresh() }
+        .frame(width: 540, height: 660)
+        .onAppear {
+            setup.refresh()
+            apiKey = Keychain.has(Keychain.openAIKey) ? Self.keyPlaceholder : ""
+        }
+    }
+
+    /// Shown instead of the stored key, which is never read back into the UI.
+    private static let keyPlaceholder = "••••••••••••••••••••"
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            AppGlyph(size: 40)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Settings").font(.system(size: 20, weight: .bold, design: .rounded))
+                Text(usesOpenAI
+                     ? "Ata \(Updater.currentVersion) · transcribing with OpenAI"
+                     : "Ata \(Updater.currentVersion) · everything runs on your Mac")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 34)
+        .padding(.bottom, 8)
+    }
+
+    // MARK: Sections
+
+    private var recordingSection: some View {
+        Section("Recording") {
+            Toggle("Detect meetings automatically", isOn: Binding(
+                get: { autoDetect }, set: { store.setAutoDetect($0); autoDetect = $0 }))
+            Picker("When a meeting is detected", selection: $autoStart) {
+                Text("Ask me").tag(false)
+                Text("Start recording").tag(true)
+            }
+            .disabled(!autoDetect)
+            Toggle("Stop on its own when the meeting ends", isOn: $autoStop)
+                .disabled(!autoDetect)
+        }
+    }
+
+    private var transcriptionSection: some View {
+        Section("Transcription") {
+            Picker("Engine", selection: Binding(
+                get: { engine },
+                set: { engine = $0; setup.setEngine(Engine(rawValue: $0) ?? .local) })) {
+                Text("On this Mac (whisper.cpp)").tag(Engine.local.rawValue)
+                Text("OpenAI API").tag(Engine.openAI.rawValue)
+            }
+            Text(usesOpenAI
+                 ? "Recorded audio is uploaded to OpenAI for transcription. Everything else stays on your Mac."
+                 : "Nothing leaves your Mac. Uses the GPU, needs the 1.6 GB model.")
+                .font(.system(size: 11))
+                .foregroundStyle(usesOpenAI ? .orange : .secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            TextField("Your name in the transcript", text: $myName, prompt: Text("Me"))
+            Picker("Language", selection: $language) {
+                Text("Automatic").tag("auto")
+                Text("English").tag("en")
+                Text("Português").tag("pt")
+                Text("Español").tag("es")
+                Text("Français").tag("fr")
+                Text("Deutsch").tag("de")
+                Text("Italiano").tag("it")
+            }
+            Toggle("Add an AI summary with decisions and action items", isOn: $summarize)
+            if summarize {
+                Text("Sends the finished transcript text to OpenAI, even when the audio is transcribed locally.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var openAISection: some View {
+        Section("OpenAI") {
+            HStack {
+                SecureField("API key", text: $apiKey, prompt: Text("sk-…"))
+                    .onSubmit { saveKey() }
+                Button("Save") { saveKey() }
+                    .disabled(apiKey.isEmpty || apiKey == Self.keyPlaceholder)
+            }
+            switch setup.keyCheck {
+            case .checking:
+                HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Checking…").font(.system(size: 11)) }
+            case .ok:
+                Label("Key works", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green).font(.system(size: 11))
+            case .failed(let message):
+                Label(message, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red).font(.system(size: 11))
+                    .fixedSize(horizontal: false, vertical: true)
+            case .idle:
+                HStack {
+                    Text(setup.hasOpenAIKey ? "Stored in your login keychain." : "No key stored yet.")
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                    Spacer()
+                    if setup.hasOpenAIKey {
+                        Button("Remove") {
+                            apiKey = ""
+                            setup.setOpenAIKey("")
+                        }
+                        .controlSize(.small)
+                    }
+                }
+            }
+
+            if usesOpenAI {
+                Picker("Transcription model", selection: $openAIModel) {
+                    ForEach(Pref.openAIModels, id: \.self) { Text($0).tag($0) }
+                }
+                if openAIModel != "whisper-1" {
+                    Text("This model returns no timestamps, so the transcript has no per-line times and echo removal is skipped.")
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            if summarize {
+                Picker("Summary model", selection: $summaryModel) {
+                    ForEach(Pref.summaryModels, id: \.self) { Text($0).tag($0) }
+                }
+            }
+        }
+    }
+
+    private var audioSection: some View {
+        Section("Audio") {
+            Toggle("Keep the audio after transcribing", isOn: $keepAudio)
+            Toggle("Compress kept audio to m4a", isOn: $compressAudio)
+                .disabled(!keepAudio)
+            Text(keepAudio
+                 ? (compressAudio
+                    ? "Recordings are kept next to each transcript, about 10× smaller than the raw WAV."
+                    : "Recordings are kept as WAV — roughly 115 MB per hour, per track.")
+                 : "Audio is deleted once the transcript is written. A failed transcription never deletes it.")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Picker("Delete saved audio after", selection: $audioRetentionDays) {
+                Text("Never").tag(0)
+                Text("7 days").tag(7)
+                Text("30 days").tag(30)
+                Text("90 days").tag(90)
+            }
+            .disabled(!keepAudio)
+            LabeledContent("Kept on disk") {
+                Text(store.storageText)
+            }
+        }
+    }
+
+    private var systemSection: some View {
+        Section("System") {
+            Toggle("Open at login", isOn: Binding(
+                get: { setup.launchAtLogin }, set: { setup.setLaunchAtLogin($0) }))
+            Toggle("Check for updates automatically", isOn: $autoUpdate)
+            LabeledContent("Updates") {
+                UpdateControl()
+            }
+            LabeledContent("Status") {
+                if setup.ready {
+                    Label("Ready", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                } else {
+                    Button("Fix…") { WindowManager.shared.showOnboarding() }
+                }
+            }
+            LabeledContent("Meetings folder") {
+                Button("Open") { NSWorkspace.shared.open(Paths.meetingsDir) }
+            }
+        }
+    }
+
+    private var aboutSection: some View {
+        Section {
+            Text("Always tell the other participants that you are recording. Headphones help the transcript keep the speakers apart.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            HStack(spacing: 10) {
+                Link(destination: Updater.shared.releasesPage.deletingLastPathComponent()) {
+                    Label("Source on GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
+                }
+                Spacer()
+                CoffeeButton()
+            }
+            .font(.system(size: 11))
+        }
+    }
+
+    private func saveKey() {
+        guard apiKey != Self.keyPlaceholder else { return }
+        setup.setOpenAIKey(apiKey)
+        if !apiKey.isEmpty { apiKey = Self.keyPlaceholder }
+    }
+}
+
+/// "Check for updates" / "Install" in one spot, driven by `Updater.state`.
+struct UpdateControl: View {
+    @StateObject private var updater = Updater.shared
+
+    var body: some View {
+        switch updater.state {
+        case .idle:
+            Button("Check now") { updater.check() }
+        case .checking:
+            HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Checking…").font(.system(size: 11)) }
+        case .upToDate:
+            Label("Ata \(Updater.currentVersion) is the latest", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green).font(.system(size: 11))
+        case .available(let version, _):
+            Button("Install \(version)") { updater.installUpdate() }
+                .buttonStyle(.borderedProminent)
+        case .downloading(let p):
+            HStack(spacing: 6) {
+                ProgressView(value: p).frame(width: 80)
+                Text("\(Int(p * 100))%").font(.system(size: 10)).monospacedDigit()
+            }
+        case .installing:
+            HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Installing…").font(.system(size: 11)) }
+        case .failed(let message):
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(message).font(.system(size: 10)).foregroundStyle(.red)
+                    .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                Button("Try again") { updater.check() }.controlSize(.small)
+            }
+        }
+    }
+}
+
+/// Buy-me-a-coffee link. The destination is in the Info.plist so a fork can
+/// point it somewhere else without touching the code.
+struct CoffeeButton: View {
+    static var donateURL: URL {
+        let configured = Bundle.main.object(forInfoDictionaryKey: "AtaDonateURL") as? String
+        return URL(string: configured ?? "") ?? URL(string: "https://buymeacoffee.com/mcpeixoto")!
+    }
+
+    var body: some View {
+        Link(destination: Self.donateURL) {
+            Label("Buy me a coffee", systemImage: "cup.and.saucer.fill")
+        }
     }
 }

@@ -8,10 +8,10 @@ enum RecorderError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .micDenied: return "A Ata não tem acesso ao microfone."
-        case .screenDenied: return "A Ata não tem acesso ao áudio do sistema (Gravação de ecrã e áudio do sistema)."
-        case .noDisplay: return "Não encontrei nenhum ecrã para capturar o áudio do sistema."
-        case .noMic: return "Não encontrei nenhum microfone ativo."
+        case .micDenied: return L("Ata does not have access to the microphone.")
+        case .screenDenied: return L("Ata does not have access to system audio (Screen & System Audio Recording).")
+        case .noDisplay: return L("No display was found to capture system audio from.")
+        case .noMic: return L("No active microphone was found.")
         }
     }
 }
@@ -118,7 +118,7 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
         let o = NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange,
                                                        object: engine, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.restartMic(reason: "Mudança de microfone detetada") }
+            MainActor.assumeIsolated { self?.restartMic(reason: "microphone change") }
         }
         observers.append(o)
     }
@@ -149,7 +149,7 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
         } catch {
             micRetry += 1
             micRestartPending = true
-            onWarning?("Sem microfone — a tentar novamente…")
+            onWarning?(L("No microphone — retrying…"))
             let delay = min(5.0, 0.5 * Double(micRetry))
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 MainActor.assumeIsolated {
@@ -205,7 +205,7 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
     private func restartSystem() {
         guard running, !sysRestarting else { return }
         sysRestarting = true
-        onWarning?("A reconectar o áudio do sistema…")
+        onWarning?(L("Reconnecting system audio…"))
         Task { @MainActor in
             await stopSystem()
             while running {
@@ -240,7 +240,7 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
     nonisolated func stream(_ stream: SCStream, didStopWithError error: Error) {
         Task { @MainActor in
-            NSLog("Ata: captura do sistema parou: \(error.localizedDescription)")
+            NSLog("Ata: system capture stopped: \(error.localizedDescription)")
             self.stream = nil
             self.restartSystem()
         }
@@ -253,7 +253,7 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
         let wake = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
-                self?.restartMic(reason: "Mac acordou")
+                self?.restartMic(reason: "wake from sleep")
                 self?.restartSystem()
             }
         }
@@ -264,7 +264,7 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
             MainActor.assumeIsolated {
                 guard let self, self.running, !self.micRestartPending, let mic = self.mic else { return }
                 if Date().timeIntervalSince(mic.lastBufferAt) > 4 {
-                    self.restartMic(reason: "Microfone sem resposta")
+                    self.restartMic(reason: "microphone not responding")
                 }
             }
         }
