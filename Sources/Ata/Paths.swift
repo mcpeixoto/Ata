@@ -15,6 +15,8 @@ enum Paths {
 
     static let supportDir = home.appendingPathComponent("Library/Application Support/Ata", isDirectory: true)
     static let modelsDir = supportDir.appendingPathComponent("models", isDirectory: true)
+    /// Voice fingerprints and samples. Never uploaded.
+    static let voicesDir = supportDir.appendingPathComponent("voices", isDirectory: true)
 
     /// The selected local model; see `LocalModel` for the catalogue.
     static var whisperModel: URL { LocalModel.current.path }
