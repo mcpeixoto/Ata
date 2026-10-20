@@ -20,8 +20,8 @@ APP="build/Ata.app"
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
 
 echo "Building Ata ${VERSION}…"
-swift build -c release --arch arm64
-BIN="$(swift build -c release --arch arm64 --show-bin-path)/Ata"
+swift build -c release --arch arm64 --disable-keychain
+BIN="$(swift build -c release --arch arm64 --disable-keychain --show-bin-path)/Ata"
 [ -x "$BIN" ] || { echo "build produced no binary" >&2; exit 1; }
 
 rm -rf "$APP"
@@ -29,6 +29,14 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Ata"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 iconutil -c icns Resources/AppIcon.iconset -o "$APP/Contents/Resources/AppIcon.icns"
+
+# SwiftPM resource bundles of dependencies (FluidAudio's). Their generated
+# accessor looks in Contents/Resources first and otherwise falls back to a path
+# on the build machine, which on anyone else's Mac would crash.
+for bundle in "$(dirname "$BIN")"/*.bundle; do
+  [ -d "$bundle" ] || continue
+  cp -R "$bundle" "$APP/Contents/Resources/"
+done
 
 # Localizations. Each .lproj has to land inside Contents/Resources for
 # Bundle.main to find it.

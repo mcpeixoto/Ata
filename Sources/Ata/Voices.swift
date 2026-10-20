@@ -36,8 +36,15 @@ struct MeetingSpeaker: Codable, Equatable {
 /// The local library of known voices, and the rules for matching against it.
 final class VoiceLibrary {
     /// Cosine similarity at or above which an embedding is taken to be a known
-    /// voice. Set from measurements; see docs/plans.
-    static var matchThreshold: Float = 0.6
+    /// voice. Measured with FluidAudio's WeSpeaker embeddings: the same voice
+    /// scored 0.95–0.96 across recordings (0.82–0.85 over a phone-quality copy),
+    /// different voices 0.02–0.49.
+    static var matchThreshold: Float = 0.65
+
+    /// The best match must also beat the second best by this much. A voice that
+    /// resembles two known people about equally becomes a new voice rather than
+    /// a coin-flip between two names.
+    static var requiredLead: Float = 0.1
 
     /// An unnamed voice is worth asking about once it has turned up in this many meetings.
     static let askAfterMeetings = 2
@@ -96,10 +103,12 @@ final class VoiceLibrary {
         var result = speakers
         var candidates: [(speaker: Int, voice: Int, similarity: Float)] = []
         for (s, speaker) in speakers.enumerated() where !speaker.embedding.isEmpty {
-            for (v, voice) in voices.enumerated() {
-                let sim = Self.cosine(speaker.embedding, voice.centroid)
-                if sim >= Self.matchThreshold { candidates.append((s, v, sim)) }
-            }
+            let scores = voices.enumerated()
+                .map { (v: $0.offset, sim: Self.cosine(speaker.embedding, $0.element.centroid)) }
+                .sorted { $0.sim > $1.sim }
+            guard let best = scores.first, best.sim >= Self.matchThreshold else { continue }
+            if scores.count > 1, best.sim - scores[1].sim < Self.requiredLead { continue }
+            candidates.append((s, best.v, best.sim))
         }
         candidates.sort { $0.similarity > $1.similarity }
 

@@ -52,12 +52,18 @@ struct PeopleView: View {
                 .font(.system(size: 11)).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Voice fingerprints stay on this Mac, even when OpenAI transcribes.")
+            Text("Voice fingerprints stay on this Mac, even when OpenAI transcribes. Turning this on downloads 21 MB of models once.")
                 .font(.system(size: 10)).foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
-            Button(L("Turn on voice recognition")) { enabled = true }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.regular)
+                .fixedSize(horizontal: false, vertical: true)
+            if Diarization.isSupported {
+                Button(L("Turn on voice recognition")) { enabled = true }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.regular)
+            } else {
+                Text("Needs macOS 15 or later.")
+                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(.orange)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)

@@ -105,8 +105,9 @@
 "Forget all" = "Esquecer todas";
 "Know who said what" = "Sabe quem disse o quê";
 "Ata can tell the other participants apart and learn their voices across meetings. You name a voice once; every transcript uses the name from then on." = "A Ata consegue distinguir os outros participantes e aprender as vozes deles de meeting para meeting. Dás um nome a uma voz uma vez; a partir daí, todas as transcrições usam esse nome.";
-"Voice fingerprints stay on this Mac, even when OpenAI transcribes." = "As impressões de voz ficam neste Mac, mesmo quando é a OpenAI a transcrever.";
+"Voice fingerprints stay on this Mac, even when OpenAI transcribes. Turning this on downloads 21 MB of models once." = "As impressões de voz ficam neste Mac, mesmo quando é a OpenAI a transcrever. Ativar isto descarrega 21 MB de modelos, uma vez.";
 "Turn on voice recognition" = "Ativar o reconhecimento de vozes";
+"Needs macOS 15 or later." = "Precisa do macOS 15 ou posterior.";
 "Listening for voices" = "À escuta de vozes";
 "Voices show up here after your next meetings are transcribed. Ata asks about a voice once it has heard it in at least two meetings." = "As vozes aparecem aqui depois de as próximas meetings serem transcritas. A Ata pergunta por uma voz quando já a ouviu em pelo menos duas meetings.";
 "Play a sample" = "Ouvir uma amostra";

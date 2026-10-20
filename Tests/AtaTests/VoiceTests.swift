@@ -8,6 +8,7 @@ final class VoiceLibraryTests: XCTestCase {
         super.setUp()
         file = FileManager.default.temporaryDirectory.appendingPathComponent("voices-\(UUID().uuidString).json")
         VoiceLibrary.matchThreshold = 0.6
+        VoiceLibrary.requiredLead = 0.1
     }
 
     override func tearDown() {
@@ -46,6 +47,18 @@ final class VoiceLibraryTests: XCTestCase {
         let out = lib.assign([speaker("S1", v(0, noise: 0.5)), speaker("S2", v(0, noise: 0.1))], meetingID: "m2")
         XCTAssertNotEqual(out[0].voiceID, out[1].voiceID)
         XCTAssertEqual(out[1].voiceID, lib.voices.first?.id, "the closer embedding wins")
+    }
+
+    func testAnAmbiguousVoiceIsNotForcedOntoEitherCandidate() {
+        let lib = VoiceLibrary(file: file)
+        lib.assign([speaker("S1", v(0)), speaker("S2", v(1))], meetingID: "m1")
+        // Halfway between both known voices: similar enough to each, but neither clearly.
+        let between: [Float] = [1, 1, 0, 0, 0, 0, 0, 0]
+        VoiceLibrary.matchThreshold = 0.6
+        let out = lib.assign([speaker("S1", between)], meetingID: "m2")
+        XCTAssertEqual(lib.voices.count, 3, "becomes a new voice")
+        XCTAssertNotEqual(out[0].voiceID, lib.voices[0].id)
+        XCTAssertNotEqual(out[0].voiceID, lib.voices[1].id)
     }
 
     func testBelowTheThresholdIsANewVoice() {
