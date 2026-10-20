@@ -19,7 +19,7 @@ done
 APP="build/Ata.app"
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
 
-echo "Building Ata $VERSION…"
+echo "Building Ata ${VERSION}…"
 swift build -c release --arch arm64
 BIN="$(swift build -c release --arch arm64 --show-bin-path)/Ata"
 [ -x "$BIN" ] || { echo "build produced no binary" >&2; exit 1; }
