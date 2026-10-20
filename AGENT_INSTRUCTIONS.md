@@ -71,7 +71,100 @@ In a repo with no git remote, say so once and work in place — §5 does not app
 
 ### 4. Verify before you push
 
-Run everything under `## What this is
+Run everything under `## Verify` below and read the output. Green means you saw it say green.
+
+If the repo has no CI workflows, that local block **is** the gate — there is nothing downstream.
+
+Linux GitHub Actions jobs in **private** repos run on VRServer (ubuntudesktop):
+`runs-on: [self-hosted, vrserver]`. Never `ubuntu-latest` on a private repo —
+hosted minutes are billed and currently fail closed on the spending limit.
+**Public** repos keep GitHub-hosted runners: a self-hosted runner there is a
+machine takeover if anyone can open a PR. macOS/iOS jobs stay on `macos-*`.
+
+### 5. Ship it — the default ending for any coding task
+
+Unless the prompt says otherwise ("no PR", "show me first", "edit in place"):
+
+1. `git add -A && git commit` — conventional commit.
+2. `git push -u origin HEAD` → `gh pr create --base "$BASE" --fill`.
+3. **Wait for CI. If it fails, fix it and push again. Repeat until green.** Never merge red,
+   never merge with checks still running.
+4. Merge:
+   - **Public repo** — `gh pr merge --squash --auto --delete-branch`
+   - **Private repo** — auto-merge is unavailable on this plan (the API accepts the setting and
+     silently ignores it): `gh pr checks --watch && gh pr merge --squash --delete-branch`
+   - Check with `gh repo view --json isPrivate --jq .isPrivate`. Do not guess.
+5. Deploy per `## Ship` below — usually a new semver tag.
+6. **Prove it is live (§6).**
+7. Remove the worktree: `git worktree remove <path>` then `git worktree prune`.
+
+Report the PR URL and whether it merged, tagged and deployed.
+
+If you abandon a run or leave a PR open, **say so explicitly** and leave the worktree in place.
+Never strand one silently.
+
+### 6. Prove it is live — no "done" without evidence
+
+You may not say done, shipped, deployed or fixed until you have run the check in `## Live check`
+below and **quoted its output**. A tag pushed is not a deploy. A PR merged is not a release.
+A build uploaded is not a build available.
+
+- "Probably deployed", "should be live", "the deploy was triggered" — not results. Do not write them.
+- If a check could not be run, say which one and why. Silence about a skipped check is a false green.
+- If a test failed, say so and quote the failure. Do not call a run green because most of it was.
+- Deploy that needs a human to click something is a bug in the deploy, not a step to hand back.
+  Say so and fix it.
+
+### 7. Long-running and background work
+
+Anything over ~10 minutes runs detached (`nohup … & disown` or `run_in_background`) — a foreground
+shell dies at 10 minutes and has already orphaned paid jobs. Put a `Monitor` on it and check in
+roughly every 10 minutes. A job silently hung for hours is the failure mode; catch it.
+
+### 8. Stop and ask — every time, no carry-over
+
+An approval for one of these is not an approval for the others, and approval in an earlier
+session does not carry into this one.
+
+- **Changing repository visibility.** Public is a one-way door. Scan full history for secrets first.
+- **Rewriting published history** — no `rebase`/`reset`/`amend`/`filter-repo` on anything pushed,
+  no `push --force` to a shared branch.
+- **Deleting anything durable** — branches, tags, remotes, stashes, volumes, databases. Look at what
+  it holds first and say what would be lost.
+- **`git clean -fd`, `reset --hard`, `checkout -- .`** — check `git status` and say what dies.
+- **Spending money** — renting compute, paid API tiers, anything with a bill. Ask, state the cap,
+  and never leave a paid resource running without a written intent.
+- **Publishing to a public audience** — social posts, App Store submissions, anything under a real
+  name. Draft it, show it, wait.
+
+### 9. Secrets
+
+- Never commit a secret. Check the staged diff before every commit. `.env.example` gets placeholders,
+  never working values.
+- Reading `.env` files across the machine to find an existing key is granted — look before asking.
+- **A credential pasted into a chat is exposed.** Use it if asked, say plainly that it must be
+  rotated, and do not treat the transcript as a safe store.
+- If a secret reaches a commit, it is leaked the moment it is pushed. Say so immediately and rotate.
+  Scrubbing history is damage control, not a fix.
+
+### 10. Language and quality
+
+- Code, comments, identifiers, DB schema, commit messages and docs: **English**, unless the
+  repo-specific section below says otherwise.
+- Copy that ships to a user is written by a person, not a language model. No AI slop — if a sentence
+  does not mean anything concrete, delete it.
+- Match the surrounding code's idiom, naming and comment density. Comments say *why*, not *what*.
+- No half-finished UI. If the house has a design system, use it.
+
+### 11. Write corrections down
+
+When the user corrects you on something that will recur, update this repo's section below in
+`AGENT_INSTRUCTIONS.md` (or `.claude-core/CORE.md` if it applies everywhere) **in the same turn,
+while the wording is exact**.
+A correction that only lives in a chat log gets repeated next week.
+<!-- CLAUDE-CORE:END -->
+
+## What this is
 
 A SwiftUI menu bar app for macOS 14+ on Apple Silicon (`LSUIElement`), built with SwiftPM —
 no Xcode project. It records the microphone (AVAudioEngine) and system audio
