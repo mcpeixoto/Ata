@@ -173,7 +173,7 @@ enum Transcriber {
 
     /// Moves the current transcript to `versions/<date> <model>.md` and returns
     /// that file name, or nil when there was nothing to move.
-    private static func archivePrevious(of meeting: Meeting) throws -> String? {
+    static func archivePrevious(of meeting: Meeting) throws -> String? {
         guard let current = meeting.existingTranscriptURL else { return nil }
         let fm = FileManager.default
         try fm.createDirectory(at: meeting.versionsDir, withIntermediateDirectories: true)
@@ -200,7 +200,7 @@ enum Transcriber {
 
     /// Seconds each side spoke. Without timestamps, estimated from words at a
     /// typical 2.5 words a second.
-    private static func talkTime(_ segments: [Segment], me: String, coarse: Bool) -> (me: Double, others: Double) {
+    static func talkTime(_ segments: [Segment], me: String, coarse: Bool) -> (me: Double, others: Double) {
         var mine = 0.0, theirs = 0.0
         for s in segments {
             let seconds = coarse ? Double(wordCount(s.text)) / 2.5 : Double(max(0, s.end - s.start)) / 1000
@@ -220,7 +220,7 @@ enum Transcriber {
     /// Without headphones the microphone picks up the other participants, so the
     /// same sentence shows up twice, once attributed to you. Drop microphone
     /// segments that repeat almost word for word what the others said at the same time.
-    private static func removeEcho(_ segments: [Segment], me: String) -> [Segment] {
+    static func removeEcho(_ segments: [Segment], me: String) -> [Segment] {
         let others = segments.filter { $0.speaker != me }
         guard !others.isEmpty else { return segments }
         return segments.filter { s in

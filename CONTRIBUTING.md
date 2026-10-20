@@ -33,6 +33,7 @@ signature changes on every build — so expect to re-grant system audio now and 
 
 ```bash
 swift build -c release --arch arm64     # must be warning-free
+swift test                              # unit tests
 ./scripts/check-localization.sh         # every string in English and Portuguese
 ./scripts/build-app.sh                  # the bundle assembles and verifies
 ```
@@ -75,6 +76,18 @@ CI also attaches a fresh set to every pull request as a downloadable artifact.
 - **No new dependencies** without talking about it in an issue first. Ata builds with nothing but
   the SDK, and that's a feature.
 - **Match the code around you** — naming, comment density, the way errors are surfaced.
+
+## Adding a string
+
+Write it in English in the code (SwiftUI `Text("…")`, or `L("…")` anywhere else — and `L()` for
+any string chosen with `? :`, which SwiftUI would otherwise show untranslated), then run:
+
+```bash
+python3 -I scripts/lib/sync-strings.py "$PWD"
+```
+
+It adds the new key to every table — English filled in, other languages marked
+`/* TODO: translate */` — and removes keys nothing uses anymore.
 
 ## Translating Ata
 
