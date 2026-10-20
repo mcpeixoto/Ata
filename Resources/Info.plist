@@ -8,14 +8,27 @@
     <key>CFBundleExecutable</key><string>Ata</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>2.0</string>
-    <key>CFBundleVersion</key><string>2</string>
+    <key>CFBundleShortVersionString</key><string>2.1.0</string>
+    <key>CFBundleVersion</key><string>3</string>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>en</string>
+        <string>pt</string>
+    </array>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
     <key>LSUIElement</key><true/>
-    <key>NSHumanReadableCopyright</key><string>InteractiveAI</string>
+    <key>NSHumanReadableCopyright</key><string>© Miguel Peixoto · MIT licensed</string>
+
+    <!-- Where Ata looks for updates, and where the coffee button points.
+         A fork only has to change these two. -->
+    <key>AtaRepository</key><string>mcpeixoto/Ata</string>
+    <key>AtaDonateURL</key><string>https://buymeacoffee.com/mcpeixoto</string>
+
     <key>NSMicrophoneUsageDescription</key>
-    <string>A Ata grava o teu microfone durante as meetings para as transcrever localmente, no teu Mac.</string>
+    <string>Ata records your microphone during meetings so it can transcribe them.</string>
     <key>NSAudioCaptureUsageDescription</key>
-    <string>A Ata grava o som do sistema (os outros participantes) para transcrever as meetings localmente.</string>
+    <string>Ata records your Mac's audio (the other participants) so it can transcribe meetings.</string>
 </dict>
 </plist>

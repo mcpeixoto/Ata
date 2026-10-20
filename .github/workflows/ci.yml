@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and check
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: swift --version
+
+      - name: Build (release)
+        run: swift build -c release --arch arm64
+
+      - name: Check localizations are in sync
+        run: ./scripts/check-localization.sh
+
+      - name: Assemble Ata.app
+        run: ./scripts/build-app.sh
+
+      - name: Verify the bundle
+        run: |
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" build/Ata.app/Contents/Info.plist
+          test -d build/Ata.app/Contents/Resources/en.lproj
+          test -d build/Ata.app/Contents/Resources/pt.lproj
+          test -f build/Ata.app/Contents/Resources/AppIcon.icns
+          codesign --verify --deep --strict build/Ata.app
+
+  snapshots:
+    name: Screenshots
+    runs-on: macos-15
+    # A bonus for reviewers, not a gate: a runner without a usable GUI session
+    # should not block a merge.
+    continue-on-error: true
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Render the UI
+        run: ./scripts/snapshots.sh
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: docs/images/*.png
+          retention-days: 14

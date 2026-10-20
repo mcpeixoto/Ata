@@ -8,15 +8,15 @@ enum RecorderError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .micDenied: return "A Ata não tem acesso ao microfone."
-        case .screenDenied: return "A Ata não tem acesso ao áudio do sistema (Gravação de ecrã e áudio do sistema)."
-        case .noDisplay: return "Não encontrei nenhum ecrã para capturar o áudio do sistema."
-        case .noMic: return "Não encontrei nenhum microfone ativo."
+        case .micDenied: return L("Ata does not have access to the microphone.")
+        case .screenDenied: return L("Ata does not have access to system audio (Screen & System Audio Recording).")
+        case .noDisplay: return L("No display was found to capture system audio from.")
+        case .noMic: return L("No active microphone was found.")
         }
     }
 }
 
-/// Caixa thread-safe para partilhar o writer do áudio do sistema com a fila do ScreenCaptureKit.
+/// Thread-safe box that shares the system-audio writer with ScreenCaptureKit's queue.
 private final class WriterBox: @unchecked Sendable {
     private let lock = NSLock()
     private var _writer: WavWriter?
@@ -26,11 +26,11 @@ private final class WriterBox: @unchecked Sendable {
     }
 }
 
-/// Grava duas pistas em simultâneo e recupera sozinho de quase tudo:
-///  - mic.wav    → o teu microfone (AVAudioEngine). Reinicia se mudares de micro,
-///                 se o dispositivo desaparecer ou se deixar de enviar áudio.
-///  - system.wav → todo o som que sai do Mac (ScreenCaptureKit). Reconecta-se se a captura cair
-///                 (ex.: depois de o Mac adormecer) com backoff.
+/// Records two tracks at once and recovers from almost anything on its own:
+///  - mic.wav    → your microphone (AVAudioEngine). Restarts when you switch microphones,
+///                 when the device disappears, or when it stops delivering audio.
+///  - system.wav → everything the Mac plays (ScreenCaptureKit). Reconnects with backoff when
+///                 capture drops (for example after the Mac sleeps).
 @MainActor
 final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
     private(set) var mic: WavWriter?
@@ -48,7 +48,7 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
     private var sysRestarting = false
     private var micRestartPending = false
 
-    /// Mensagens de estado para a interface (nil = tudo bem).
+    /// Status messages for the UI (nil = all good).
     var onWarning: ((String?) -> Void)?
 
     static func hostNow() -> Double { CMClockGetTime(CMClockGetHostTimeClock()).seconds }
@@ -73,7 +73,7 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
         installObservers()
     }
 
-    /// Para tudo, fecha os ficheiros e devolve a duração gravada (s).
+    /// Stops everything, closes the files and returns the recorded duration (s).
     func stop() async -> Double {
         let duration = max(mic?.duration ?? 0, sys?.duration ?? 0)
         await teardown()
@@ -91,7 +91,7 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
         stopMic()
         await stopSystem()
         await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
-            sysQueue.async { c.resume() } // garantir que o último buffer foi escrito
+            sysQueue.async { c.resume() } // make sure the last buffer has been written
         }
         mic?.close(); mic = nil
         sysBox.writer?.close(); sysBox.writer = nil
@@ -101,7 +101,7 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
     var micLevel: Float { mic?.level ?? 0 }
     var systemLevel: Float { sys?.level ?? 0 }
 
-    // MARK: - Microfone
+    // MARK: - Microphone
 
     private func startMic() throws {
         guard let writer = mic else { return }
@@ -118,12 +118,12 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
         let o = NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange,
                                                        object: engine, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.restartMic(reason: "Mudança de microfone detetada") }
+            MainActor.assumeIsolated { self?.restartMic(reason: "microphone change") }
         }
         observers.append(o)
     }
 
-    /// Criado fora do MainActor: o bloco corre na thread de áudio.
+    /// Created off the MainActor: the block runs on the audio thread.
     nonisolated private static func makeTap(_ writer: WavWriter) -> AVAudioNodeTapBlock {
         return { buffer, when in
             let t: Double? = when.isHostTimeValid ? AVAudioTime.seconds(forHostTime: when.hostTime) : nil
@@ -149,7 +149,7 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
         } catch {
             micRetry += 1
             micRestartPending = true
-            onWarning?("Sem microfone — a tentar novamente…")
+            onWarning?(L("No microphone — retrying…"))
             let delay = min(5.0, 0.5 * Double(micRetry))
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 MainActor.assumeIsolated {
@@ -160,7 +160,7 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
         }
     }
 
-    // MARK: - Áudio do sistema
+    // MARK: - System audio
 
     private func startSystem() async throws {
         let content: SCShareableContent
@@ -177,7 +177,7 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
         cfg.excludesCurrentProcessAudio = true
         cfg.sampleRate = 48_000
         cfg.channelCount = 2
-        cfg.width = 2 // não queremos vídeo
+        cfg.width = 2 // we do not want video
         cfg.height = 2
         cfg.minimumFrameInterval = CMTime(value: 1, timescale: 1)
         cfg.queueDepth = 3
@@ -205,7 +205,7 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
     private func restartSystem() {
         guard running, !sysRestarting else { return }
         sysRestarting = true
-        onWarning?("A reconectar o áudio do sistema…")
+        onWarning?(L("Reconnecting system audio…"))
         Task { @MainActor in
             await stopSystem()
             while running {
@@ -240,31 +240,31 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
     nonisolated func stream(_ stream: SCStream, didStopWithError error: Error) {
         Task { @MainActor in
-            NSLog("Ata: captura do sistema parou: \(error.localizedDescription)")
+            NSLog("Ata: system capture stopped: \(error.localizedDescription)")
             self.stream = nil
             self.restartSystem()
         }
     }
 
-    // MARK: - Vigilância
+    // MARK: - Watchdog
 
     private func installObservers() {
         // Depois de o Mac acordar, reiniciar as duas capturas.
         let wake = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
-                self?.restartMic(reason: "Mac acordou")
+                self?.restartMic(reason: "wake from sleep")
                 self?.restartSystem()
             }
         }
         observers.append(wake)
 
-        // Watchdog: se o micro deixar de enviar áudio, reiniciar.
+        // Watchdog: if the microphone stops delivering audio, restart it.
         watchdog = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, self.running, !self.micRestartPending, let mic = self.mic else { return }
                 if Date().timeIntervalSince(mic.lastBufferAt) > 4 {
-                    self.restartMic(reason: "Microfone sem resposta")
+                    self.restartMic(reason: "microphone not responding")
                 }
             }
         }

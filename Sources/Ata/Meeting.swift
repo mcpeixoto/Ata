@@ -5,7 +5,7 @@ struct Meeting: Codable, Identifiable, Equatable {
         case recording, pending, transcribing, done, failed
     }
 
-    var id: String // nome da pasta
+    var id: String // folder name
     var startedAt: Date
     var endedAt: Date?
     var duration: Double?
@@ -15,28 +15,58 @@ struct Meeting: Codable, Identifiable, Equatable {
 
     var dir: URL { Paths.meetingsDir.appendingPathComponent(id, isDirectory: true) }
     var metaURL: URL { dir.appendingPathComponent("meeting.json") }
-    var transcriptURL: URL { dir.appendingPathComponent("transcricao.md") }
+
+    /// Where a new transcript is written. Recordings from Ata 2.0 used a
+    /// Portuguese file name, so reading falls back to that one.
+    var transcriptURL: URL { dir.appendingPathComponent("transcript.md") }
+    private var legacyTranscriptURL: URL { dir.appendingPathComponent("transcricao.md") }
+
+    /// The transcript on disk, whichever name it was written under.
+    var existingTranscriptURL: URL? {
+        let fm = FileManager.default
+        if fm.fileExists(atPath: transcriptURL.path) { return transcriptURL }
+        if fm.fileExists(atPath: legacyTranscriptURL.path) { return legacyTranscriptURL }
+        return nil
+    }
+
+    /// Where the recorder writes. Kept audio may later be compressed to m4a,
+    /// so anything that reads audio back goes through `micAudioURL` /
+    /// `systemAudioURL` instead.
     var micURL: URL { dir.appendingPathComponent("mic.wav") }
     var systemURL: URL { dir.appendingPathComponent("system.wav") }
 
-    var hasAudio: Bool {
-        Paths.fileSize(micURL) > 44 || Paths.fileSize(systemURL) > 44
+    var micAudioURL: URL? { Self.resolveAudio(micURL) }
+    var systemAudioURL: URL? { Self.resolveAudio(systemURL) }
+
+    private static func resolveAudio(_ wav: URL) -> URL? {
+        if Paths.fileSize(wav) > 44 { return wav }
+        let m4a = wav.deletingPathExtension().appendingPathExtension("m4a")
+        return Paths.fileSize(m4a) > 0 ? m4a : nil
     }
 
-    var title: String { app ?? "Meeting" }
+    var hasAudio: Bool {
+        micAudioURL != nil || systemAudioURL != nil
+    }
+
+    /// Total size of the audio kept for this meeting, in bytes.
+    var audioBytes: Int64 {
+        [micAudioURL, systemAudioURL].compactMap { $0 }.reduce(0) { $0 + Paths.fileSize($1) }
+    }
+
+    var title: String { app ?? L("Meeting") }
 
     var subtitle: String {
         var parts = [Self.dayFormatter.string(from: startedAt)]
         if let duration, duration >= 1 {
             let m = Int((duration / 60).rounded())
-            parts.append(m < 1 ? "<1 min" : "\(m) min")
+            parts.append(m < 1 ? L("<1 min") : L("%d min", m))
         }
         return parts.joined(separator: " · ")
     }
 
     static let dayFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "pt_PT")
+        f.locale = .autoupdatingCurrent
         f.doesRelativeDateFormatting = true
         f.dateStyle = .medium
         f.timeStyle = .short
@@ -55,7 +85,7 @@ struct Meeting: Codable, Identifiable, Equatable {
     }
 }
 
-/// Lê e grava os metadados das meetings (meeting.json em cada pasta).
+/// Reads and writes meeting metadata (meeting.json inside each folder).
 enum Library {
     private static let encoder: JSONEncoder = {
         let e = JSONEncoder()
@@ -75,7 +105,7 @@ enum Library {
             try FileManager.default.createDirectory(at: m.dir, withIntermediateDirectories: true)
             try encoder.encode(m).write(to: m.metaURL, options: .atomic)
         } catch {
-            NSLog("Ata: não consegui guardar \(m.id): \(error)")
+            NSLog("Ata: could not save \(m.id): \(error)")
         }
     }
 
@@ -87,7 +117,7 @@ enum Library {
         return dirs.compactMap { dir in
             guard let data = try? Data(contentsOf: dir.appendingPathComponent("meeting.json")),
                   var m = try? decoder.decode(Meeting.self, from: data) else { return nil }
-            m.id = dir.lastPathComponent // a pasta pode ter sido renomeada
+            m.id = dir.lastPathComponent // the folder may have been renamed
             return m
         }
         .sorted { $0.startedAt > $1.startedAt }

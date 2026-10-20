@@ -22,6 +22,10 @@ struct AtaApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if Snapshots.requested {
+            Snapshots.run()
+            return
+        }
         Notifier.shared.setUp()
         let store = AppStore.shared
         store.bootstrap()
@@ -39,7 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// Janelas "normais" (boas-vindas e definições), geridas à mão para abrirem sempre à frente.
+/// Regular windows (welcome and settings), managed by hand so they always come to the front.
 @MainActor
 final class WindowManager {
     static let shared = WindowManager()
@@ -47,7 +51,7 @@ final class WindowManager {
     private var settings: NSWindow?
 
     func showOnboarding() {
-        onboarding = present(onboarding, title: "Bem-vindo à Ata") {
+        onboarding = present(onboarding, title: L("Welcome to Ata")) {
             OnboardingView()
                 .environmentObject(AppStore.shared)
                 .environmentObject(AppStore.shared.setup)
@@ -59,7 +63,7 @@ final class WindowManager {
     }
 
     func showSettings() {
-        settings = present(settings, title: "Definições da Ata") {
+        settings = present(settings, title: L("Ata Settings")) {
             SettingsView()
                 .environmentObject(AppStore.shared)
                 .environmentObject(AppStore.shared.setup)

@@ -4,7 +4,7 @@ import CoreGraphics
 import ServiceManagement
 import UserNotifications
 
-/// Verifica e resolve tudo o que a app precisa para funcionar, dentro da própria app.
+/// Checks and fixes everything the app needs in order to work, from inside the app itself.
 @MainActor
 final class SetupModel: ObservableObject {
     @Published private(set) var mic = false
@@ -14,31 +14,56 @@ final class SetupModel: ObservableObject {
     @Published private(set) var notifications = false
     @Published private(set) var launchAtLogin = false
 
-    @Published private(set) var downloadProgress: Double? // nil = sem download em curso
+    @Published private(set) var downloadProgress: Double? // nil = no download running
     @Published private(set) var downloadError: String?
     @Published private(set) var installingWhisper = false
     @Published private(set) var whisperStatus: String?
-    /// O macOS só reconhece a permissão de gravação de ecrã depois de reabrir a app.
+    /// macOS only picks up the screen-recording permission after the app is reopened.
     @Published private(set) var screenNeedsRelaunch = false
 
+    /// True when the OpenAI engine is selected, in which case whisper.cpp and
+    /// the local model are not needed to be ready.
+    @Published private(set) var usesOpenAI = Engine.current == .openAI
+    @Published private(set) var hasOpenAIKey = Keychain.has(Keychain.openAIKey)
+
     var hasBrew: Bool { Paths.brew() != nil }
-    var ready: Bool { mic && screen && whisper && model }
+
+    /// Everything needed to record and transcribe with the selected engine.
+    var ready: Bool {
+        guard mic && screen else { return false }
+        return usesOpenAI ? hasOpenAIKey : (whisper && model)
+    }
+
+    /// Whether the local engine is installed, regardless of which engine is selected.
+    var localEngineReady: Bool { whisper && model }
+
     var missingSummary: String? {
         var m: [String] = []
-        if !mic { m.append("microfone") }
-        if !screen { m.append("áudio do sistema") }
-        if !whisper { m.append("motor de transcrição") }
-        if !model { m.append("modelo") }
-        return m.isEmpty ? nil : "Falta: " + m.joined(separator: ", ")
+        if !mic { m.append(L("microphone")) }
+        if !screen { m.append(L("system audio")) }
+        if usesOpenAI {
+            if !hasOpenAIKey { m.append(L("OpenAI API key")) }
+        } else {
+            if !whisper { m.append(L("transcription engine")) }
+            if !model { m.append(L("model")) }
+        }
+        return m.isEmpty ? nil : L("Missing: %@", m.joined(separator: ", "))
     }
 
     private var downloader: Downloader?
 
+    /// Set by the snapshot renderer so the screenshots show a finished setup
+    /// instead of whatever this machine happens to have granted.
+    static var frozen = false
+
     func refresh() {
+        guard !Self.frozen else { return }
         mic = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         screen = CGPreflightScreenCaptureAccess()
         whisper = Paths.whisperCLI() != nil
         model = Paths.hasWhisperModel
+        usesOpenAI = Engine.current == .openAI
+        hasOpenAIKey = Keychain.has(Keychain.openAIKey)
         launchAtLogin = SMAppService.mainApp.status == .enabled
         Task {
             let s = await UNUserNotificationCenter.current().notificationSettings()
@@ -46,7 +71,15 @@ final class SetupModel: ObservableObject {
         }
     }
 
-    // MARK: Permissões
+    /// Everything installed and granted, for the snapshot renderer.
+    func applySnapshotFixture() {
+        mic = true; screen = true; whisper = true; model = true
+        notifications = true; launchAtLogin = true
+        usesOpenAI = false; hasOpenAIKey = true
+        Self.frozen = true
+    }
+
+    // MARK: Permissions
 
     func requestMic() {
         Task {
@@ -98,7 +131,7 @@ final class SetupModel: ObservableObject {
         NSApp.terminate(nil)
     }
 
-    // MARK: Arranque automático
+    // MARK: Launch at login
 
     func setLaunchAtLogin(_ on: Bool) {
         do {
@@ -109,6 +142,47 @@ final class SetupModel: ObservableObject {
         refresh()
     }
 
+    // MARK: OpenAI
+
+    enum KeyCheck: Equatable { case idle, checking, ok, failed(String) }
+    @Published private(set) var keyCheck: KeyCheck = .idle
+
+    func setEngine(_ engine: Engine) {
+        Pref.d.set(engine.rawValue, forKey: Pref.engine)
+        keyCheck = .idle
+        refresh()
+        AppStore.shared.setupChanged()
+    }
+
+    /// Stores the key in the keychain (empty string removes it) and verifies it.
+    func setOpenAIKey(_ key: String) {
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        Keychain.set(trimmed.isEmpty ? nil : trimmed, for: Keychain.openAIKey)
+        refresh()
+        if trimmed.isEmpty {
+            keyCheck = .idle
+        } else {
+            checkOpenAIKey()
+        }
+    }
+
+    func checkOpenAIKey() {
+        guard let client = OpenAIClient() else {
+            keyCheck = .failed(L("No OpenAI API key. Add one in Settings → Transcription."))
+            return
+        }
+        keyCheck = .checking
+        Task {
+            do {
+                try await client.validate()
+                keyCheck = .ok
+                AppStore.shared.setupChanged()
+            } catch {
+                keyCheck = .failed(error.localizedDescription)
+            }
+        }
+    }
+
     // MARK: whisper.cpp
 
     func installWhisper() {
@@ -117,7 +191,7 @@ final class SetupModel: ObservableObject {
             return
         }
         installingWhisper = true
-        whisperStatus = "A instalar com o Homebrew…"
+        whisperStatus = L("Installing with Homebrew…")
         let p = Process()
         p.executableURL = brew
         p.arguments = ["install", "whisper-cpp"]
@@ -141,7 +215,8 @@ final class SetupModel: ObservableObject {
                 guard let self else { return }
                 self.installingWhisper = false
                 self.refresh()
-                self.whisperStatus = self.whisper ? nil : "A instalação falhou (código \(proc.terminationStatus)). Tenta no Terminal: brew install whisper-cpp"
+                self.whisperStatus = self.whisper ? nil
+                    : L("Install failed (code %d). Try in Terminal: brew install whisper-cpp", proc.terminationStatus)
             }
         }
         do { try p.run() } catch {
@@ -150,7 +225,7 @@ final class SetupModel: ObservableObject {
         }
     }
 
-    // MARK: Modelos
+    // MARK: Models
 
     func downloadModels() {
         guard downloadProgress == nil else { return }
@@ -158,13 +233,13 @@ final class SetupModel: ObservableObject {
         downloadProgress = 0
         try? FileManager.default.createDirectory(at: Paths.modelsDir, withIntermediateDirectories: true)
 
-        // Primeiro o VAD (1 MB), depois o modelo principal (1.6 GB).
+        // VAD first (1 MB), then the main model (1.6 GB).
         fetch(Paths.vadModelURL, to: Paths.vadModel, skipIf: Paths.hasVADModel, weight: 0) { [weak self] ok in
             guard let self else { return }
             self.fetch(Paths.whisperModelURL, to: Paths.whisperModel, skipIf: Paths.hasWhisperModel, weight: 1) { ok2 in
                 self.downloadProgress = nil
                 self.refresh()
-                if !ok2 && self.downloadError == nil { self.downloadError = "O download falhou. Tenta de novo." }
+                if !ok2 && self.downloadError == nil { self.downloadError = L("The download failed. Try again.") }
                 _ = ok
             }
         }
@@ -186,7 +261,7 @@ final class SetupModel: ObservableObject {
     }
 }
 
-/// Download com progresso, para um ficheiro temporário que só é movido para o destino no fim.
+/// Download with progress, into a temporary file that is only moved into place at the end.
 final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
     private let dest: URL
     private let onProgress: @Sendable (Double) -> Void
@@ -216,7 +291,7 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
         if let http = downloadTask.response as? HTTPURLResponse, http.statusCode != 200 {
             moveError = NSError(domain: "Ata", code: http.statusCode,
-                                userInfo: [NSLocalizedDescriptionKey: "O servidor respondeu \(http.statusCode)."])
+                                userInfo: [NSLocalizedDescriptionKey: L("The server replied %d.", http.statusCode)])
             return
         }
         do {

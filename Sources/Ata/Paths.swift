@@ -3,8 +3,15 @@ import Foundation
 enum Paths {
     static let home = FileManager.default.homeDirectoryForCurrentUser
 
-    /// Cada meeting fica numa pasta própria: ~/Documents/Meetings/<data>/
-    static let meetingsDir = home.appendingPathComponent("Documents/Meetings", isDirectory: true)
+    /// Each meeting gets its own folder: ~/Documents/Meetings/<date>/
+    /// `ATA_MEETINGS_DIR` points it elsewhere, for development and for the
+    /// README screenshots, which must never show anyone's real meetings.
+    static let meetingsDir: URL = {
+        if let custom = ProcessInfo.processInfo.environment["ATA_MEETINGS_DIR"], !custom.isEmpty {
+            return URL(fileURLWithPath: custom, isDirectory: true)
+        }
+        return home.appendingPathComponent("Documents/Meetings", isDirectory: true)
+    }()
 
     static let supportDir = home.appendingPathComponent("Library/Application Support/Ata", isDirectory: true)
     static let modelsDir = supportDir.appendingPathComponent("models", isDirectory: true)
@@ -15,7 +22,7 @@ enum Paths {
     static let whisperModelURL = URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin")!
     static let vadModelURL = URL(string: "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin")!
 
-    /// O modelo turbo tem ~1.6 GB; abaixo disto o ficheiro está incompleto.
+    /// The turbo model is ~1.6 GB; anything smaller is an incomplete download.
     static let whisperModelMinBytes: Int64 = 1_400_000_000
 
     static func whisperCLI() -> URL? {
@@ -41,24 +48,48 @@ enum Paths {
 }
 
 enum Pref {
-    static let language = "language"       // "auto" | "pt" | "en"
-    static let autoDetect = "autoDetect"   // detetar meetings
-    static let autoStart = "autoStart"     // gravar sozinho quando deteta (senão pergunta)
-    static let autoStop = "autoStop"       // parar quando a meeting acaba
-    static let keepAudio = "keepAudio"     // guardar o áudio depois de transcrever
-    static let myName = "myName"           // como apareces na transcrição
+    static let language = "language"         // "auto" | "pt" | "en" | …
+    static let autoDetect = "autoDetect"     // detect meetings
+    static let autoStart = "autoStart"       // record on detection (otherwise ask)
+    static let autoStop = "autoStop"         // stop when the meeting ends
+    static let keepAudio = "keepAudio"       // keep the audio after transcribing
+    static let compressAudio = "compressAudio" // re-encode kept audio to m4a
+    static let myName = "myName"             // how you appear in the transcript
     static let onboarded = "onboarded"
+    static let engine = "engine"             // "local" | "openai"
+    static let openAIModel = "openAIModel"
+    static let summarize = "summarize"       // append an AI summary
+    static let summaryModel = "summaryModel"
+    static let audioRetentionDays = "audioRetentionDays" // 0 = keep forever
+    static let autoUpdate = "autoUpdate"     // check GitHub for new releases
+    static let updateFeed = "updateFeed"     // override the release feed (forks)
+
+    static let defaultOpenAIModel = "whisper-1"
+    static let defaultSummaryModel = "gpt-4o-mini"
+
+    /// OpenAI transcription models offered in Settings.
+    /// Only `whisper-1` returns per-segment timestamps; the others are more
+    /// accurate but give a transcript without per-line times.
+    static let openAIModels = ["whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"]
+    static let summaryModels = ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"]
 
     static func registerDefaults() {
-        let first = NSFullUserName().split(separator: " ").first.map(String.init) ?? "Eu"
+        let first = NSFullUserName().split(separator: " ").first.map(String.init) ?? L("Me")
         UserDefaults.standard.register(defaults: [
             language: "auto",
             autoDetect: true,
             autoStart: false,
             autoStop: true,
-            keepAudio: false,
-            myName: first.isEmpty ? "Eu" : first,
+            keepAudio: true,
+            compressAudio: true,
+            myName: first.isEmpty ? L("Me") : first,
             onboarded: false,
+            engine: Engine.local.rawValue,
+            openAIModel: defaultOpenAIModel,
+            summarize: false,
+            summaryModel: defaultSummaryModel,
+            autoUpdate: true,
+            audioRetentionDays: 0,
         ])
     }
 

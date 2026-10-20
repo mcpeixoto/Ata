@@ -1,14 +1,15 @@
 import Foundation
 
 enum TranscriberError: LocalizedError {
-    case whisperMissing, modelMissing
+    case whisperMissing, modelMissing, noAudio
     case failed(String)
 
     var errorDescription: String? {
         switch self {
-        case .whisperMissing: return "O motor de transcrição (whisper.cpp) não está instalado."
-        case .modelMissing: return "O modelo de transcrição ainda não foi descarregado."
-        case .failed(let log): return "O Whisper falhou: \(log)"
+        case .whisperMissing: return L("The local transcription engine (whisper.cpp) is not installed.")
+        case .modelMissing: return L("The transcription model has not been downloaded yet.")
+        case .noAudio: return L("No audio was found for this meeting.")
+        case .failed(let log): return L("Whisper failed: %@", log)
         }
     }
 }
@@ -20,146 +21,120 @@ struct Segment {
     let text: String
 }
 
-/// Transcreve localmente com o whisper.cpp (GPU do Mac via Metal). Nada sai do computador.
+/// Which backend produces the transcript.
+enum Engine: String, CaseIterable {
+    /// whisper.cpp on this Mac. Nothing leaves the machine.
+    case local
+    /// OpenAI's transcription API. Audio is uploaded.
+    case openAI = "openai"
+
+    var isLocal: Bool { self == .local }
+
+    static var current: Engine {
+        Engine(rawValue: Pref.d.string(forKey: Pref.engine) ?? Engine.local.rawValue) ?? .local
+    }
+}
+
+/// Everything the transcription job needs, captured when the job is queued so
+/// changing a setting mid-run cannot alter a transcript already in flight.
+struct TranscribeOptions {
+    var engine: Engine
+    var myName: String
+    var language: String
+    var openAIModel: String
+    var summarize: Bool
+    var summaryModel: String
+
+    static func current() -> TranscribeOptions {
+        TranscribeOptions(
+            engine: Engine.current,
+            myName: Pref.d.string(forKey: Pref.myName) ?? L("Me"),
+            language: Pref.d.string(forKey: Pref.language) ?? "auto",
+            openAIModel: Pref.d.string(forKey: Pref.openAIModel) ?? Pref.defaultOpenAIModel,
+            summarize: Pref.d.bool(forKey: Pref.summarize),
+            summaryModel: Pref.d.string(forKey: Pref.summaryModel) ?? Pref.defaultSummaryModel)
+    }
+}
+
+/// Runs a transcription end to end: picks the engine per track, merges the two
+/// tracks into one timeline, drops microphone echo and writes the Markdown.
 enum Transcriber {
-    /// Processo atual, para o podermos terminar se a app fechar.
-    static var currentProcess: Process?
-
-    static func transcribe(_ meeting: Meeting, myName: String, language: String,
+    static func transcribe(_ meeting: Meeting, options: TranscribeOptions,
                            progress: @escaping @Sendable (Double) -> Void) async throws -> URL {
-        guard let cli = Paths.whisperCLI() else { throw TranscriberError.whisperMissing }
-        guard Paths.hasWhisperModel else { throw TranscriberError.modelMissing }
+        let others = L("Others")
 
-        // Pistas com pelo menos ~0.5 s de áudio.
-        let tracks = [(myName, meeting.micURL), ("Outros", meeting.systemURL)]
-            .filter { Paths.fileSize($0.1) > 44 + 16_000 }
+        // Only tracks with at least ~0.5 s of audio are worth sending to an engine.
+        var prepared: [(speaker: String, audio: URL, temporary: Bool)] = []
+        defer {
+            for track in prepared where track.temporary {
+                try? FileManager.default.removeItem(at: track.audio)
+            }
+        }
+        for (speaker, source) in [(options.myName, meeting.micAudioURL), (others, meeting.systemAudioURL)] {
+            guard let source, Paths.fileSize(source) > 1_000 else { continue }
+            if source.pathExtension.lowercased() == "wav" {
+                prepared.append((speaker, source, false))
+            } else {
+                // The WAV was compressed after an earlier run: decode it back.
+                let temp = source.deletingPathExtension().appendingPathExtension("decoded.wav")
+                try AudioFiles.decodeToWAV(source, to: temp)
+                prepared.append((speaker, temp, true))
+            }
+        }
+        guard !prepared.isEmpty else { throw TranscriberError.noAudio }
 
         var segments: [Segment] = []
-        for (i, track) in tracks.enumerated() {
-            let base = Double(i) / Double(max(tracks.count, 1))
-            let span = 1 / Double(max(tracks.count, 1))
-            segments += try await run(cli: cli, audio: track.1, speaker: track.0, language: language) { p in
-                progress(base + p * span)
+        var coarse = false
+        for (i, track) in prepared.enumerated() {
+            let base = Double(i) / Double(prepared.count)
+            let span = 1 / Double(prepared.count)
+            let step: @Sendable (Double) -> Void = { p in progress(base + p * span) }
+
+            switch options.engine {
+            case .local:
+                segments += try await LocalEngine.transcribe(audio: track.audio, speaker: track.speaker,
+                                                             language: options.language, progress: step)
+            case .openAI:
+                let result = try await OpenAIEngine.transcribe(audio: track.audio, speaker: track.speaker,
+                                                               language: options.language,
+                                                               model: options.openAIModel, progress: step)
+                segments += result.segments
+                coarse = coarse || result.coarse
             }
         }
 
-        segments = removeEcho(segments, me: myName)
-        let md = render(segments, meeting: meeting, myName: myName)
+        // Echo removal compares what both tracks said at the same moment, so it
+        // needs real timestamps.
+        if !coarse {
+            segments = removeEcho(segments, me: options.myName)
+        }
+
+        var md = render(segments, meeting: meeting, options: options, coarse: coarse)
+
+        if options.summarize, !segments.isEmpty {
+            if let summary = await Summarizer.summarize(markdown: md, options: options) {
+                md = insertSummary(summary, into: md)
+            }
+        }
+        // No summary (disabled, or the call failed): leave no marker behind.
+        md = md.replacingOccurrences(of: summaryPlaceholder + "\n\n", with: "")
+            .replacingOccurrences(of: summaryPlaceholder, with: "")
+
         try md.write(to: meeting.transcriptURL, atomically: true, encoding: .utf8)
         return meeting.transcriptURL
     }
 
-    // MARK: - whisper.cpp
-
-    private static func run(cli: URL, audio: URL, speaker: String, language: String,
-                            progress: @escaping @Sendable (Double) -> Void) async throws -> [Segment] {
-        let outBase = audio.deletingPathExtension().appendingPathExtension("whisper")
-        let jsonURL = outBase.appendingPathExtension("json")
-        try? FileManager.default.removeItem(at: jsonURL)
-
-        let threads = max(4, ProcessInfo.processInfo.activeProcessorCount - 2)
-        var args = [
-            "-m", Paths.whisperModel.path,
-            "-f", audio.path,
-            "-l", language,
-            "-t", String(threads),
-            "-oj", "-of", outBase.path,
-            "-pp",
-        ]
-        let useVAD = Paths.hasVADModel
-        if useVAD { args += ["--vad", "-vm", Paths.vadModel.path] }
-
-        do {
-            try await runProcess(cli, args, progress: progress)
-        } catch where useVAD {
-            // Versões antigas do whisper.cpp não têm VAD: tentar de novo sem.
-            args.removeLast(3)
-            try await runProcess(cli, args, progress: progress)
-        }
-
-        guard let data = try? Data(contentsOf: jsonURL) else {
-            throw TranscriberError.failed("não produziu resultado")
-        }
-        defer { try? FileManager.default.removeItem(at: jsonURL) }
-
-        // O whisper às vezes corta caracteres UTF-8 a meio: normalizar antes do parse.
-        let clean = Data(String(decoding: data, as: UTF8.self).utf8)
-        let parsed = try JSONDecoder().decode(WhisperJSON.self, from: clean)
-        return parsed.transcription.compactMap { item in
-            let text = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty, !isNoise(text) else { return nil }
-            return Segment(speaker: speaker, start: item.offsets.from, end: item.offsets.to, text: text)
-        }
-    }
-
-    private static func isNoise(_ t: String) -> Bool {
+    static func isNoise(_ t: String) -> Bool {
         let wrapped = (t.hasPrefix("[") && t.hasSuffix("]")) || (t.hasPrefix("(") && t.hasSuffix(")"))
             || (t.hasPrefix("*") && t.hasSuffix("*"))
         return wrapped || ["...", "…", "-", "."].contains(t)
     }
 
-    private final class LogBuffer: @unchecked Sendable {
-        private var data = Data()
-        private let lock = NSLock()
-        func append(_ d: Data) { lock.lock(); data.append(d); lock.unlock() }
-        var text: String { lock.lock(); defer { lock.unlock() }; return String(decoding: data, as: UTF8.self) }
-    }
+    // MARK: - Echo
 
-    private static func runProcess(_ exe: URL, _ args: [String],
-                                   progress: @escaping @Sendable (Double) -> Void) async throws {
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-            let p = Process()
-            p.executableURL = exe
-            p.arguments = args
-            p.standardOutput = FileHandle.nullDevice
-            p.qualityOfService = .userInitiated
-            let pipe = Pipe()
-            p.standardError = pipe
-
-            let log = LogBuffer()
-            pipe.fileHandleForReading.readabilityHandler = { h in
-                let d = h.availableData
-                guard !d.isEmpty else { return }
-                log.append(d)
-                // Linhas tipo: "whisper_print_progress_callback: progress =  45%"
-                let s = String(decoding: d, as: UTF8.self)
-                if let r = s.range(of: #"progress\s*=\s*(\d+)%"#, options: [.regularExpression, .backwards]) {
-                    let digits = s[r].filter(\.isNumber)
-                    if let v = Double(digits) { progress(min(1, v / 100)) }
-                }
-            }
-            p.terminationHandler = { proc in
-                pipe.fileHandleForReading.readabilityHandler = nil
-                Transcriber.currentProcess = nil
-                if proc.terminationStatus == 0 {
-                    cont.resume()
-                } else {
-                    let tail = log.text.split(separator: "\n").suffix(4).joined(separator: "\n")
-                    cont.resume(throwing: TranscriberError.failed(tail.isEmpty ? "código \(proc.terminationStatus)" : tail))
-                }
-            }
-            do {
-                try p.run()
-                Transcriber.currentProcess = p
-            } catch {
-                cont.resume(throwing: error)
-            }
-        }
-    }
-
-    private struct WhisperJSON: Decodable {
-        struct Item: Decodable {
-            struct Offsets: Decodable { let from: Int; let to: Int }
-            let offsets: Offsets
-            let text: String
-        }
-        let transcription: [Item]
-    }
-
-    // MARK: - Eco
-
-    /// Sem auscultadores, o micro apanha a voz dos outros e aparece em duplicado como "eu".
-    /// Remove segmentos do micro que repetem quase palavra a palavra o que os outros disseram ao mesmo tempo.
+    /// Without headphones the microphone picks up the other participants, so the
+    /// same sentence shows up twice, once attributed to you. Drop microphone
+    /// segments that repeat almost word for word what the others said at the same time.
     private static func removeEcho(_ segments: [Segment], me: String) -> [Segment] {
         let others = segments.filter { $0.speaker != me }
         guard !others.isEmpty else { return segments }
@@ -188,7 +163,8 @@ enum Transcriber {
 
     // MARK: - Markdown
 
-    private static func render(_ segments: [Segment], meeting: Meeting, myName: String) -> String {
+    private static func render(_ segments: [Segment], meeting: Meeting,
+                               options: TranscribeOptions, coarse: Bool) -> String {
         var blocks: [Segment] = []
         for s in segments.sorted(by: { $0.start < $1.start }) {
             if let last = blocks.last, last.speaker == s.speaker, s.start - last.end < 2_500 {
@@ -200,23 +176,42 @@ enum Transcriber {
         }
 
         let df = DateFormatter()
-        df.locale = Locale(identifier: "pt_PT")
-        df.dateFormat = "d 'de' MMMM 'de' yyyy, HH:mm"
+        df.locale = .autoupdatingCurrent
+        df.dateStyle = .long
+        df.timeStyle = .short
 
         var md = "# \(meeting.title) — \(df.string(from: meeting.startedAt))\n\n"
         var info: [String] = []
-        if let d = meeting.duration { info.append("Duração: \(max(1, Int((d / 60).rounded()))) min") }
-        info.append("Participantes: \(myName), Outros")
-        md += info.joined(separator: " · ") + "\n\n---\n\n"
+        if let d = meeting.duration {
+            info.append(L("Duration: %d min", max(1, Int((d / 60).rounded()))))
+        }
+        info.append(L("Participants: %@, %@", options.myName, L("Others")))
+        md += info.joined(separator: " · ") + "\n\n" + summaryPlaceholder + "\n\n---\n\n"
 
         if blocks.isEmpty {
-            md += "_Não foi detetada fala nesta gravação._\n"
+            md += L("_No speech was detected in this recording._") + "\n"
         }
         for b in blocks {
-            md += "**[\(timestamp(b.start))] \(b.speaker):** \(b.text)\n\n"
+            md += coarse
+                ? "**\(b.speaker):** \(b.text)\n\n"
+                : "**[\(timestamp(b.start))] \(b.speaker):** \(b.text)\n\n"
         }
-        md += "---\n_Transcrito localmente pela Ata._\n"
+        md += "---\n"
+        md += options.engine.isLocal
+            ? "_" + L("Transcribed locally by Ata.") + "_\n"
+            : "_" + L("Transcribed by Ata with OpenAI (%@).", options.openAIModel) + "_\n"
         return md
+    }
+
+    /// Marker that `insertSummary` replaces, so the summary lands above the transcript.
+    private static let summaryPlaceholder = "<!-- ata:summary -->"
+
+    private static func insertSummary(_ summary: String, into markdown: String) -> String {
+        let block = "## " + L("Summary") + "\n\n" + summary
+        if markdown.contains(summaryPlaceholder) {
+            return markdown.replacingOccurrences(of: summaryPlaceholder, with: block)
+        }
+        return markdown + "\n\n" + block + "\n"
     }
 
     private static func timestamp(_ ms: Int) -> String {

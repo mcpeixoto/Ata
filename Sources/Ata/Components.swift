@@ -11,7 +11,7 @@ enum Theme {
     static let othersTint = Color(red: 0.25, green: 0.82, blue: 0.62)
 }
 
-/// Logótipo: quadrado arredondado com gradiente e ondas.
+/// The logo: a rounded gradient square with a waveform.
 struct AppGlyph: View {
     var size: CGFloat = 28
     var body: some View {
@@ -27,7 +27,7 @@ struct AppGlyph: View {
     }
 }
 
-/// Medidor de nível em barras.
+/// Bar-style level meter.
 struct LevelMeter: View {
     let level: Float
     let tint: Color
@@ -59,7 +59,7 @@ struct PulsingDot: View {
     }
 }
 
-/// Botão redondo grande de gravar.
+/// The big round record button.
 struct RecordButton: View {
     let action: () -> Void
     @State private var hover = false
@@ -80,11 +80,11 @@ struct RecordButton: View {
         }
         .buttonStyle(.plain)
         .onHover { hover = $0 }
-        .help("Começar a gravar (⌘R)")
+        .help(L("Start recording (⌘R)"))
     }
 }
 
-/// Cartão com fundo translúcido.
+/// Card with a translucent background.
 struct Card<Content: View>: View {
     @ViewBuilder var content: Content
     var body: some View {
@@ -102,7 +102,7 @@ struct Card<Content: View>: View {
     }
 }
 
-/// Botão "fantasma" pequeno usado no rodapé e nas linhas.
+/// Small "ghost" button used in the footer and in rows.
 struct GhostButton: View {
     let title: String
     let systemImage: String
@@ -128,7 +128,7 @@ struct GhostButton: View {
     }
 }
 
-/// Linha de verificação usada nas boas-vindas e nas definições.
+/// Checklist row used in the welcome window and in Settings.
 struct CheckRow<Trailing: View>: View {
     let ok: Bool
     let title: String
@@ -156,5 +156,32 @@ struct CheckRow<Trailing: View>: View {
         }
         .padding(.vertical, 6)
         .animation(.easeInOut(duration: 0.2), value: ok)
+    }
+}
+
+/// The app's switch. Always the native `NSSwitch`, except while the snapshot
+/// renderer runs: an app that is not frontmost gets grey "inactive" switches
+/// from AppKit, which would make every setting in the README look off. There,
+/// the same shape is drawn in the active colours instead.
+struct AppSwitchStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        if Snapshots.rendering {
+            HStack {
+                configuration.label
+                Spacer(minLength: 8)
+                Capsule()
+                    .fill(configuration.isOn ? Color.accentColor : Color.primary.opacity(0.12))
+                    .frame(width: 36, height: 16)
+                    .overlay(alignment: configuration.isOn ? .trailing : .leading) {
+                        Circle()
+                            .fill(.white)
+                            .shadow(color: .black.opacity(0.25), radius: 1, y: 0.5)
+                            .padding(1.5)
+                    }
+            }
+        } else {
+            Toggle(isOn: configuration.$isOn) { configuration.label }
+                .toggleStyle(.switch)
+        }
     }
 }

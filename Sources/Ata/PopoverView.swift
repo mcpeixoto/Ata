@@ -36,6 +36,7 @@ struct PopoverView: View {
         VStack(alignment: .leading, spacing: 12) {
             header
             if let missing = setup.missingSummary { setupBanner(missing) }
+            UpdateBanner()
             if let err = store.lastError { errorBanner(err) }
             recordCard
             if !store.meetings.isEmpty { recent }
@@ -47,7 +48,7 @@ struct PopoverView: View {
         .onAppear { setup.refresh(); store.reload() }
     }
 
-    // MARK: Cabeçalho
+    // MARK: Header
 
     private var header: some View {
         HStack(spacing: 10) {
@@ -62,19 +63,21 @@ struct PopoverView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
-            .help("Definições")
+            .help("Settings")
         }
     }
 
     private var statusLine: String {
         switch store.phase {
-        case .starting: return "A preparar…"
-        case .recording: return "A gravar" + (store.currentApp.map { " · \($0)" } ?? "")
-        case .stopping: return "A terminar…"
+        case .starting: return L("Getting ready…")
+        case .recording: return L("Recording") + (store.currentApp.map { " · \($0)" } ?? "")
+        case .stopping: return L("Wrapping up…")
         case .idle:
-            if store.transcribingID != nil { return "A transcrever localmente…" }
-            if let app = store.detectedApp { return "Meeting detetada no \(app)" }
-            return "Pronta para gravar"
+            if store.transcribingID != nil {
+                return Engine.current.isLocal ? L("Transcribing on this Mac…") : L("Transcribing with OpenAI…")
+            }
+            if let app = store.detectedApp { return L("Meeting detected in %@", app) }
+            return L("Ready to record")
         }
     }
 
@@ -83,7 +86,7 @@ struct PopoverView: View {
             HStack(spacing: 8) {
                 Image(systemName: "wrench.and.screwdriver.fill").foregroundStyle(.orange)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Termina a configuração").font(.system(size: 12, weight: .semibold))
+                    Text("Finish setting up").font(.system(size: 12, weight: .semibold))
                     Text(text).font(.system(size: 11)).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -108,7 +111,7 @@ struct PopoverView: View {
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.red.opacity(0.10)))
     }
 
-    // MARK: Gravação
+    // MARK: Recording
 
     @ViewBuilder
     private var recordCard: some View {
@@ -131,13 +134,13 @@ struct PopoverView: View {
                 if let app = store.detectedApp {
                     HStack(spacing: 6) {
                         PulsingDot(color: .green)
-                        Text("Meeting no \(app)").font(.system(size: 13, weight: .semibold))
+                        Text(L("Meeting in %@", app)).font(.system(size: 13, weight: .semibold))
                     }
-                    Text("Carrega para gravar e transcrever.").font(.system(size: 11)).foregroundStyle(.secondary)
+                    Text("Hit record to capture and transcribe it.").font(.system(size: 11)).foregroundStyle(.secondary)
                 } else {
-                    Text(store.phase == .starting ? "A preparar…" : "Gravar meeting")
+                    Text(store.phase == .starting ? L("Getting ready…") : L("Record a meeting"))
                         .font(.system(size: 14, weight: .semibold))
-                    Text("O teu micro e o som do Mac. Funciona com qualquer app.")
+                    Text("Your microphone and your Mac's audio. Works with any app.")
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -151,11 +154,11 @@ struct PopoverView: View {
         )
     }
 
-    // MARK: Recentes
+    // MARK: Recent
 
     private var recent: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("RECENTES")
+            Text("RECENT")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .padding(.leading, 4)
@@ -167,22 +170,29 @@ struct PopoverView: View {
         }
     }
 
-    // MARK: Rodapé
+    // MARK: Footer
 
     private var footer: some View {
         HStack(spacing: 2) {
-            GhostButton(title: "Pasta", systemImage: "folder") {
+            GhostButton(title: L("Folder"), systemImage: "folder") {
                 NSWorkspace.shared.open(Paths.meetingsDir)
             }
             Spacer()
-            GhostButton(title: "Sair", systemImage: "power") {
+            Link(destination: CoffeeButton.donateURL) {
+                Image(systemName: "cup.and.saucer.fill").font(.system(size: 11))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help(L("Buy me a coffee"))
+            .padding(.horizontal, 8)
+            GhostButton(title: L("Quit"), systemImage: "power") {
                 NSApp.terminate(nil)
             }
         }
     }
 }
 
-/// Conteúdo do cartão durante a gravação.
+/// Card contents while recording.
 private struct RecordingContent: View {
     @EnvironmentObject var store: AppStore
     @State private var confirmDiscard = false
@@ -192,7 +202,7 @@ private struct RecordingContent: View {
             HStack(alignment: .firstTextBaseline) {
                 HStack(spacing: 6) {
                     PulsingDot()
-                    Text(store.phase == .stopping ? "A TERMINAR" : "A GRAVAR")
+                    Text(store.phase == .stopping ? L("WRAPPING UP") : L("RECORDING"))
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(.red)
                 }
@@ -203,9 +213,9 @@ private struct RecordingContent: View {
             }
 
             VStack(spacing: 8) {
-                meter(Pref.d.string(forKey: Pref.myName) ?? "Eu", icon: "mic.fill",
+                meter(Pref.d.string(forKey: Pref.myName) ?? L("Me"), icon: "mic.fill",
                       level: store.micLevel, tint: Theme.meTint)
-                meter("Outros", icon: "speaker.wave.2.fill", level: store.systemLevel, tint: Theme.othersTint)
+                meter(L("Others"), icon: "speaker.wave.2.fill", level: store.systemLevel, tint: Theme.othersTint)
             }
 
             if let w = store.warning {
@@ -220,7 +230,7 @@ private struct RecordingContent: View {
                 Button {
                     store.stopRecording()
                 } label: {
-                    Label("Parar e transcrever", systemImage: "stop.fill")
+                    Label("Stop and transcribe", systemImage: "stop.fill")
                         .font(.system(size: 13, weight: .semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
@@ -240,7 +250,7 @@ private struct RecordingContent: View {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { confirmDiscard = false }
                     }
                 } label: {
-                    Text(confirmDiscard ? "Apagar?" : "Descartar")
+                    Text(confirmDiscard ? "Delete?" : "Discard")
                         .font(.system(size: 12, weight: .medium))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
@@ -265,7 +275,7 @@ private struct RecordingContent: View {
     }
 }
 
-/// Uma meeting na lista de recentes.
+/// One meeting in the recent list.
 struct MeetingRow: View {
     @EnvironmentObject var store: AppStore
     let meeting: Meeting
@@ -295,9 +305,9 @@ struct MeetingRow: View {
 
     private var detail: String {
         switch meeting.status {
-        case .failed: return meeting.error ?? "Falhou"
-        case .pending: return "Na fila · \(meeting.subtitle)"
-        case .recording: return "A gravar…"
+        case .failed: return meeting.error ?? L("Failed")
+        case .pending: return L("Queued") + " · \(meeting.subtitle)"
+        case .recording: return L("Recording…")
         default: return meeting.subtitle
         }
     }
@@ -331,7 +341,7 @@ struct MeetingRow: View {
                     .frame(width: 28, alignment: .trailing)
             }
         } else if meeting.status == .failed && meeting.hasAudio {
-            Button("Tentar de novo") { store.retry(meeting) }
+            Button("Try again") { store.retry(meeting) }
                 .controlSize(.small)
         } else if meeting.status == .done && hover {
             Image(systemName: "arrow.up.forward.square").foregroundStyle(.secondary)
@@ -341,29 +351,74 @@ struct MeetingRow: View {
     @ViewBuilder
     private var menu: some View {
         if meeting.status == .done {
-            Button("Abrir transcrição") { open() }
-            Button("Copiar texto") { copy() }
+            Button("Open transcript") { open() }
+            Button("Copy text") { copy() }
         }
-        Button("Mostrar no Finder") { NSWorkspace.shared.activateFileViewerSelecting([meeting.dir]) }
+        Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([meeting.dir]) }
         if meeting.hasAudio && meeting.status != .transcribing && meeting.status != .recording {
-            Button("Transcrever de novo") { store.retry(meeting) }
+            Button("Transcribe again") { store.retry(meeting) }
         }
         Divider()
-        Button("Apagar", role: .destructive) { store.delete(meeting) }
+        Button("Delete", role: .destructive) { store.delete(meeting) }
             .disabled(meeting.status == .recording || isTranscribing)
     }
 
     private func open() {
-        if meeting.status == .done, FileManager.default.fileExists(atPath: meeting.transcriptURL.path) {
-            NSWorkspace.shared.open(meeting.transcriptURL)
+        if meeting.status == .done, let transcript = meeting.existingTranscriptURL {
+            NSWorkspace.shared.open(transcript)
         } else {
             NSWorkspace.shared.activateFileViewerSelecting([meeting.dir])
         }
     }
 
     private func copy() {
-        guard let text = try? String(contentsOf: meeting.transcriptURL, encoding: .utf8) else { return }
+        guard let url = meeting.existingTranscriptURL,
+              let text = try? String(contentsOf: url, encoding: .utf8) else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+    }
+}
+
+
+/// Offers the new version at the top of the menu once a check has found one.
+struct UpdateBanner: View {
+    @StateObject private var updater = Updater.shared
+
+    var body: some View {
+        switch updater.state {
+        case .available(let version, _):
+            row {
+                Image(systemName: "arrow.down.circle.fill").foregroundStyle(Color.accentColor)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(L("Ata %@ is available", version)).font(.system(size: 12, weight: .semibold))
+                    Text("Click to download and restart.").font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .onTapGesture { updater.installUpdate() }
+        case .downloading(let p):
+            row {
+                ProgressView(value: p).frame(width: 90)
+                Text(L("Downloading the update… %d%%", Int(p * 100)))
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                Spacer()
+            }
+        case .installing:
+            row {
+                ProgressView().controlSize(.small)
+                Text("Installing the update…").font(.system(size: 11)).foregroundStyle(.secondary)
+                Spacer()
+            }
+        default:
+            EmptyView()
+        }
+    }
+
+    private func row<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+        HStack(spacing: 8) { content() }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.accentColor.opacity(0.12)))
+            .contentShape(Rectangle())
     }
 }

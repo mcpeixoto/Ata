@@ -2,7 +2,7 @@ import AppKit
 import AVFoundation
 import SwiftUI
 
-/// Estado central da app: gravação, deteção de meetings, fila de transcrição e histórico.
+/// Central app state: recording, meeting detection, the transcription queue and the history.
 @MainActor
 final class AppStore: ObservableObject {
     static let shared = AppStore()
@@ -33,7 +33,7 @@ final class AppStore: ObservableObject {
 
     private init() {}
 
-    // MARK: - Arranque
+    // MARK: - Launch
 
     func bootstrap() {
         guard !bootstrapped else { return }
@@ -48,10 +48,12 @@ final class AppStore: ObservableObject {
         if Pref.d.bool(forKey: Pref.autoDetect) { detector.start() }
 
         recoverInterrupted()
+        pruneOldAudio()
         pump()
+        Updater.shared.checkInBackground()
     }
 
-    /// Gravações interrompidas (crash, falta de bateria, app fechada à força) voltam para a fila.
+    /// Interrupted recordings (crash, power loss, force quit) go back into the queue.
     private func recoverInterrupted() {
         for var m in Library.loadAll() {
             switch m.status {
@@ -61,7 +63,7 @@ final class AppStore: ObservableObject {
                 m.duration = max(d1, d2)
                 m.endedAt = m.endedAt ?? m.startedAt.addingTimeInterval(max(d1, d2))
                 m.status = m.hasAudio ? .pending : .failed
-                if !m.hasAudio { m.error = "Gravação vazia" }
+                if !m.hasAudio { m.error = L("Empty recording") }
                 Library.save(m)
             case .transcribing:
                 m.status = .pending
@@ -77,12 +79,32 @@ final class AppStore: ObservableObject {
         meetings = Library.loadAll()
     }
 
+    /// How much audio is being kept, for the Settings screen.
+    var storageText: String {
+        let bytes = meetings.reduce(Int64(0)) { $0 + $1.audioBytes }
+        guard bytes > 0 else { return L("nothing") }
+        return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    /// Deletes audio from meetings older than the retention window, keeping the
+    /// transcripts. Runs at launch; 0 means keep audio forever.
+    private func pruneOldAudio() {
+        let days = Pref.d.integer(forKey: Pref.audioRetentionDays)
+        guard days > 0 else { return }
+        let cutoff = Date().addingTimeInterval(-Double(days) * 86_400)
+        for m in Library.loadAll() where m.status == .done && m.startedAt < cutoff {
+            for url in [m.micAudioURL, m.systemAudioURL].compactMap({ $0 }) {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+    }
+
     func setAutoDetect(_ on: Bool) {
         Pref.d.set(on, forKey: Pref.autoDetect)
         if on { detector.start() } else { detector.stop(); detectedApp = nil }
     }
 
-    // MARK: - Deteção
+    // MARK: - Detection
 
     private func meetingStarted(_ app: String) {
         detectedApp = app
@@ -99,13 +121,13 @@ final class AppStore: ObservableObject {
     private func meetingEnded() {
         detectedApp = nil
         Notifier.shared.clear("detected")
-        // Só para quando também já não há som da meeting (ex.: alguém com o micro em mute não conta como fim).
+        // Only stop once the meeting audio has gone quiet too (a muted participant is not the end).
         if phase == .recording && Pref.d.bool(forKey: Pref.autoStop) && (autoStarted || current?.app != nil) {
             pendingAutoStop = true
         }
     }
 
-    // MARK: - Gravação
+    // MARK: - Recording
 
     var elapsed: TimeInterval { startedAt.map { now.timeIntervalSince($0) } ?? 0 }
 
@@ -130,7 +152,7 @@ final class AppStore: ObservableObject {
         guard phase == .idle else { return }
         setup.refresh()
         guard setup.mic || AVAuthorization.micUndetermined else {
-            lastError = "Dá acesso ao microfone para gravar."
+            lastError = L("Grant microphone access to record.")
             WindowManager.shared.showOnboarding()
             return
         }
@@ -174,7 +196,7 @@ final class AppStore: ObservableObject {
             m.endedAt = Date()
             m.duration = duration
             m.status = m.hasAudio ? .pending : .failed
-            if !m.hasAudio { m.error = "Gravação vazia" }
+            if !m.hasAudio { m.error = L("Empty recording") }
             Library.save(m)
             current = nil
             startedAt = nil
@@ -186,7 +208,7 @@ final class AppStore: ObservableObject {
         }
     }
 
-    /// Para e apaga a gravação atual.
+    /// Stops and deletes the current recording.
     func discardRecording() {
         guard phase == .recording, let m = current else { return }
         phase = .stopping
@@ -203,7 +225,7 @@ final class AppStore: ObservableObject {
         }
     }
 
-    /// Chamado ao sair da app: fecha os ficheiros para a gravação ser transcrita no próximo arranque.
+    /// Called when the app quits: closes the files so the recording is transcribed on next launch.
     func prepareForQuit() async {
         if phase == .recording, var m = current {
             let duration = await recorder.stop()
@@ -212,7 +234,7 @@ final class AppStore: ObservableObject {
             m.status = .pending
             Library.save(m)
         }
-        Transcriber.currentProcess?.terminate()
+        LocalEngine.currentProcess?.terminate()
     }
 
     private func startTicker() {
@@ -240,7 +262,7 @@ final class AppStore: ObservableObject {
         systemLevel = 0
     }
 
-    // MARK: - Fila de transcrição
+    // MARK: - Transcription queue
 
     func retry(_ m: Meeting) {
         var m = m
@@ -258,13 +280,23 @@ final class AppStore: ObservableObject {
         reload()
     }
 
-    /// Transcreve a próxima meeting pendente (a mais antiga primeiro), uma de cada vez.
+    /// Transcribes the next pending meeting (oldest first), one at a time.
     private func pump() {
         guard transcribingID == nil else { return }
         guard var m = Library.loadAll().last(where: { $0.status == .pending }) else { return }
-        guard setup.whisper && setup.model else {
-            setup.refresh()
-            return // fica na fila até o setup estar completo
+
+        let options = TranscribeOptions.current()
+        switch options.engine {
+        case .local:
+            guard setup.whisper && setup.model else {
+                setup.refresh()
+                return // stays queued until the local engine is installed
+            }
+        case .openAI:
+            guard Keychain.has(Keychain.openAIKey) else {
+                lastError = L("No OpenAI API key. Add one in Settings → Transcription.")
+                return // stays queued until a key is available
+            }
         }
 
         transcribingID = m.id
@@ -274,21 +306,16 @@ final class AppStore: ObservableObject {
         reload()
         let job = m
 
-        let name = Pref.d.string(forKey: Pref.myName) ?? "Eu"
-        let lang = Pref.d.string(forKey: Pref.language) ?? "auto"
         Task {
             var m = job
             do {
-                _ = try await Transcriber.transcribe(m, myName: name, language: lang) { p in
+                _ = try await Transcriber.transcribe(m, options: options) { p in
                     Task { @MainActor in AppStore.shared.transcribeProgress = p }
                 }
                 m.status = .done
                 m.error = nil
-                if !Pref.d.bool(forKey: Pref.keepAudio) {
-                    try? FileManager.default.removeItem(at: m.micURL)
-                    try? FileManager.default.removeItem(at: m.systemURL)
-                }
                 Library.save(m)
+                await self.handleAudio(of: m)
                 Notifier.shared.transcriptReady(m)
             } catch {
                 m.status = .failed
@@ -303,10 +330,53 @@ final class AppStore: ObservableObject {
         }
     }
 
-    /// Quando o setup fica completo, processar o que estiver na fila.
+    /// After a successful transcript: keep the audio (the default) and compress
+    /// it, or delete it if the user asked for that.
+    private func handleAudio(of m: Meeting) async {
+        guard Pref.d.bool(forKey: Pref.keepAudio) else {
+            try? FileManager.default.removeItem(at: m.micURL)
+            try? FileManager.default.removeItem(at: m.systemURL)
+            return
+        }
+        guard Pref.d.bool(forKey: Pref.compressAudio) else { return }
+        for wav in [m.micURL, m.systemURL] where Paths.fileSize(wav) > 44 {
+            await AudioFiles.compressToM4A(wav)
+        }
+    }
+
+    /// Once setup is complete, work through whatever is queued.
     func setupChanged() {
         setup.refresh()
         pump()
+    }
+}
+
+extension AppStore {
+    /// Puts the store into a fixed state for the snapshot renderer. Nothing is
+    /// recorded and no engine runs; only what the views read is set.
+    func applySnapshotFixture(recordingApp: String?, elapsed: TimeInterval, mic: Float, system: Float,
+                              transcribingID: String?, progress: Double) {
+        ticker?.invalidate()
+        let now = Date()
+        self.now = now
+        if let recordingApp {
+            current = Meeting(id: "snapshot", startedAt: now.addingTimeInterval(-elapsed), endedAt: nil,
+                              duration: nil, app: recordingApp, status: .recording, error: nil)
+            startedAt = now.addingTimeInterval(-elapsed)
+            phase = .recording
+        } else {
+            current = nil
+            startedAt = nil
+            phase = .idle
+        }
+        micLevel = mic
+        systemLevel = system
+        self.transcribingID = transcribingID
+        transcribeProgress = progress
+        detectedApp = nil
+        warning = nil
+        lastError = nil
+        meetings = Library.loadAll()
     }
 }
 

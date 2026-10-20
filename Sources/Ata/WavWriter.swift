@@ -1,13 +1,13 @@
 import AVFoundation
 
-/// Escreve uma pista em WAV 16 kHz mono 16-bit (o formato nativo do Whisper).
+/// Writes one track as 16 kHz mono 16-bit WAV (Whisper's native format).
 ///
-/// Pensado para nunca perder uma gravação:
-///  - aceita qualquer formato de entrada e converte-o; se o formato mudar a meio
-///    (ex.: ligaste os AirPods), cria um novo conversor e continua no mesmo ficheiro;
-///  - preenche buracos com silêncio, para as duas pistas ficarem alinhadas no tempo;
-///  - atualiza o cabeçalho WAV a cada poucos segundos, por isso mesmo que a app
-///    crashe ou o Mac desligue, o ficheiro fica legível (e é reparado no arranque).
+/// Designed never to lose a recording:
+///  - accepts any input format and converts it; if the format changes mid-stream
+///    (you plugged in AirPods), it builds a new converter and keeps writing the same file;
+///  - fills gaps with silence, so the two tracks stay aligned in time;
+///  - rewrites the WAV header every few seconds, so even if the app crashes or the
+///    Mac loses power the file stays readable (and is repaired on next launch).
 final class WavWriter: @unchecked Sendable {
     static let sampleRate: Double = 16_000
     static let outFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16_000,
@@ -33,9 +33,9 @@ final class WavWriter: @unchecked Sendable {
         try handle.seekToEnd()
     }
 
-    // MARK: Estado (thread-safe)
+    // MARK: State (thread-safe)
 
-    /// Nível atual 0…1 para os medidores da interface.
+    /// Current level 0…1 for the UI meters.
     var level: Float {
         lock.lock(); defer { lock.unlock() }
         return Date().timeIntervalSince(_lastBufferAt) > 0.5 ? 0 : _level
@@ -44,12 +44,12 @@ final class WavWriter: @unchecked Sendable {
     var lastBufferAt: Date { lock.lock(); defer { lock.unlock() }; return _lastBufferAt }
     var duration: Double { lock.lock(); defer { lock.unlock() }; return Double(frames) / Self.sampleRate }
 
-    /// Considera que houve "pausa" desde agora (evita falsos alarmes do watchdog após reiniciar).
+    /// Treats now as the last buffer time (avoids false watchdog alarms right after a restart).
     func touch() { lock.lock(); _lastBufferAt = Date(); lock.unlock() }
 
-    // MARK: Escrita
+    // MARK: Writing
 
-    /// `hostSeconds`: instante (relógio do host) do primeiro sample do buffer, se conhecido.
+    /// `hostSeconds`: host-clock time of the buffer's first sample, when known.
     func append(_ buffer: AVAudioPCMBuffer, hostSeconds: Double?) {
         lock.lock(); defer { lock.unlock() }
         guard !closed, buffer.frameLength > 0, buffer.format.sampleRate > 0 else { return }
@@ -81,7 +81,7 @@ final class WavWriter: @unchecked Sendable {
         }
         guard status != .error, out.frameLength > 0, let samples = out.int16ChannelData else { return }
 
-        // Alinhar no tempo: se faltou áudio (ex.: o micro reiniciou), preencher com silêncio.
+        // Keep the timeline aligned: if audio went missing (the mic restarted), pad with silence.
         if let t = hostSeconds {
             let target = Int64((t - startHostSeconds) * Self.sampleRate)
             let gap = target - frames
@@ -95,7 +95,7 @@ final class WavWriter: @unchecked Sendable {
             try handle.write(contentsOf: Data(bytes: samples[0], count: n * 2))
             frames += Int64(n)
         } catch {
-            NSLog("Ata: erro a escrever \(url.lastPathComponent): \(error)")
+            NSLog("Ata: could not write \(url.lastPathComponent): \(error)")
         }
 
         if Date().timeIntervalSince(lastHeaderUpdate) > 3 {
@@ -131,12 +131,12 @@ final class WavWriter: @unchecked Sendable {
             try handle.write(contentsOf: Self.header(dataBytes: dataBytes))
             try handle.seekToEnd()
         } catch {
-            NSLog("Ata: erro a atualizar cabeçalho: \(error)")
+            NSLog("Ata: could not update the WAV header: \(error)")
         }
         lastHeaderUpdate = Date()
     }
 
-    // MARK: Utilitários
+    // MARK: Utilities
 
     static func header(dataBytes: UInt32) -> Data {
         var d = Data()
@@ -149,7 +149,7 @@ final class WavWriter: @unchecked Sendable {
         return d
     }
 
-    /// Corrige o cabeçalho de um WAV que ficou a meio (crash, falta de energia…).
+    /// Repairs the header of a WAV left half-written (crash, power loss…).
     @discardableResult
     static func repairHeader(_ url: URL) -> Double {
         let size = Paths.fileSize(url)
@@ -161,13 +161,13 @@ final class WavWriter: @unchecked Sendable {
         return Double(dataBytes) / 2 / sampleRate
     }
 
-    /// Duração (s) a partir do tamanho do ficheiro.
+    /// Duration (s) from the file size.
     static func duration(of url: URL) -> Double {
         let size = Paths.fileSize(url)
         return size > 44 ? Double(size - 44) / 2 / sampleRate : 0
     }
 
-    /// RMS do primeiro canal, convertido para uma escala 0…1 (≈ -50 dB … 0 dB).
+    /// RMS of the first channel, mapped to a 0…1 scale (≈ -50 dB … 0 dB).
     private static func meterLevel(_ buffer: AVAudioPCMBuffer) -> Float {
         guard let ch = buffer.floatChannelData else { return 0 }
         let n = Int(buffer.frameLength)
