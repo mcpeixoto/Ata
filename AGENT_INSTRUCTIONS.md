@@ -133,7 +133,9 @@ staples, and publishes `Ata-<version>.dmg` + `.zip` to a GitHub release. The in-
 reads that release, so the tag is the whole deploy.
 
 Required repo secrets: `MACOS_CERTIFICATE` (base64 p12), `MACOS_CERTIFICATE_PWD`,
-`AC_API_KEY` (base64 .p8), `AC_API_KEY_ID`, `AC_API_ISSUER_ID`.
+`AC_API_KEY` (base64 .p8), `AC_API_KEY_ID`, `AC_API_ISSUER_ID`. `./scripts/setup-release-secrets.sh`
+sets all five from the local keychain and an App Store Connect key — the user runs it, not an
+agent, since it exports a private signing key.
 
 ## Live check
 

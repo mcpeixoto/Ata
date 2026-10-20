@@ -121,6 +121,8 @@ Issues and pull requests are welcome. Two things to know:
 
 - `./scripts/build-app.sh` assembles the app bundle; CI runs the same script, so if it works
   for you it works there.
+- `./scripts/setup-release-secrets.sh` configures the five signing secrets a fork needs to
+  publish its own notarized builds.
 - UI strings live in `Resources/en.lproj` and `Resources/pt.lproj`, with the English text as
   the key. `./scripts/check-localization.sh` fails if the two drift apart — CI runs it.
 
