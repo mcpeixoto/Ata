@@ -13,7 +13,14 @@ enum Paths {
         return home.appendingPathComponent("Documents/Meetings", isDirectory: true)
     }()
 
-    static let supportDir = home.appendingPathComponent("Library/Application Support/Ata", isDirectory: true)
+    /// Models and voice data. `ATA_SUPPORT_DIR` points it elsewhere, so tests
+    /// and development never touch the real library.
+    static let supportDir: URL = {
+        if let custom = ProcessInfo.processInfo.environment["ATA_SUPPORT_DIR"], !custom.isEmpty {
+            return URL(fileURLWithPath: custom, isDirectory: true)
+        }
+        return home.appendingPathComponent("Library/Application Support/Ata", isDirectory: true)
+    }()
     static let modelsDir = supportDir.appendingPathComponent("models", isDirectory: true)
     /// Voice fingerprints and samples. Never uploaded.
     static let voicesDir = supportDir.appendingPathComponent("voices", isDirectory: true)

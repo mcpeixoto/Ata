@@ -206,12 +206,13 @@
 "The transcription model has not been downloaded yet." = "O modelo de transcrição ainda não foi descarregado.";
 "No audio was found for this meeting." = "Não encontrei áudio desta meeting.";
 "Whisper failed: %@" = "O Whisper falhou: %@";
+"Speaker %@" = "Pessoa %@";
 "Duration: %d min" = "Duração: %d min";
-"Participants: %@, %@" = "Participantes: %@, %@";
+"Participants: %@" = "Participantes: %@";
+"Summary" = "Resumo";
 "_No speech was detected in this recording._" = "_Não foi detetada fala nesta gravação._";
 "Transcribed locally by Ata (%@)." = "Transcrito localmente pela Ata (%@).";
 "Transcribed by Ata with OpenAI (%@)." = "Transcrito pela Ata com a OpenAI (%@).";
-"Summary" = "Resumo";
 "Could not reach the update server (HTTP %d)." = "Não consegui falar com o servidor de atualizações (HTTP %d).";
 "The download did not contain an app." = "O download não trazia nenhuma app.";
 "The downloaded update is not notarized by Apple. Nothing was installed." = "A atualização descarregada não está notarizada pela Apple. Não foi instalado nada.";

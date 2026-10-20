@@ -209,10 +209,12 @@ swift test
 ```
 
 `swift test` covers pricing, version comparison, echo removal, talk time, WAV splitting,
-transcript versioning, backfill and insights; tests that touch disk work under
-`ATA_MEETINGS_DIR` in a temp folder. Anything touching recording or transcription also needs a run
+transcript versioning, backfill, insights, voice matching and re-rendering; tests that
+touch disk set `ATA_MEETINGS_DIR` and `ATA_SUPPORT_DIR` to a temp folder and refuse to run
+otherwise. **Never construct `VoiceLibrary()` or touch `Paths` in a test without them** — one
+early test wrote into the real voice library before this guard existed. Anything touching recording or transcription also needs a run
 of the real app — against a scratch folder, never the user's real meetings:
-`ATA_MEETINGS_DIR=/tmp/ata-dev open build/Ata.app`, record a few seconds, and confirm a
+`ATA_MEETINGS_DIR=/tmp/ata-dev ATA_SUPPORT_DIR=/tmp/ata-dev-support open build/Ata.app`, record a few seconds, and confirm a
 transcript appears there.
 
 Any UI change: run `./scripts/snapshots.sh`, **look at** the regenerated `docs/images/*.png`

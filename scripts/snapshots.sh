@@ -36,6 +36,7 @@ LOG="$FIXTURES/snapshots.log"
 WATCHDOG=$!
 open -n -W build/Ata.app \
   --env ATA_MEETINGS_DIR="$FIXTURES" \
+  --env ATA_SUPPORT_DIR="$FIXTURES/support" \
   --stdout "$LOG" --stderr "$LOG" \
   --args --snapshots "$RENDER" \
   -AppleLanguages '(en)' -AppleLocale en_US \

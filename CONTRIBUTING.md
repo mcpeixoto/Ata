@@ -23,8 +23,11 @@ end to end.
 **Keep your real meetings out of it.** Point the app at a scratch folder while you develop:
 
 ```bash
-ATA_MEETINGS_DIR=/tmp/ata-dev open build/Ata.app
+ATA_MEETINGS_DIR=/tmp/ata-dev ATA_SUPPORT_DIR=/tmp/ata-dev-support open build/Ata.app
 ```
+
+`ATA_SUPPORT_DIR` moves the models and the voice library too — you'll need to download a model
+into it once.
 
 macOS ties the microphone and system-audio permissions to the app's signature, and an ad-hoc
 signature changes on every build — so expect to re-grant system audio now and then. That's normal.

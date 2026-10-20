@@ -70,6 +70,60 @@ struct TranscribeOptions {
     }
 }
 
+/// The transcript as data: segments with speaker *labels* rather than names,
+/// saved as transcript.json next to transcript.md so the Markdown can be
+/// redrawn when a voice gets a name, without transcribing again.
+struct StoredTranscript: Codable, Equatable {
+    struct Line: Codable, Equatable {
+        var start: Int // ms
+        var end: Int   // ms
+        var text: String
+        /// `Speakers.me`, `Speakers.others`, or a diarized label like "S1".
+        var speaker: String
+    }
+
+    var segments: [Line]
+    var coarse: Bool
+    var summary: String?
+    var engine: String
+    var model: String
+
+    func save(to url: URL) throws {
+        let e = JSONEncoder()
+        e.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try e.encode(self).write(to: url, options: .atomic)
+    }
+
+    static func load(from url: URL) -> StoredTranscript? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode(StoredTranscript.self, from: data)
+    }
+}
+
+/// Speaker labels and how they become names.
+enum Speakers {
+    static let me = "me"
+    static let others = "others"
+
+    /// Label → name for one meeting: you, a named voice, "Speaker 2", or "Others".
+    static func names(for meeting: Meeting, myName: String) -> (String) -> String {
+        let map = MeetingVoices.load(for: meeting)
+        let library = map == nil ? nil : VoiceLibrary()
+        return { label in
+            switch label {
+            case me: return myName
+            case others: return L("Others")
+            default:
+                if let id = map?.speakers.first(where: { $0.label == label })?.voiceID,
+                   let name = library?.voice(id)?.name {
+                    return name
+                }
+                return L("Speaker %@", String(label.drop { !$0.isNumber }))
+            }
+        }
+    }
+}
+
 /// What a finished run produced: its record, and where the transcript it
 /// replaced was moved, if there was one.
 struct TranscriptionOutcome {
@@ -83,7 +137,6 @@ enum Transcriber {
     static func transcribe(_ meeting: Meeting, options: TranscribeOptions,
                            progress: @escaping @Sendable (Double) -> Void) async throws -> TranscriptionOutcome {
         let started = Date()
-        let others = L("Others")
 
         // Only tracks with at least ~0.5 s of audio are worth sending to an engine.
         var prepared: [(speaker: String, audio: URL, temporary: Bool)] = []
@@ -92,7 +145,7 @@ enum Transcriber {
                 try? FileManager.default.removeItem(at: track.audio)
             }
         }
-        for (speaker, source) in [(options.myName, meeting.micAudioURL), (others, meeting.systemAudioURL)] {
+        for (speaker, source) in [(Speakers.me, meeting.micAudioURL), (Speakers.others, meeting.systemAudioURL)] {
             guard let source, Paths.fileSize(source) > 1_000 else { continue }
             if source.pathExtension.lowercased() == "wav" {
                 prepared.append((speaker, source, false))
@@ -133,28 +186,30 @@ enum Transcriber {
         // Echo removal compares what both tracks said at the same moment, so it
         // needs real timestamps.
         if !coarse {
-            segments = removeEcho(segments, me: options.myName)
+            segments = removeEcho(segments, me: Speakers.me)
         }
 
-        var md = render(segments, meeting: meeting, options: options, coarse: coarse)
+        var stored = StoredTranscript(
+            segments: segments.map { StoredTranscript.Line(start: $0.start, end: $0.end, text: $0.text, speaker: $0.speaker) },
+            coarse: coarse, summary: nil, engine: options.engine.rawValue, model: options.modelID)
 
         var cost = options.engine.isLocal ? 0 : Pricing.transcription(model: options.openAIModel,
                                                                        seconds: audioSeconds)
         if options.summarize, !segments.isEmpty {
-            if let summary = await Summarizer.summarize(markdown: md, options: options) {
-                md = insertSummary(summary.text, into: md)
+            let draft = render(stored, meeting: meeting, names: Speakers.names(for: meeting, myName: options.myName))
+            if let summary = await Summarizer.summarize(markdown: draft, options: options) {
+                stored.summary = summary.text
                 cost += summary.costUSD
             }
         }
-        // No summary (disabled, or the call failed): leave no marker behind.
-        md = md.replacingOccurrences(of: summaryPlaceholder + "\n\n", with: "")
-            .replacingOccurrences(of: summaryPlaceholder, with: "")
+        let md = render(stored, meeting: meeting, names: Speakers.names(for: meeting, myName: options.myName))
 
         // Never overwrite an earlier transcript: move it into versions/ first.
         let archived = try archivePrevious(of: meeting)
         try md.write(to: meeting.transcriptURL, atomically: true, encoding: .utf8)
+        try stored.save(to: meeting.storedTranscriptURL)
 
-        let talk = talkTime(segments, me: options.myName, coarse: coarse)
+        let talk = talkTime(segments, me: Speakers.me, coarse: coarse)
         let record = TranscriptionRecord(
             engine: options.engine.rawValue,
             model: options.modelID,
@@ -248,13 +303,13 @@ enum Transcriber {
 
     // MARK: - Markdown
 
-    private static func render(_ segments: [Segment], meeting: Meeting,
-                               options: TranscribeOptions, coarse: Bool) -> String {
-        var blocks: [Segment] = []
-        for s in segments.sorted(by: { $0.start < $1.start }) {
+    /// Markdown for a stored transcript, with speaker labels turned into names.
+    static func render(_ t: StoredTranscript, meeting: Meeting, names: (String) -> String) -> String {
+        var blocks: [StoredTranscript.Line] = []
+        for s in t.segments.sorted(by: { $0.start < $1.start }) {
             if let last = blocks.last, last.speaker == s.speaker, s.start - last.end < 2_500 {
-                blocks[blocks.count - 1] = Segment(speaker: last.speaker, start: last.start,
-                                                   end: s.end, text: last.text + " " + s.text)
+                blocks[blocks.count - 1] = .init(start: last.start, end: s.end,
+                                                 text: last.text + " " + s.text, speaker: last.speaker)
             } else {
                 blocks.append(s)
             }
@@ -270,33 +325,37 @@ enum Transcriber {
         if let d = meeting.duration {
             info.append(L("Duration: %d min", max(1, Int((d / 60).rounded()))))
         }
-        info.append(L("Participants: %@, %@", options.myName, L("Others")))
-        md += info.joined(separator: " · ") + "\n\n" + summaryPlaceholder + "\n\n---\n\n"
+        var people: [String] = [names(Speakers.me)]
+        for b in blocks where !people.contains(names(b.speaker)) { people.append(names(b.speaker)) }
+        if people.count == 1 { people.append(names(Speakers.others)) }
+        info.append(L("Participants: %@", people.joined(separator: ", ")))
+        md += info.joined(separator: " · ") + "\n\n"
+        if let summary = t.summary {
+            md += "## " + L("Summary") + "\n\n" + summary + "\n\n"
+        }
+        md += "---\n\n"
 
         if blocks.isEmpty {
             md += L("_No speech was detected in this recording._") + "\n"
         }
         for b in blocks {
-            md += coarse
-                ? "**\(b.speaker):** \(b.text)\n\n"
-                : "**[\(timestamp(b.start))] \(b.speaker):** \(b.text)\n\n"
+            md += t.coarse
+                ? "**\(names(b.speaker)):** \(b.text)\n\n"
+                : "**[\(timestamp(b.start))] \(names(b.speaker)):** \(b.text)\n\n"
         }
         md += "---\n"
-        md += options.engine.isLocal
-            ? "_" + L("Transcribed locally by Ata (%@).", options.localModel) + "_\n"
-            : "_" + L("Transcribed by Ata with OpenAI (%@).", options.openAIModel) + "_\n"
+        md += t.engine == Engine.local.rawValue
+            ? "_" + L("Transcribed locally by Ata (%@).", t.model) + "_\n"
+            : "_" + L("Transcribed by Ata with OpenAI (%@).", t.model) + "_\n"
         return md
     }
 
-    /// Marker that `insertSummary` replaces, so the summary lands above the transcript.
-    private static let summaryPlaceholder = "<!-- ata:summary -->"
-
-    private static func insertSummary(_ summary: String, into markdown: String) -> String {
-        let block = "## " + L("Summary") + "\n\n" + summary
-        if markdown.contains(summaryPlaceholder) {
-            return markdown.replacingOccurrences(of: summaryPlaceholder, with: block)
-        }
-        return markdown + "\n\n" + block + "\n"
+    /// Writes transcript.md again from transcript.json — after a voice is named,
+    /// for instance. Same transcription, new names, so nothing is archived.
+    static func rerender(_ meeting: Meeting, myName: String) throws {
+        guard let stored = StoredTranscript.load(from: meeting.storedTranscriptURL) else { return }
+        let md = render(stored, meeting: meeting, names: Speakers.names(for: meeting, myName: myName))
+        try md.write(to: meeting.transcriptURL, atomically: true, encoding: .utf8)
     }
 
     private static func timestamp(_ ms: Int) -> String {

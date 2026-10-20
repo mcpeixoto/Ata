@@ -234,3 +234,21 @@ enum SpeakerAssignment {
         t.end < start ? start - t.end : (t.start > end ? t.start - end : 0)
     }
 }
+
+/// speakers.json in a meeting folder: the diarized speakers of the system
+/// track, when they spoke, and which voice each one was matched to.
+struct MeetingVoices: Codable, Equatable {
+    var speakers: [MeetingSpeaker]
+    var turns: [SpeakerTurn]
+
+    static func load(for meeting: Meeting) -> MeetingVoices? {
+        guard let data = try? Data(contentsOf: meeting.speakersURL) else { return nil }
+        return try? JSONDecoder().decode(MeetingVoices.self, from: data)
+    }
+
+    func save(for meeting: Meeting) throws {
+        let e = JSONEncoder()
+        e.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try e.encode(self).write(to: meeting.speakersURL, options: .atomic)
+    }
+}

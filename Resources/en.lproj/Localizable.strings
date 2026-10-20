@@ -206,12 +206,13 @@
 "The transcription model has not been downloaded yet." = "The transcription model has not been downloaded yet.";
 "No audio was found for this meeting." = "No audio was found for this meeting.";
 "Whisper failed: %@" = "Whisper failed: %@";
+"Speaker %@" = "Speaker %@";
 "Duration: %d min" = "Duration: %d min";
-"Participants: %@, %@" = "Participants: %@, %@";
+"Participants: %@" = "Participants: %@";
+"Summary" = "Summary";
 "_No speech was detected in this recording._" = "_No speech was detected in this recording._";
 "Transcribed locally by Ata (%@)." = "Transcribed locally by Ata (%@).";
 "Transcribed by Ata with OpenAI (%@)." = "Transcribed by Ata with OpenAI (%@).";
-"Summary" = "Summary";
 "Could not reach the update server (HTTP %d)." = "Could not reach the update server (HTTP %d).";
 "The download did not contain an app." = "The download did not contain an app.";
 "The downloaded update is not notarized by Apple. Nothing was installed." = "The downloaded update is not notarized by Apple. Nothing was installed.";
