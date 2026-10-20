@@ -22,6 +22,9 @@ struct SettingsView: View {
 
     @State private var apiKey = ""
 
+    /// The window's height. Only the snapshot renderer asks for a taller one.
+    var height: CGFloat = 660
+
     private var usesOpenAI: Bool { engine == Engine.openAI.rawValue }
 
     var body: some View {
@@ -36,8 +39,9 @@ struct SettingsView: View {
                 aboutSection
             }
             .formStyle(.grouped)
+            .toggleStyle(AppSwitchStyle())
         }
-        .frame(width: 540, height: 660)
+        .frame(width: 540, height: height)
         .onAppear {
             setup.refresh()
             apiKey = Keychain.has(Keychain.openAIKey) ? Self.keyPlaceholder : ""

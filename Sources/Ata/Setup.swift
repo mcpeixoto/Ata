@@ -14,7 +14,7 @@ final class SetupModel: ObservableObject {
     @Published private(set) var notifications = false
     @Published private(set) var launchAtLogin = false
 
-    @Published private(set) var downloadProgress: Double? // nil = sem download em curso
+    @Published private(set) var downloadProgress: Double? // nil = no download running
     @Published private(set) var downloadError: String?
     @Published private(set) var installingWhisper = false
     @Published private(set) var whisperStatus: String?
@@ -52,7 +52,12 @@ final class SetupModel: ObservableObject {
 
     private var downloader: Downloader?
 
+    /// Set by the snapshot renderer so the screenshots show a finished setup
+    /// instead of whatever this machine happens to have granted.
+    static var frozen = false
+
     func refresh() {
+        guard !Self.frozen else { return }
         mic = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         screen = CGPreflightScreenCaptureAccess()
         whisper = Paths.whisperCLI() != nil
@@ -64,6 +69,14 @@ final class SetupModel: ObservableObject {
             let s = await UNUserNotificationCenter.current().notificationSettings()
             self.notifications = s.authorizationStatus == .authorized || s.authorizationStatus == .provisional
         }
+    }
+
+    /// Everything installed and granted, for the snapshot renderer.
+    func applySnapshotFixture() {
+        mic = true; screen = true; whisper = true; model = true
+        notifications = true; launchAtLogin = true
+        usesOpenAI = false; hasOpenAIKey = true
+        Self.frozen = true
     }
 
     // MARK: Permissions

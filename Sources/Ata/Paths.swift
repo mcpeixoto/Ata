@@ -3,8 +3,15 @@ import Foundation
 enum Paths {
     static let home = FileManager.default.homeDirectoryForCurrentUser
 
-    /// Cada meeting fica numa pasta própria: ~/Documents/Meetings/<data>/
-    static let meetingsDir = home.appendingPathComponent("Documents/Meetings", isDirectory: true)
+    /// Each meeting gets its own folder: ~/Documents/Meetings/<date>/
+    /// `ATA_MEETINGS_DIR` points it elsewhere, for development and for the
+    /// README screenshots, which must never show anyone's real meetings.
+    static let meetingsDir: URL = {
+        if let custom = ProcessInfo.processInfo.environment["ATA_MEETINGS_DIR"], !custom.isEmpty {
+            return URL(fileURLWithPath: custom, isDirectory: true)
+        }
+        return home.appendingPathComponent("Documents/Meetings", isDirectory: true)
+    }()
 
     static let supportDir = home.appendingPathComponent("Library/Application Support/Ata", isDirectory: true)
     static let modelsDir = supportDir.appendingPathComponent("models", isDirectory: true)
@@ -15,7 +22,7 @@ enum Paths {
     static let whisperModelURL = URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin")!
     static let vadModelURL = URL(string: "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin")!
 
-    /// O modelo turbo tem ~1.6 GB; abaixo disto o ficheiro está incompleto.
+    /// The turbo model is ~1.6 GB; anything smaller is an incomplete download.
     static let whisperModelMinBytes: Int64 = 1_400_000_000
 
     static func whisperCLI() -> URL? {

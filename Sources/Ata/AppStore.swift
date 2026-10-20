@@ -351,6 +351,35 @@ final class AppStore: ObservableObject {
     }
 }
 
+extension AppStore {
+    /// Puts the store into a fixed state for the snapshot renderer. Nothing is
+    /// recorded and no engine runs; only what the views read is set.
+    func applySnapshotFixture(recordingApp: String?, elapsed: TimeInterval, mic: Float, system: Float,
+                              transcribingID: String?, progress: Double) {
+        ticker?.invalidate()
+        let now = Date()
+        self.now = now
+        if let recordingApp {
+            current = Meeting(id: "snapshot", startedAt: now.addingTimeInterval(-elapsed), endedAt: nil,
+                              duration: nil, app: recordingApp, status: .recording, error: nil)
+            startedAt = now.addingTimeInterval(-elapsed)
+            phase = .recording
+        } else {
+            current = nil
+            startedAt = nil
+            phase = .idle
+        }
+        micLevel = mic
+        systemLevel = system
+        self.transcribingID = transcribingID
+        transcribeProgress = progress
+        detectedApp = nil
+        warning = nil
+        lastError = nil
+        meetings = Library.loadAll()
+    }
+}
+
 enum AVAuthorization {
     static var micUndetermined: Bool {
         AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined

@@ -22,6 +22,10 @@ struct AtaApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if Snapshots.requested {
+            Snapshots.run()
+            return
+        }
         Notifier.shared.setUp()
         let store = AppStore.shared
         store.bootstrap()

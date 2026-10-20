@@ -1,31 +1,77 @@
 <div align="center">
 
-# Ata
+<img src="docs/images/banner.png" alt="Ata — record and transcribe any meeting from your Mac's menu bar" width="100%">
 
-**Record and transcribe any meeting on your Mac — Slack, Zoom, Meet, Teams, FaceTime, the browser, anything.**
-
-A menu bar app for macOS 14+ on Apple Silicon. It records your microphone and your Mac's
-system audio as two separate tracks, then transcribes them — locally with Whisper, or with
-the OpenAI API if you'd rather not download a model.
+<br>
 
 [![CI](https://github.com/mcpeixoto/Ata/actions/workflows/ci.yml/badge.svg)](https://github.com/mcpeixoto/Ata/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/github/v/release/mcpeixoto/Ata?label=download)](https://github.com/mcpeixoto/Ata/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/mcpeixoto/Ata?label=download&color=7c4dff)](https://github.com/mcpeixoto/Ata/releases/latest)
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black?logo=apple)
+![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-arm64-black)
+![Swift 5.9](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Buy me a coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/mcpeixoto)
+
+**Ata** is a tiny menu bar app that records your meetings — Slack, Zoom, Meet, Teams, FaceTime,
+anything in the browser — and turns them into clean Markdown transcripts.
+On your Mac with Whisper, or through the OpenAI API. Your call.
+
+[**Download**](https://github.com/mcpeixoto/Ata/releases/latest) ·
+[How it works](docs/ARCHITECTURE.md) ·
+[Contributing](CONTRIBUTING.md) ·
+[Changelog](CHANGELOG.md)
 
 </div>
 
 ---
 
+<table>
+<tr>
+<td width="50%" align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/menu-recording-dark.png">
+  <img src="docs/images/menu-recording-light.png" alt="Ata mid-meeting: timer, live levels for you and the others" width="100%">
+</picture>
+<br><sub><b>Mid-meeting.</b> Live levels for you and for everyone else, so you know both sides are being captured.</sub>
+</td>
+<td width="50%" align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/menu-idle-dark.png">
+  <img src="docs/images/menu-idle-light.png" alt="Ata idle: record button and recent meetings, one transcribing" width="100%">
+</picture>
+<br><sub><b>After.</b> Transcription runs in the background; recent meetings are one click away.</sub>
+</td>
+</tr>
+</table>
+
+## Why Ata
+
+- **Works with every meeting app.** It records your microphone and your Mac's own audio, so there's
+  no bot joining the call and no per-app integration to break.
+- **Private by default.** The default engine is whisper.cpp on your GPU — the audio never leaves
+  your Mac. No account, no telemetry, no server.
+- **Or zero setup.** Prefer not to download a 1.6 GB model? Paste an OpenAI key and you're done.
+- **Notices the meeting for you.** When Zoom or Slack grabs the mic, Ata asks if it should record —
+  or just starts, if you tell it to.
+- **Summaries, if you want them.** Overview, decisions, action items and open questions, above the
+  transcript.
+- **Hard to lose a recording.** Survives switching microphones, sleep, crashes and power loss.
+- **Plain files.** Every meeting is a folder with a `transcript.md` and the audio. Grep it, sync it,
+  feed it to anything.
+
 ## Install
 
-Download the latest `.dmg` from [Releases](https://github.com/mcpeixoto/Ata/releases/latest),
-drag **Ata** into Applications, and open it. The app is signed with a Developer ID and
-notarized by Apple, so it opens without any Gatekeeper warnings — and it keeps itself up to
-date after that.
+1. Download **`Ata-<version>.dmg`** from the [latest release](https://github.com/mcpeixoto/Ata/releases/latest).
+2. Drag Ata into Applications and open it.
+3. Grant the microphone and system-audio permissions in the welcome window, and pick an engine.
+
+Releases are signed with a Developer ID and notarized by Apple, so they open without warnings — and
+Ata keeps itself up to date from then on.
+
+**Requirements:** macOS 14 Sonoma or later, Apple Silicon.
 
 <details>
-<summary>Or build it yourself</summary>
+<summary><b>Build from source instead</b></summary>
 
 ```bash
 git clone https://github.com/mcpeixoto/Ata.git
@@ -33,111 +79,135 @@ cd Ata
 ./install.sh
 ```
 
-Needs the Xcode Command Line Tools. The script builds the app, installs it in
-`/Applications` and opens it.
+You need the Xcode Command Line Tools (`xcode-select --install`). The script builds the app,
+installs it in `/Applications` and opens it. There's no Xcode project — it's a plain Swift package.
 
 </details>
 
-A welcome window appears the first time, where you grant the microphone and system-audio
-permissions and pick a transcription engine.
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/onboarding-dark.png">
+  <img src="docs/images/onboarding-light.png" alt="The welcome window: permissions, engine choice and behaviour" width="440">
+</picture>
+</p>
 
 ## Two ways to transcribe
 
 | | **On this Mac** (default) | **OpenAI API** |
 |---|---|---|
-| Where the audio goes | nowhere, it never leaves | uploaded to OpenAI |
+| Where the audio goes | nowhere — it never leaves your Mac | uploaded to OpenAI |
 | Cost | free | per minute of audio |
-| Setup | `brew install whisper-cpp` + a 1.6 GB model, both done for you from the welcome window | paste an API key |
+| Setup | whisper.cpp + a 1.6 GB model, installed for you from the welcome window | paste an API key |
 | Speed | fast on Apple Silicon (Metal) | depends on your connection |
-| Timestamps | per line | per line with `whisper-1`, none with the `gpt-4o-transcribe` models |
+| Timestamps | per line | per line with `whisper-1`; none with the `gpt-4o-transcribe` models |
 
-Pick one in **Settings → Transcription**, switch whenever you like. With either engine you
-can also turn on **an AI summary** — overview, decisions, action items and open questions,
-written above the transcript. That one always goes through OpenAI, since it needs a language
-model, and it sends only the finished text.
+Switch any time in **Settings → Transcription**. The **AI summary** works with either engine; it
+always goes through OpenAI because it needs a language model, and it sends only the finished text.
+Your API key lives in the login keychain — never in a file, never in a meeting folder.
 
-Your API key is stored in the login keychain, never in a file or in the meeting folders.
+## What you get
 
-## Using it
+Each meeting lands in `~/Documents/Meetings/<date> <app>/`:
 
-- **Record by hand:** click the waveform icon, then the red button (or ⌘R with the menu open).
-- **Automatic detection:** when an app starts using the microphone, Ata sends a notification
-  with a **Record** button. In Settings you can have it start recording on its own instead.
-- When you stop, the transcription runs in the background and you get a notification when
-  it's done. Each meeting lands in `~/Documents/Meetings/<date> <app>/transcript.md`.
+```
+2026-10-20 14.02.11 Zoom/
+├── transcript.md
+├── mic.m4a          ← you
+├── system.m4a       ← everyone else
+└── meeting.json
+```
 
-The menu shows the elapsed time, a live meter for **you** and one for **the others** so you
-can see straight away that both sides are being captured, and your recent meetings. Click
-one to open it, or right-click to copy the text, transcribe it again, show it in the Finder
-or delete it.
+```markdown
+# Zoom — October 20, 2026 at 2:02 PM
 
-**Your audio is kept by default**, next to the transcript, compressed to m4a (about a tenth
-of the raw size). You can turn that off, or have Ata delete audio after 7, 30 or 90 days, in
+Duration: 47 min · Participants: Alex, Others
+
+## Summary
+
+**Overview** — Agreed to ship the beta on the 3rd and move billing to the next sprint.
+**Action items**
+- Alex: send the beta invite list by Thursday
+
+---
+
+**[00:00] Alex:** Okay, I think everyone's here. Let's start with the launch date.
+
+**[00:06] Others:** We're good for the third if billing slips a sprint.
+```
+
+**Audio is kept by default**, compressed to m4a — about a tenth of the raw size — so you can always
+re-transcribe or listen back. Turn that off, or have Ata delete audio after 7, 30 or 90 days, in
 **Settings → Audio**.
 
-## What makes it reliable
+<details>
+<summary><b>See every setting</b></summary>
+<br>
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/settings-dark.png">
+  <img src="docs/images/settings-light.png" alt="Ata's settings window" width="460">
+</picture>
+</p>
+</details>
 
-- **You switch microphones mid-meeting** (plugging in AirPods): the recording continues in
-  the same file.
-- **The microphone stops responding:** it restarts on its own.
-- **Your Mac goes to sleep,** or system capture drops: it reconnects.
-- **Both tracks stay aligned in time,** even after a restart mid-recording.
-- **The app crashes or the Mac loses power:** the audio is on disk (the file header is
-  rewritten every 3 s) and it gets transcribed on the next launch.
-- **You quit mid-recording:** the recording is closed properly and transcribed when you
-  come back.
-- **Transcription fails:** the audio is never deleted and there's a **Try again** button.
-- **No headphones:** Ata drops the lines your microphone picked up as echo from the others.
+## Built to not lose your meeting
+
+| When… | Ata… |
+|---|---|
+| you plug in AirPods mid-call | keeps recording into the same file |
+| the microphone stops responding | restarts it on its own |
+| your Mac sleeps, or system capture drops | reconnects |
+| a track restarts mid-meeting | pads with silence so both tracks stay aligned |
+| the app crashes or the battery dies | already has the audio on disk (header rewritten every 3 s) and transcribes it on next launch |
+| you quit while recording | closes the files properly and transcribes when you're back |
+| transcription fails | keeps the audio and shows **Try again** |
+| you're not wearing headphones | drops the lines your mic picked up as echo of the others |
 
 ## Updates
 
-Ata checks this repository for new releases once a day and offers the update in the menu.
-Before anything is swapped in, the download is verified with `codesign`, Gatekeeper is
-asked for its verdict, and the Team ID is compared with the running app's — an unsigned, a
-re-signed or a tampered download is refused. You can turn automatic checks off in Settings
-and still check by hand.
+Ata checks this repository's releases once a day and offers the update in the menu. Before anything
+is swapped in, the download is verified with `codesign`, Gatekeeper is asked for its verdict, and
+the Team ID must match the running app's — a tampered or re-signed download is refused, and your
+working copy is put back if the install fails halfway.
 
 ## Privacy
 
-With the local engine, nothing goes anywhere: no accounts, no telemetry, no servers. The
-only network traffic Ata ever makes on its own is the model download the first time and the
-once-a-day release check against the GitHub API.
+With the local engine, Ata talks to the network twice: to download the model once, and to ask the
+GitHub API for the latest release once a day. That's it.
 
-With the OpenAI engine, the recorded audio is uploaded to OpenAI's transcription endpoint —
-that's the trade for not downloading a model — and the UI says so wherever you choose it.
+With the OpenAI engine, the recorded audio is sent to OpenAI's transcription endpoint, and the UI
+says so wherever you choose it.
 
-And the obvious one: **tell the other participants you're recording.** Laws about this
-differ, and it's the decent thing to do either way.
+> **Always tell people you're recording.** The law differs by country — and it's the decent thing
+> to do either way.
 
-## Settings
+## Roadmap
 
-Your name in the transcript, the language (automatic, EN, PT, ES, FR, DE, IT), the engine
-and model, the AI summary, automatic detection, stopping on its own when a meeting ends,
-keeping and compressing the audio, retention, opening at login, and automatic updates.
+Ideas with an issue attached are up for grabs — see
+[good first issues](https://github.com/mcpeixoto/Ata/issues?q=is%3Aopen+label%3A%22good+first+issue%22).
+
+- [ ] Tell remote speakers apart ("Others" is everyone together today)
+- [ ] Global keyboard shortcut to start and stop
+- [ ] More UI languages (English and Portuguese today)
+- [ ] Export to `.txt`, `.srt` and `.docx`
+- [ ] A transcript viewer with search across meetings
 
 ## Contributing
 
-Issues and pull requests are welcome. Two things to know:
+Bug reports, translations and pull requests are all welcome — [CONTRIBUTING.md](CONTRIBUTING.md)
+has the five-minute setup, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains how the
+pieces fit. Please read the [code of conduct](CODE_OF_CONDUCT.md) first, and report security issues
+[privately](SECURITY.md).
 
-- `./scripts/build-app.sh` assembles the app bundle; CI runs the same script, so if it works
-  for you it works there.
-- `./scripts/setup-release-secrets.sh` configures the five signing secrets a fork needs to
-  publish its own notarized builds.
-- UI strings live in `Resources/en.lproj` and `Resources/pt.lproj`, with the English text as
-  the key. `./scripts/check-localization.sh` fails if the two drift apart — CI runs it.
+## Credits
 
-Another language is a welcome PR: copy `en.lproj` to `<code>.lproj`, translate the right-hand
-side, and add the code to `CFBundleLocalizations` in `Resources/Info.plist`.
-
-## Notes
-
-- Apple Silicon only, macOS 14 or later.
-- "Others" is everyone remote together; it doesn't tell different people apart yet.
-- If you rebuild the app yourself, macOS may ask for the system-audio permission again.
-  That's normal for a locally signed build.
+Ata stands on [whisper.cpp](https://github.com/ggerganov/whisper.cpp) by Georgi Gerganov and
+contributors, and on OpenAI's [Whisper](https://github.com/openai/whisper) models.
 
 ## License
 
 [MIT](LICENSE) © Miguel Peixoto
 
-If Ata saves you from taking notes, [buy me a coffee](https://buymeacoffee.com/mcpeixoto) ☕
+<p align="center">
+If Ata saved you from taking notes, <a href="https://buymeacoffee.com/mcpeixoto">buy me a coffee</a> ☕
+</p>

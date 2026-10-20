@@ -1,8 +1,8 @@
 import AppKit
 import UserNotifications
 
-/// Notificações com ações: "Gravar" quando é detetada uma meeting, "Parar" durante a gravação,
-/// e "Abrir" quando a transcrição fica pronta.
+/// Actionable notifications: "Record" when a meeting is detected, "Stop" while recording,
+/// "Open" when a transcript is ready, and "Update" when a new release is out.
 final class Notifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
     static let shared = Notifier()
 

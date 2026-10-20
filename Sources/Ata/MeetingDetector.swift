@@ -1,12 +1,12 @@
 import AppKit
 import CoreAudio
 
-/// Deteta meetings em qualquer app: quando outro processo começa a usar o microfone
-/// (Slack, Zoom, Teams, Meet no browser, FaceTime, …), consideramos que há uma meeting.
-/// Usa a lista de processos de áudio do Core Audio (macOS 14+).
+/// Detects meetings in any app: when another process starts using the microphone
+/// (Slack, Zoom, Teams, Meet in the browser, FaceTime, …), that counts as a meeting.
+/// Uses Core Audio's list of audio processes (macOS 14+).
 @MainActor
 final class MeetingDetector {
-    /// Nome da app que está a usar o micro, ou nil.
+    /// Name of the app using the microphone, or nil.
     private(set) var activeApp: String?
     var onStart: ((String) -> Void)?
     var onEnd: (() -> Void)?
@@ -36,7 +36,7 @@ final class MeetingDetector {
             if activeApp == nil {
                 seenCount = (candidate == app) ? seenCount + 1 : 1
                 candidate = app
-                if seenCount >= 2 { // ~4 s seguidos
+                if seenCount >= 2 { // ~4 s in a row
                     activeApp = app
                     onStart?(app)
                 }
@@ -45,7 +45,7 @@ final class MeetingDetector {
             seenCount = 0; candidate = nil
             if activeApp != nil {
                 goneCount += 1
-                if goneCount >= 8 { // ~16 s sem ninguém no micro
+                if goneCount >= 8 { // ~16 s with nobody on the mic
                     activeApp = nil
                     goneCount = 0
                     onEnd?()
@@ -56,7 +56,7 @@ final class MeetingDetector {
 }
 
 enum CoreAudioProbe {
-    /// Processos (além da Ata) que estão a captar o microfone neste momento.
+    /// Processes other than Ata that are capturing from the microphone right now.
     static func meetingAppUsingMic() -> String? {
         let myPID = ProcessInfo.processInfo.processIdentifier
         for id in processObjects() {
@@ -73,7 +73,7 @@ enum CoreAudioProbe {
     private static func isIgnored(_ bundle: String) -> Bool {
         if bundle.isEmpty { return false }
         if bundle.hasPrefix("ai.interactive.ata") { return true }
-        // Processos da Apple que usam o micro sem ser meetings (Siri, ditado, …). O FaceTime conta.
+        // Apple processes that use the mic without being meetings (Siri, dictation, …). FaceTime counts.
         if bundle.hasPrefix("com.apple.") {
             return !(bundle.hasPrefix("com.apple.FaceTime") || bundle.hasPrefix("com.apple.Safari")
                      || bundle.hasPrefix("com.apple.WebKit"))

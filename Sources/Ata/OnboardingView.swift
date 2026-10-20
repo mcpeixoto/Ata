@@ -10,6 +10,9 @@ struct OnboardingView: View {
     @AppStorage(Pref.engine) private var engine = Engine.local.rawValue
     @State private var apiKey = ""
 
+    /// The window's height. Only the snapshot renderer asks for a taller one.
+    var height: CGFloat = 640
+
     private let poll = Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -72,7 +75,7 @@ struct OnboardingView: View {
                                     .font(.system(size: 11)).foregroundStyle(.secondary)
                             }
                         }
-                        .toggleStyle(.switch)
+                        .toggleStyle(AppSwitchStyle())
                         if autoDetect {
                             Picker("When a meeting is detected", selection: $autoStart) {
                                 Text("Ask me with a notification").tag(false)
@@ -85,14 +88,14 @@ struct OnboardingView: View {
                         Toggle(isOn: Binding(get: { setup.launchAtLogin }, set: { setup.setLaunchAtLogin($0) })) {
                             Text("Open Ata at login").font(.system(size: 13, weight: .semibold))
                         }
-                        .toggleStyle(.switch)
+                        .toggleStyle(AppSwitchStyle())
                     }
                 }
                 .padding(24)
             }
             footer
         }
-        .frame(width: 520, height: 640)
+        .frame(width: 520, height: height)
         .onAppear { setup.refresh() }
         .onReceive(poll) { _ in setup.refresh() }
         .onChange(of: setup.ready) { _, ready in if ready { store.setupChanged() } }

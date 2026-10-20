@@ -41,6 +41,16 @@ jobs:
             exit 1
           fi
 
+      - name: Check the signing secrets exist
+        env:
+          HAS_CERT: ${{ secrets.MACOS_CERTIFICATE != '' }}
+          HAS_KEY: ${{ secrets.AC_API_KEY != '' }}
+        run: |
+          if [ "$HAS_CERT" != "true" ] || [ "$HAS_KEY" != "true" ]; then
+            echo "::error::Signing secrets are not set. Run ./scripts/setup-release-secrets.sh on a Mac with the Developer ID certificate, then re-run this workflow (Actions → Release → Run workflow, with this tag)."
+            exit 1
+          fi
+
       - name: Import the signing certificate
         env:
           CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE }}

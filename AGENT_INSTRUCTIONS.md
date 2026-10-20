@@ -115,8 +115,15 @@ swift build -c release --arch arm64
 ```
 
 There is no test suite yet. Anything touching recording or transcription also needs a run
-of the real app: `cp -R build/Ata.app /Applications/ && open /Applications/Ata.app`, record
-a few seconds, and confirm a transcript appears in `~/Documents/Meetings`.
+of the real app — against a scratch folder, never the user's real meetings:
+`ATA_MEETINGS_DIR=/tmp/ata-dev open build/Ata.app`, record a few seconds, and confirm a
+transcript appears there.
+
+Any UI change: run `./scripts/snapshots.sh`, **look at** the regenerated `docs/images/*.png`
+(Read them), and commit them with the change. It renders the real views offscreen with fixture
+meetings and argument-domain defaults; `ATA_SNAPSHOT_NATIVE=1` renders the true `NSSwitch`
+controls instead of the snapshot-only lookalike, to check the shipping layout. The script has a
+two-minute watchdog — if it trips, a macOS permission prompt is the usual cause.
 
 ## Ship
 

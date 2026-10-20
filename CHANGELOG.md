@@ -15,6 +15,10 @@ First public release.
 - **English and Portuguese**, following the system language.
 - Signed with a Developer ID and notarized, published as a DMG by CI on every `v*` tag.
 - Transcripts are now `transcript.md`; existing `transcricao.md` files are still read.
+- Open-source groundwork: README with light and dark screenshots rendered from the real UI
+  (`scripts/snapshots.sh`, also run by CI on every pull request), contributing guide,
+  architecture notes, code of conduct, security policy, PR and issue templates, and English
+  comments throughout the code.
 
 ## 2.0
 
