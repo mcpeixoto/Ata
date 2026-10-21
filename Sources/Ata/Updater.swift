@@ -298,4 +298,41 @@ final class Updater: ObservableObject {
     func dismiss() {
         state = .idle
     }
+
+    // MARK: - Command line
+
+    /// `Ata --update-now`: check, and install if there is something newer,
+    /// without any UI. Exits 0 when already up to date; on success the app is
+    /// replaced and relaunched as usual. Handy for scripting, and the way the
+    /// updater is tested end to end.
+    static var commandLineRequested: Bool { CommandLine.arguments.contains("--update-now") }
+
+    func runFromCommandLine() {
+        func say(_ s: String) { print("Ata updater: \(s)"); fflush(stdout) }
+        say("running \(Self.currentVersion), checking \(feedURL.absoluteString)")
+        Pref.d.set(true, forKey: Pref.autoUpdate)
+        check()
+        Task { @MainActor in
+            var reported = ""
+            while true {
+                let line: String
+                switch state {
+                case .idle, .checking: line = "checking…"
+                case .upToDate:
+                    say("already up to date")
+                    exit(0)
+                case .available(let version, _):
+                    line = "found \(version), installing"
+                    installUpdate()
+                case .downloading(let p): line = "downloading \(Int(p * 100) / 10 * 10)%"
+                case .installing: line = "verifying and installing"
+                case .failed(let message):
+                    say("failed: \(message)")
+                    exit(1)
+                }
+                if line != reported { say(line); reported = line }
+                try? await Task.sleep(nanoseconds: 200_000_000)
+            }
+        }
+    }
 }

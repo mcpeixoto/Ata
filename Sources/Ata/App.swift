@@ -26,6 +26,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Snapshots.run()
             return
         }
+        if Updater.commandLineRequested {
+            Updater.shared.runFromCommandLine()
+            return
+        }
         Notifier.shared.setUp()
         let store = AppStore.shared
         store.bootstrap()

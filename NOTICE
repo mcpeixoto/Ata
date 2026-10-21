@@ -1,0 +1,29 @@
+Ata
+Copyright (c) 2026 Miguel Peixoto — MIT licence, see LICENSE.
+
+Ata uses, at runtime, the following third-party software and models.
+
+whisper.cpp — MIT licence
+  https://github.com/ggerganov/whisper.cpp
+  Installed separately through Homebrew; not bundled.
+
+OpenAI Whisper models (ggml conversions) — MIT licence
+  https://github.com/openai/whisper
+  https://huggingface.co/ggerganov/whisper.cpp
+  Downloaded on first use; not bundled.
+
+Silero VAD — MIT licence
+  https://github.com/snakers4/silero-vad
+  Downloaded on first use; not bundled.
+
+FluidAudio — Apache License 2.0
+  https://github.com/FluidInference/FluidAudio
+  Compiled into Ata.
+
+Speaker diarization models, Core ML conversions by FluidInference — CC BY 4.0
+  https://huggingface.co/FluidInference/speaker-diarization-coreml
+  Includes pyannote segmentation and WeSpeaker speaker-embedding models.
+  pyannote: https://github.com/pyannote/pyannote-audio (MIT)
+  WeSpeaker: https://github.com/wenet-e2e/wespeaker
+  Downloaded on first use of voice recognition; not bundled.
+  Licence: https://creativecommons.org/licenses/by/4.0/

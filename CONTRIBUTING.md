@@ -5,16 +5,18 @@ dependencies — so most changes are approachable in an afternoon.
 
 ## Five-minute setup
 
-You need a Mac with Apple Silicon, macOS 14+, and the Xcode Command Line Tools. Xcode itself is
-optional.
+You need a Mac with Apple Silicon, macOS 14+, and Xcode 26 (for Swift 6.2 package tools).
 
 ```bash
 git clone https://github.com/mcpeixoto/Ata.git
 cd Ata
-swift build                # compile
+swift build --disable-keychain   # compile (see below for the flag)
 ./scripts/build-app.sh     # assemble build/Ata.app (ad-hoc signed)
 open build/Ata.app         # run it
 ```
+
+`--disable-keychain` matters: without it SwiftPM can wait forever on a hidden keychain prompt
+while fetching FluidAudio. Use it with every `swift build` / `swift test`.
 
 To work in Xcode instead, `open Package.swift`. The app needs to run from a bundle for the
 permission prompts and localizations to work, so use `build-app.sh` when you want to try a change
@@ -35,8 +37,8 @@ signature changes on every build — so expect to re-grant system audio now and 
 ## Before you open a pull request
 
 ```bash
-swift build -c release --arch arm64     # must be warning-free
-swift test                              # unit tests
+swift build -c release --arch arm64 --disable-keychain   # must be warning-free
+swift test --disable-keychain                            # unit tests
 ./scripts/check-localization.sh         # every string in English and Portuguese
 ./scripts/build-app.sh                  # the bundle assembles and verifies
 ```
@@ -65,6 +67,7 @@ CI also attaches a fresh set to every pull request as a downloadable artifact.
 | `Transcriber.swift` | merges the two tracks, removes echo, writes the Markdown |
 | `LocalEngine.swift`, `OpenAIEngine.swift` | the two transcription backends |
 | `Updater.swift` | finds, verifies and installs new releases |
+| `Diarization.swift`, `Voices.swift`, `People*.swift` | who spoke when, the voice library, the People tab |
 | `PopoverView.swift`, `SettingsView.swift`, `OnboardingView.swift` | the UI |
 
 ## House rules
@@ -76,8 +79,9 @@ CI also attaches a fresh set to every pull request as a downloadable artifact.
   `Resources/pt.lproj/Localizable.strings`. The English text is the key.
 - **The local engine stays local.** Nothing in the local path may make a network call. Anything
   that sends data off the Mac has to be opt-in and say so in the UI.
-- **No new dependencies** without talking about it in an issue first. Ata builds with nothing but
-  the SDK, and that's a feature.
+- **No new dependencies** without talking about it in an issue first. Ata has exactly one —
+  [FluidAudio](https://github.com/FluidInference/FluidAudio), for on-device speaker recognition,
+  which nothing in the SDK can do — and keeping it that way is a feature.
 - **Match the code around you** — naming, comment density, the way errors are surfaced.
 
 ## Adding a string

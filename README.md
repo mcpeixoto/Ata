@@ -55,6 +55,8 @@ On your Mac with Whisper, or through the OpenAI API. Your call.
   or just starts, if you tell it to.
 - **Summaries, if you want them.** Overview, decisions, action items and open questions, above the
   transcript.
+- **Knows who said what.** Ata learns the voices in your meetings, on your Mac. Name a voice once
+  and every transcript uses the name.
 - **See your history.** An Insights tab charts hours recorded, who talks how much, where your
   meetings happen and what every transcript cost.
 - **Change your mind later.** Re-transcribe any meeting with a different model; the old
@@ -147,6 +149,24 @@ Duration: 47 min · Participants: Alex, Others
 re-transcribe or listen back. Turn that off, or have Ata delete audio after 7, 30 or 90 days, in
 **Settings → Audio**.
 
+## Who said what
+
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/menu-people-dark.png">
+  <img src="docs/images/menu-people-light.png" alt="The People tab: two unknown voices to name, three named people" width="400">
+</picture>
+</p>
+
+Turn on voice recognition in the **People** tab and Ata splits the other participants apart —
+"Others" becomes Voice 1, Voice 2… — and learns each voice across meetings. Once it has heard
+a voice in two meetings it asks who it is: play a few seconds, type a name. From then on that
+person is named in every transcript, including the ones already written.
+
+- Runs entirely on your Mac, on the Neural Engine, about 100× faster than real time.
+- Voice fingerprints and samples never leave the Mac — not even when OpenAI transcribes.
+- Off by default. Needs macOS 15. Downloads 21 MB of models the first time.
+
 <details>
 <summary><b>See every setting</b></summary>
 <br>
@@ -170,6 +190,7 @@ re-transcribe or listen back. Turn that off, or have Ata delete audio after 7, 3
 | you quit while recording | closes the files properly and transcribes when you're back |
 | transcription fails | keeps the audio and shows **Try again** |
 | you're not wearing headphones | drops the lines your mic picked up as echo of the others |
+| two people talk in one Whisper segment | splits the line word by word at the change of speaker |
 
 ## Updates
 
@@ -180,8 +201,9 @@ working copy is put back if the install fails halfway.
 
 ## Privacy
 
-With the local engine, Ata talks to the network twice: to download the model once, and to ask the
-GitHub API for the latest release once a day. That's it.
+With the local engine, Ata talks to the network only to download models once (Whisper, and the
+voice-recognition models if you turn that on) and to ask the GitHub API for the latest release
+once a day. That's it.
 
 With the OpenAI engine, the recorded audio is sent to OpenAI's transcription endpoint, and the UI
 says so wherever you choose it.
@@ -194,7 +216,7 @@ says so wherever you choose it.
 Ideas with an issue attached are up for grabs — see
 [good first issues](https://github.com/mcpeixoto/Ata/issues?q=is%3Aopen+label%3A%22good+first+issue%22).
 
-- [ ] Tell remote speakers apart — "Others" is everyone together today ([#5](https://github.com/mcpeixoto/Ata/issues/5))
+- [x] Tell remote speakers apart ([#5](https://github.com/mcpeixoto/Ata/issues/5)) — 2.3
 - [ ] Global keyboard shortcut to start and stop ([#2](https://github.com/mcpeixoto/Ata/issues/2))
 - [ ] Subtitles (`.srt`) and plain text next to each transcript ([#3](https://github.com/mcpeixoto/Ata/issues/3))
 - [ ] More languages — Spanish first ([#4](https://github.com/mcpeixoto/Ata/issues/4))
@@ -210,7 +232,9 @@ pieces fit. Please read the [code of conduct](CODE_OF_CONDUCT.md) first, and rep
 ## Credits
 
 Ata stands on [whisper.cpp](https://github.com/ggerganov/whisper.cpp) by Georgi Gerganov and
-contributors, and on OpenAI's [Whisper](https://github.com/openai/whisper) models.
+contributors, OpenAI's [Whisper](https://github.com/openai/whisper) models, and
+[FluidAudio](https://github.com/FluidInference/FluidAudio) by FluidInference with its
+pyannote and WeSpeaker speaker models. Model licences are listed in [NOTICE](NOTICE).
 
 ## License
 

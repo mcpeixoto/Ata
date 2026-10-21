@@ -1,7 +1,7 @@
 # How Ata works
 
 Ata is a SwiftUI menu bar app (`LSUIElement`) built as a plain Swift package: no Xcode project,
-no third-party dependencies. This page walks through a meeting from the first sound to the
+and one dependency, FluidAudio, for on-device speaker recognition. This page walks through a meeting from the first sound to the
 finished `transcript.md`.
 
 ```mermaid
@@ -93,6 +93,28 @@ or deleted, depending on Settings. On failure it is **always** kept, and the mee
 **Try again**. Re-transcribing a compressed meeting decodes the m4a back into the WAV shape
 whisper.cpp expects.
 
+## 5½. Who said what — `Diarization`, `Voices`, `PeopleModel`
+
+With voice recognition on (off by default; macOS 15+), after the tracks are transcribed:
+
+1. FluidAudio diarizes the system track on Core ML — pyannote segmentation, WeSpeaker
+   embeddings, VBx clustering — into speaker turns, and gives one 256-dimension voice
+   fingerprint per speaker. Speakers with under 10 s of speech are labelled but not learned.
+2. Each "others" line is split word by word at the turns (Whisper's own segments run across
+   speakers). A change that lands mid-phrase moves to the nearest sentence end or clear pause,
+   because Whisper's word times lag the audio by a few hundred milliseconds.
+3. The mic track is fingerprinted as "me".
+4. Each fingerprint is matched against the voice library: cosine ≥ 0.65 *and* a 0.1 lead over the
+   runner-up, otherwise it's a new voice with a permanent number ("Voice 3"). Measured: the same
+   voice 0.95–0.96 across recordings (0.82–0.85 over phone-quality audio), different voices
+   0.02–0.49.
+5. `speakers.json` (turns and voices) and `transcript.json` (labelled lines) go in the meeting
+   folder; a few seconds of each new voice are cut as a sample for the People tab.
+
+Naming, merging or forgetting a voice re-renders every affected `transcript.md` from its
+`transcript.json` — no re-transcription, no new version. The library lives in
+`~/Library/Application Support/Ata/voices/` and never leaves the Mac.
+
 ## 6. Updates — `Updater`
 
 Once a day `Updater` asks the GitHub API for the latest release of the repository named in
@@ -113,6 +135,8 @@ copy fails, the original is put back.
 | `~/Documents/Meetings/` | one folder per meeting (override with `ATA_MEETINGS_DIR`) |
 | `~/Library/Application Support/Ata/models/` | the Whisper and VAD models |
 | login keychain, service `ai.interactive.ata` | the OpenAI API key |
+| `~/Library/Application Support/Ata/voices/` | voice fingerprints and samples (override with `ATA_SUPPORT_DIR`) |
+| `~/Library/Application Support/FluidAudio/` | the speaker-recognition models |
 | `UserDefaults` (`ai.interactive.ata`) | settings |
 
 ## Building and shipping

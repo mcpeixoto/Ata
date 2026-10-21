@@ -174,6 +174,9 @@ locally or with the OpenAI API, and writes `transcript.md` into
 
 Layout:
 
+- Voices (2.3): `Diarization.swift` wraps FluidAudio (macOS 15+ only — a macOS 14 bug crashes
+  it), `Voices.swift` holds the library, matching (≥ 0.65 cosine and a 0.1 lead, measured), and
+  the word-level speaker split; `People*.swift` is the UI. Fingerprints never leave the Mac.
 - `Sources/Ata/` — the whole app. `AppStore` is the single `@MainActor` source of truth
   (recording, detection, the transcription queue, history); `Recorder` + `WavWriter` own
   capture; `Transcriber` coordinates and `LocalEngine` / `OpenAIEngine` do the work;
@@ -202,11 +205,20 @@ Layout:
 ## Verify
 
 ```bash
-swift build -c release --arch arm64
-swift test
+swift build -c release --arch arm64 --disable-keychain
+swift test --disable-keychain
 ./scripts/check-localization.sh
 ./scripts/build-app.sh
 ```
+
+**Always pass `--disable-keychain`** to `swift build`/`swift test`: without it SwiftPM can hang
+silently on a hidden keychain prompt while fetching FluidAudio. Package.swift is tools 6.2
+(Xcode 26) for `traits: []`, which keeps FluidAudio's unused 87 MB TTS library out.
+
+Opt-in audio tests (`ATA_AUDIO_TESTS=1`) run real whisper-cli and real diarization end to end:
+a PT+EN meeting, and two meetings where a voice is learned, named and recognised. Run them
+before shipping anything that touches transcription or voices. They cache a 574 MB model in
+`/tmp/ata-test-models`.
 
 `swift test` covers pricing, version comparison, echo removal, talk time, WAV splitting,
 transcript versioning, backfill, insights, voice matching and re-rendering; tests that
