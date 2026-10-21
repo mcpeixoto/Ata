@@ -61,11 +61,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func endStaleCopies() {
         let me = NSRunningApplication.current
         guard let id = Bundle.main.bundleIdentifier else { return }
+        // Compare resolved paths: URL equality trips over trailing slashes and /tmp vs /private/tmp.
+        func resolved(_ url: URL?) -> String? { url?.resolvingSymlinksInPath().standardizedFileURL.path }
+        let mine = resolved(Bundle.main.bundleURL)
         for app in NSRunningApplication.runningApplications(withBundleIdentifier: id)
-            where app.processIdentifier != me.processIdentifier
-            && app.bundleURL?.standardizedFileURL == Bundle.main.bundleURL.standardizedFileURL {
+            where app.processIdentifier != me.processIdentifier && resolved(app.bundleURL) == mine {
             NSLog("Ata: ending a stale copy (pid \(app.processIdentifier))")
-            if !app.terminate() { app.forceTerminate() }
+            // Ask first, so a healthy copy closes any recording properly; a pre-update
+            // copy from 2.1/2.2 is hung mid-quit and never answers, so force it after a moment.
+            app.terminate()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                if !app.isTerminated { app.forceTerminate() }
+            }
         }
     }
 }

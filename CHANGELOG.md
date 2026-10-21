@@ -13,6 +13,10 @@
   The first time it runs, Ata downloads 21 MB of on-device models
   ([FluidAudio](https://github.com/FluidInference/FluidAudio), Core ML). Off by default; needs
   macOS 15, since an Apple bug in macOS 14 crashes the pipeline.
+- **Fixed: updating left the old copy running.** It hung while quitting, so two Ata icons sat in
+  the menu bar after an update. Ata now quits cleanly, and on launch it ends any stale copy left
+  behind by an update from 2.1 or 2.2. Updates also wait until a recording has finished.
+- `Ata.app/Contents/MacOS/Ata --update-now` checks for and installs an update without the UI.
 - Transcripts are now also saved as `transcript.json` (segments with speaker labels), so names
   can change without transcribing again.
 - For contributors: FluidAudio is the project's first dependency; Package.swift now uses tools
