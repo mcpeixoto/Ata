@@ -1,22 +1,25 @@
 import AppKit
 import AVFoundation
+import CoreAudio
 import CoreMedia
-import ScreenCaptureKit
 
-enum RecorderError: LocalizedError {
-    case micDenied, screenDenied, noDisplay, noMic
+enum RecorderError: LocalizedError, Equatable {
+    case micDenied, systemAudioDenied, noMic
+    case systemAudio(String)
 
     var errorDescription: String? {
         switch self {
         case .micDenied: return L("Ata does not have access to the microphone.")
-        case .screenDenied: return L("Ata does not have access to system audio (Screen & System Audio Recording).")
-        case .noDisplay: return L("No display was found to capture system audio from.")
+        case .systemAudioDenied: return L("Ata does not have access to system audio (System Audio Recording Only).")
         case .noMic: return L("No active microphone was found.")
+        case .systemAudio(let detail): return detail
         }
     }
+
+    var isPermission: Bool { self == .micDenied || self == .systemAudioDenied }
 }
 
-/// Thread-safe box that shares the system-audio writer with ScreenCaptureKit's queue.
+/// Thread-safe box that shares the system-audio writer with the capture queue.
 private final class WriterBox: @unchecked Sendable {
     private let lock = NSLock()
     private var _writer: WavWriter?
@@ -29,16 +32,17 @@ private final class WriterBox: @unchecked Sendable {
 /// Records two tracks at once and recovers from almost anything on its own:
 ///  - mic.wav    → your microphone (AVAudioEngine). Restarts when you switch microphones,
 ///                 when the device disappears, or when it stops delivering audio.
-///  - system.wav → everything the Mac plays (ScreenCaptureKit). Reconnects with backoff when
-///                 capture drops (for example after the Mac sleeps).
+///  - system.wav → everything the Mac plays (a Core Audio process tap). Rebuilt when the output
+///                 device changes, after sleep, or when it stops delivering audio.
 @MainActor
-final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
+final class Recorder: NSObject {
     private(set) var mic: WavWriter?
     nonisolated private let sysBox = WriterBox()
     var sys: WavWriter? { sysBox.writer }
 
     private var engine: AVAudioEngine?
-    private var stream: SCStream?
+    private var tap: SystemAudioTap?
+    private var outputWatcher: AudioObjectPropertyListenerBlock?
     nonisolated private let sysQueue = DispatchQueue(label: "ai.interactive.ata.system-audio", qos: .userInitiated)
     private var running = false
     private var observers: [NSObjectProtocol] = []
@@ -88,6 +92,8 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
             NSWorkspace.shared.notificationCenter.removeObserver(o)
         }
         observers.removeAll()
+        if let outputWatcher { SystemAudioTap.stopWatching(outputWatcher) }
+        outputWatcher = nil
         stopMic()
         await stopSystem()
         await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
@@ -163,43 +169,31 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
     // MARK: - System audio
 
     private func startSystem() async throws {
-        let content: SCShareableContent
-        do {
-            content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-        } catch {
-            throw RecorderError.screenDenied
+        // Never start the tap with the question still open: Core Audio delivers
+        // nothing until permission exists, and doesn't resume once it's given.
+        if SystemAudioPermission.status == .unknown, SystemAudioPermission.canAsk {
+            let granted = await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
+                if !SystemAudioPermission.ask({ c.resume(returning: $0) }) { c.resume(returning: true) }
+            }
+            if !granted { throw RecorderError.systemAudioDenied }
         }
-        guard let display = content.displays.first else { throw RecorderError.noDisplay }
-
-        let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
-        let cfg = SCStreamConfiguration()
-        cfg.capturesAudio = true
-        cfg.excludesCurrentProcessAudio = true
-        cfg.sampleRate = 48_000
-        cfg.channelCount = 2
-        cfg.width = 2 // we do not want video
-        cfg.height = 2
-        cfg.minimumFrameInterval = CMTime(value: 1, timescale: 1)
-        cfg.queueDepth = 3
-        cfg.showsCursor = false
-
-        let s = SCStream(filter: filter, configuration: cfg, delegate: self)
-        try s.addStreamOutput(self, type: .audio, sampleHandlerQueue: sysQueue)
-        try s.addStreamOutput(self, type: .screen, sampleHandlerQueue: sysQueue)
+        guard SystemAudioPermission.status != .denied else { throw RecorderError.systemAudioDenied }
+        let box = sysBox
+        let tap = SystemAudioTap()
         do {
-            try await s.startCapture()
+            try tap.start(queue: sysQueue) { buffer, hostSeconds in
+                box.writer?.append(buffer, hostSeconds: hostSeconds)
+            }
         } catch {
-            throw RecorderError.screenDenied
+            throw RecorderError.systemAudio(error.localizedDescription)
         }
-        stream = s
+        self.tap = tap
         sys?.touch()
     }
 
     private func stopSystem() async {
-        if let s = stream {
-            stream = nil
-            try? await s.stopCapture()
-        }
+        tap?.stop()
+        tap = nil
     }
 
     private func restartSystem() {
@@ -224,32 +218,10 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
         }
     }
 
-    nonisolated func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer,
-                            of type: SCStreamOutputType) {
-        guard type == .audio, sampleBuffer.isValid, let writer = sysBox.writer else { return }
-        let t = sampleBuffer.presentationTimeStamp.seconds
-        try? sampleBuffer.withAudioBufferList { abl, _ in
-            guard let asbd = sampleBuffer.formatDescription?.audioStreamBasicDescription,
-                  let format = AVAudioFormat(standardFormatWithSampleRate: asbd.mSampleRate,
-                                             channels: asbd.mChannelsPerFrame),
-                  let pcm = AVAudioPCMBuffer(pcmFormat: format, bufferListNoCopy: abl.unsafePointer)
-            else { return }
-            writer.append(pcm, hostSeconds: t.isFinite ? t : nil)
-        }
-    }
-
-    nonisolated func stream(_ stream: SCStream, didStopWithError error: Error) {
-        Task { @MainActor in
-            NSLog("Ata: system capture stopped: \(error.localizedDescription)")
-            self.stream = nil
-            self.restartSystem()
-        }
-    }
-
     // MARK: - Watchdog
 
     private func installObservers() {
-        // Depois de o Mac acordar, reiniciar as duas capturas.
+        // After the Mac wakes, restart both captures.
         let wake = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -259,12 +231,22 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
         }
         observers.append(wake)
 
-        // Watchdog: if the microphone stops delivering audio, restart it.
+        // New output device (headphones, AirPods): the tap's aggregate device was
+        // clocked by the old one, so build it again on the new one.
+        outputWatcher = SystemAudioTap.watchOutputDevice { [weak self] in
+            Task { @MainActor in self?.restartSystem() }
+        }
+
+        // Watchdog: if either track stops delivering audio, restart it. The tap
+        // delivers silence while nothing plays, so no buffers at all means trouble.
         watchdog = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, self.running, !self.micRestartPending, let mic = self.mic else { return }
-                if Date().timeIntervalSince(mic.lastBufferAt) > 4 {
+                guard let self, self.running else { return }
+                if !self.micRestartPending, let mic = self.mic, Date().timeIntervalSince(mic.lastBufferAt) > 4 {
                     self.restartMic(reason: "microphone not responding")
+                }
+                if !self.sysRestarting, let sys = self.sys, Date().timeIntervalSince(sys.lastBufferAt) > 6 {
+                    self.restartSystem()
                 }
             }
         }

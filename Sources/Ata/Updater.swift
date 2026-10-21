@@ -200,6 +200,13 @@ final class Updater: ObservableObject {
             }
 
             try await verify(app)
+            try checkMinimumSystem(of: app)
+
+            // A meeting may have started while this downloaded; never restart under it.
+            guard AppStore.shared.phase == .idle else {
+                state = .failed(L("Finish the recording first, then install the update."))
+                return
+            }
 
             // Replace the running bundle, then relaunch from the new copy.
             let installed = URL(fileURLWithPath: Bundle.main.bundlePath)
@@ -265,12 +272,31 @@ final class Updater: ObservableObject {
     // MARK: - Process helpers
 
     @discardableResult
-    private func run(_ path: String, _ args: [String]) async throws -> String {
+    nonisolated private func run(_ path: String, _ args: [String]) async throws -> String {
         try await output(path, args)
     }
 
-    private func output(_ path: String, _ args: [String]) async throws -> String {
+    /// Refuses a release that needs a newer macOS than this Mac has: swapped in,
+    /// it would simply never launch again.
+    private func checkMinimumSystem(of app: URL) throws {
+        let plist = NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist"))
+        guard let minimum = plist?["LSMinimumSystemVersion"] as? String else { return }
+        let parts = minimum.split(separator: ".").map { Int($0) ?? 0 }
+        let needed = OperatingSystemVersion(majorVersion: parts.first ?? 0,
+                                            minorVersion: parts.count > 1 ? parts[1] : 0,
+                                            patchVersion: parts.count > 2 ? parts[2] : 0)
+        guard ProcessInfo.processInfo.isOperatingSystemAtLeast(needed) else {
+            throw NSError(domain: "Ata.Updater", code: 4, userInfo: [
+                NSLocalizedDescriptionKey: L("This update needs macOS %@ or later. Nothing was installed.", minimum),
+            ])
+        }
+    }
+
+    /// Runs a command-line tool off the main thread (spctl can take seconds and
+    /// talks to the network) and returns what it printed.
+    nonisolated private func output(_ path: String, _ args: [String]) async throws -> String {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
+          DispatchQueue.global(qos: .userInitiated).async {
             let p = Process()
             p.executableURL = URL(fileURLWithPath: path)
             p.arguments = args
@@ -297,6 +323,7 @@ final class Updater: ObservableObject {
                         : tail,
                 ]))
             }
+          }
         }
     }
 

@@ -42,6 +42,14 @@ final class PeopleModel: ObservableObject {
         return out
     }
 
+    func removeMeeting(_ meetingID: String) {
+        library = VoiceLibrary()
+        for voice in library.removeMeeting(meetingID) {
+            if let sample = voice.sample { try? FileManager.default.removeItem(at: Paths.voicesDir.appendingPathComponent(sample)) }
+        }
+        persist()
+    }
+
     func setSample(_ id: UUID, file: String) {
         library.setSample(id, file: file)
         persist()
@@ -122,7 +130,7 @@ final class PeopleModel: ObservableObject {
 
     private func rerender(meetings ids: [String]) {
         let wanted = Set(ids)
-        let myName = Pref.d.string(forKey: Pref.myName) ?? L("Me")
+        let myName = Pref.myNameOrDefault
         for m in Library.loadAll() where wanted.contains(m.id) && m.status == .done {
             try? Transcriber.rerender(m, myName: myName)
         }

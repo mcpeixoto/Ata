@@ -9,7 +9,6 @@
 "No OpenAI API key. Add one in Settings → Transcription." = "No OpenAI API key. Add one in Settings → Transcription.";
 "Start recording (⌘R)" = "Start recording (⌘R)";
 "earlier" = "earlier";
-"Me" = "Me";
 "Recorded" = "Recorded";
 "Meetings" = "Meetings";
 "Words" = "Words";
@@ -55,9 +54,8 @@
 "To record your voice." = "To record your voice.";
 "Allow" = "Allow";
 "System audio" = "System audio";
-"Enable Ata in the list, then reopen the app." = "Enable Ata in the list, then reopen the app.";
-"To record the other participants. macOS calls this \"Screen & System Audio Recording\"; Ata only uses the sound." = "To record the other participants. macOS calls this \"Screen & System Audio Recording\"; Ata only uses the sound.";
-"Reopen" = "Reopen";
+"Turn on Ata under \"System Audio Recording Only\" in the settings that open." = "Turn on Ata under \"System Audio Recording Only\" in the settings that open.";
+"To record the other participants. Only the sound — never your screen." = "To record the other participants. Only the sound — never your screen.";
 "Notifications" = "Notifications";
 "Tells you when a meeting is detected and when a transcript is ready." = "Tells you when a meeting is detected and when a transcript is ready.";
 "Transcription" = "Transcription";
@@ -95,6 +93,7 @@
 "OpenAI: %@" = "OpenAI: %@";
 "Could not read OpenAI's response." = "Could not read OpenAI's response.";
 "The recording is too short to transcribe." = "The recording is too short to transcribe.";
+"Me" = "Me";
 "Who's this?" = "Who's this?";
 "Heard in several meetings. Play a sample, then type a name." = "Heard in several meetings. Play a sample, then type a name.";
 "People" = "People";
@@ -154,8 +153,7 @@
 "%d voices to name" = "%d voices to name";
 "Name them once; every transcript uses the name." = "Name them once; every transcript uses the name.";
 "Ata does not have access to the microphone." = "Ata does not have access to the microphone.";
-"Ata does not have access to system audio (Screen & System Audio Recording)." = "Ata does not have access to system audio (Screen & System Audio Recording).";
-"No display was found to capture system audio from." = "No display was found to capture system audio from.";
+"Ata does not have access to system audio (System Audio Recording Only)." = "Ata does not have access to system audio (System Audio Recording Only).";
 "No active microphone was found." = "No active microphone was found.";
 "No microphone — retrying…" = "No microphone — retrying…";
 "Reconnecting system audio…" = "Reconnecting system audio…";
@@ -225,9 +223,11 @@
 "Decisions" = "Decisions";
 "Action items" = "Action items";
 "Open questions" = "Open questions";
+"System audio: %@ failed (%d)." = "System audio: %@ failed (%d).";
 "The local transcription engine (whisper.cpp) is not installed." = "The local transcription engine (whisper.cpp) is not installed.";
 "The transcription model has not been downloaded yet." = "The transcription model has not been downloaded yet.";
 "No audio was found for this meeting." = "No audio was found for this meeting.";
+"Transcription was stopped." = "Transcription was stopped.";
 "Whisper failed: %@" = "Whisper failed: %@";
 "Speaker %@" = "Speaker %@";
 "Duration: %d min" = "Duration: %d min";
@@ -241,5 +241,6 @@
 "The download did not contain an app." = "The download did not contain an app.";
 "The downloaded update is not notarized by Apple. Nothing was installed." = "The downloaded update is not notarized by Apple. Nothing was installed.";
 "The downloaded update is signed by a different developer. Nothing was installed." = "The downloaded update is signed by a different developer. Nothing was installed.";
+"This update needs macOS %@ or later. Nothing was installed." = "This update needs macOS %@ or later. Nothing was installed.";
 "%@ failed with code %d" = "%@ failed with code %d";
 "Voice %d" = "Voice %d";

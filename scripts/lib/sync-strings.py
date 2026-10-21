@@ -39,7 +39,8 @@ for table in sorted(glob.glob(os.path.join(root, "Resources/*.lproj/Localizable.
         elif lang == "en":
             value, added = key, added + 1
         elif key in translations.get(lang, {}):
-            value, added = translations[lang][key].replace('"', '\\"'), added + 1
+            # Escape quotes, but not ones the translation already escaped.
+            value, added = re.sub(r'(?<!\\)"', r'\\"', translations[lang][key]), added + 1
         else:
             out.append(f"/* TODO: translate */")
             value, added = key, added + 1

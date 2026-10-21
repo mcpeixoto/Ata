@@ -8,7 +8,7 @@ struct InsightsView: View {
     /// Drives every entrance animation: charts grow and numbers count up from zero.
     @State private var shown = false
 
-    private var myName: String { Pref.d.string(forKey: Pref.myName) ?? L("Me") }
+    private var myName: String { Pref.myNameOrDefault }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {

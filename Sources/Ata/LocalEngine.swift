@@ -65,6 +65,8 @@ enum LocalEngine {
 
         do {
             _ = try await runProcess(cli, useVAD ? base + vad : base, progress: progress)
+        } catch TranscriberError.cancelled {
+            throw TranscriberError.cancelled
         } catch where useVAD {
             // Older whisper.cpp builds have no VAD support: retry without it.
             _ = try await runProcess(cli, base, progress: progress)
@@ -124,6 +126,9 @@ enum LocalEngine {
                 LocalEngine.currentProcess = nil
                 if proc.terminationStatus == 0 {
                     cont.resume(returning: log.text)
+                } else if proc.terminationReason == .uncaughtSignal {
+                    // Killed — Ata is quitting. Don't retry, or whisper outlives the app.
+                    cont.resume(throwing: TranscriberError.cancelled)
                 } else {
                     let tail = log.text.split(separator: "\n").suffix(4).joined(separator: "\n")
                     cont.resume(throwing: TranscriberError.failed(

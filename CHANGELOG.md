@@ -1,5 +1,34 @@
 # Changelog
 
+## 2.3.1
+
+- **Fixed: Ata kept asking for system-audio permission you had already given.** It recorded
+  system audio through screen capture, which needs *Screen Recording* and is only reported as
+  granted after a relaunch. Ata now records system audio with Core Audio under the audio-only
+  **System Audio Recording Only** permission — never your screen — asks once, and restarts
+  itself once right after you allow it. Requires macOS 14.2.
+- **Fixed: a keychain password prompt could block Ata at launch.** Checking whether an OpenAI
+  key was stored read the key itself, which macOS can answer with a keychain prompt; Ata now
+  only reads the key when it calls OpenAI.
+- A damaged audio file now fails with an error instead of giving a shorter transcript.
+- Summaries are written in your language and region: European Portuguese in Portugal.
+- From a full review:
+  - discarding a recording could make the next one stop itself after 10 seconds;
+  - meetings stayed queued after a model download until the next recording;
+  - with OpenAI, one silent stretch erased every timestamp, and models without timestamps
+    could attribute ten minutes of speech to one named person; long chunks for the
+    gpt-4o models could be cut short;
+  - OpenAI rate limits and server errors are retried instead of failing the meeting;
+  - quitting mid-transcription no longer leaves whisper-cli running, and the meeting is
+    transcribed on next launch;
+  - the updater no longer freezes the menu, won't restart during a recording, and won't
+    install a release your macOS can't run;
+  - audio retention and update checks run every few hours, not only at launch;
+  - deleting a meeting removes it from the voice library; an unreadable library is never
+    overwritten; an empty name shows as "Me"; update errors appear in the menu.
+- `Ata --diagnose` prints what Ata can access and records five seconds of each track, for bug
+  reports.
+
 ## 2.3.0
 
 - **Know who said what.** Turn on voice recognition in the new **People** tab and Ata tells the

@@ -8,7 +8,7 @@ finished `transcript.md`.
 flowchart LR
     subgraph capture [Capture]
         MIC[Microphone<br/>AVAudioEngine] --> W1[WavWriter<br/>mic.wav]
-        SYS[System audio<br/>ScreenCaptureKit] --> W2[WavWriter<br/>system.wav]
+        SYS[System audio<br/>Core Audio tap] --> W2[WavWriter<br/>system.wav]
     end
 
     DET[MeetingDetector] -- "an app took the mic" --> STORE
@@ -39,7 +39,7 @@ muting yourself doesn't end the recording.
 
 ## 2. Capturing two tracks — `Recorder` and `WavWriter`
 
-The microphone (via `AVAudioEngine`) and the Mac's output (via ScreenCaptureKit, audio only) are
+The microphone (via `AVAudioEngine`) and the Mac's output (via a Core Audio process tap) are
 recorded as **two separate 16 kHz mono WAV files**. Keeping them apart is what lets the transcript
 say who spoke — "you" or "the others" — without any speaker-recognition model.
 
@@ -54,6 +54,19 @@ say who spoke — "you" or "the others" — without any speaker-recognition mode
 
 `Recorder` restarts the microphone when the device changes, when it stops delivering buffers, and
 after the Mac wakes from sleep.
+
+**System audio** is a global Core Audio process tap (macOS 14.2+), excluding Ata's own sound,
+inside a private aggregate device clocked by the current output device; it is rebuilt when the
+output device changes. It needs only the audio-only "System Audio Recording Only" permission —
+not Screen Recording, which ScreenCaptureKit (used until 2.3.0) required, and which macOS only
+reported as granted after a relaunch, so the welcome window kept asking for it.
+
+Apple has no public API to read that permission. `SystemAudioPermission` uses the TCC
+framework's own entry points, loaded at runtime, and falls back to the system's prompt on first
+capture if they ever disappear. Two measured facts shape the flow: a tap started before the
+user answers delivers nothing, so Ata asks first; and a grant only takes effect for a process
+started after it, so Ata restarts itself once, when idle, right after the grant.
+`Ata --diagnose` prints both permissions and records five seconds of each track.
 
 ## 3. The queue — `AppStore`
 

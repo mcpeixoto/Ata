@@ -57,6 +57,9 @@ final class VoiceLibrary {
 
     let file: URL
     private(set) var voices: [Voice] = []
+    /// The file exists but couldn't be read. Saving would replace every voice
+    /// with whatever little is in memory, so `save` refuses.
+    private(set) var loadFailed = false
 
     init(file: URL = Paths.voicesDir.appendingPathComponent("voices.json")) {
         self.file = file
@@ -73,7 +76,8 @@ final class VoiceLibrary {
     }()
 
     private func load() {
-        guard let data = try? Data(contentsOf: file) else { voices = []; return }
+        guard FileManager.default.fileExists(atPath: file.path) else { voices = []; return }
+        guard let data = try? Data(contentsOf: file) else { voices = []; loadFailed = true; return }
         let d = JSONDecoder()
         d.dateDecodingStrategy = .custom { decoder in
             let text = try decoder.singleValueContainer().decode(String.self)
@@ -83,10 +87,18 @@ final class VoiceLibrary {
             }
             return date
         }
-        voices = (try? d.decode([Voice].self, from: data)) ?? []
+        if let decoded = try? d.decode([Voice].self, from: data) {
+            voices = decoded
+        } else {
+            voices = []
+            loadFailed = true
+        }
     }
 
     func save() throws {
+        guard !loadFailed else {
+            throw CocoaError(.fileReadCorruptFile, userInfo: [NSFilePathErrorKey: file.path])
+        }
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         let e = JSONEncoder()
         e.dateEncodingStrategy = .custom { date, encoder in
@@ -94,7 +106,9 @@ final class VoiceLibrary {
             try c.encode(Self.dates.string(from: date))
         }
         e.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try e.encode(voices).write(to: file, options: [.atomic, .completeFileProtection])
+        // No file-protection class: a transcription finishing while the screen is
+        // locked must still be able to read the library back.
+        try e.encode(voices).write(to: file, options: .atomic)
     }
 
     // MARK: - Matching
@@ -139,6 +153,8 @@ final class VoiceLibrary {
 
     private func learn(voice i: Int, from speaker: MeetingSpeaker, meetingID: String, at date: Date) {
         var v = voices[i]
+        // Transcribing the same meeting again must not count it twice.
+        if v.meetingIDs.contains(meetingID) { return }
         let n = Float(v.observations)
         let mixed = zip(v.centroid, Self.normalised(speaker.embedding)).map { ($0 * n + $1) / (n + 1) }
         v.centroid = Self.normalised(mixed)
@@ -184,6 +200,20 @@ final class VoiceLibrary {
         merged.isMe = a.isMe || b.isMe
         voices[t] = merged
         voices.remove(at: s)
+    }
+
+    /// A meeting was deleted: it no longer counts for any voice, and voices only
+    /// it introduced — never named — go with it. Returns the forgotten voices.
+    @discardableResult
+    func removeMeeting(_ meetingID: String) -> [Voice] {
+        var gone: [Voice] = []
+        for i in voices.indices.reversed() where voices[i].meetingIDs.contains(meetingID) {
+            voices[i].meetingIDs.removeAll { $0 == meetingID }
+            if voices[i].meetingIDs.isEmpty && voices[i].name == nil && !voices[i].isMe {
+                gone.append(voices.remove(at: i))
+            }
+        }
+        return gone
     }
 
     func forget(_ id: UUID) {

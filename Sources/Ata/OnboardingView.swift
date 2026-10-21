@@ -26,16 +26,11 @@ struct OnboardingView: View {
                             Button("Allow") { setup.requestMic() }
                         }
                         Divider()
-                        CheckRow(ok: setup.screen, title: L("System audio"),
-                                 detail: setup.screenNeedsRelaunch
-                                    ? L("Enable Ata in the list, then reopen the app.")
-                                    : L("To record the other participants. macOS calls this \"Screen & System Audio Recording\"; Ata only uses the sound.")) {
-                            HStack {
-                                if setup.screenNeedsRelaunch {
-                                    Button("Reopen") { setup.relaunch() }
-                                }
-                                Button("Allow") { setup.requestScreen() }
-                            }
+                        CheckRow(ok: !setup.systemAudioMissing, title: L("System audio"),
+                                 detail: setup.systemAudioStatus == .denied
+                                    ? L("Turn on Ata under \"System Audio Recording Only\" in the settings that open.")
+                                    : L("To record the other participants. Only the sound — never your screen.")) {
+                            Button("Allow") { setup.requestSystemAudio() }
                         }
                         Divider()
                         CheckRow(ok: setup.notifications, title: L("Notifications"),

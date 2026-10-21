@@ -180,3 +180,40 @@ final class RerenderTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: m.versionsDir.path), "a rename is not a new version")
     }
 }
+
+final class DecodeTests: XCTestCase {
+    /// Re-transcribing reads compressed audio back. This broke once: AVAudioFile
+    /// throws at end of file, which was briefly mistaken for a corrupt file.
+    func testCompressedAudioDecodesBackToTheSameLength() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ata-decode-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        // 3 s of a 440 Hz tone, as Ata records it.
+        let samples = 3 * Int(WavWriter.sampleRate)
+        var data = WavWriter.header(dataBytes: UInt32(samples * 2))
+        for i in 0..<samples {
+            let v = Int16(8000 * sin(2 * .pi * 440 * Double(i) / WavWriter.sampleRate))
+            withUnsafeBytes(of: v.littleEndian) { data.append(contentsOf: $0) }
+        }
+        let wav = dir.appendingPathComponent("mic.wav")
+        try data.write(to: wav)
+
+        let compressed = await AudioFiles.compressToM4A(wav)
+        let m4a = try XCTUnwrap(compressed)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: wav.path), "the WAV is replaced")
+
+        let back = dir.appendingPathComponent("back.wav")
+        try AudioFiles.decodeToWAV(m4a, to: back)
+        XCTAssertEqual(WavWriter.duration(of: back), 3, accuracy: 0.1)
+    }
+
+    func testADamagedFileFailsInsteadOfDecodingShort() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ata-decode-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let bad = dir.appendingPathComponent("system.m4a")
+        try Data(repeating: 7, count: 4096).write(to: bad)
+        XCTAssertThrowsError(try AudioFiles.decodeToWAV(bad, to: dir.appendingPathComponent("out.wav")))
+    }
+}
