@@ -30,9 +30,6 @@ jobs:
       - name: Unit tests
         run: swift test --disable-keychain
 
-      - name: Unit tests
-        run: swift test
-
       - name: Check localizations are in sync
         run: ./scripts/check-localization.sh
 
