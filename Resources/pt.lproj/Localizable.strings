@@ -219,7 +219,7 @@
 "Install failed (code %d). Try in Terminal: brew install whisper-cpp" = "A instalação falhou (código %d). Tenta no Terminal: brew install whisper-cpp";
 "The download failed. Try again." = "O download falhou. Tenta de novo.";
 "The server replied %d." = "O servidor respondeu %d.";
-"Overview" = "Resumo";
+"Overview" = "Visão geral";
 "Decisions" = "Decisões";
 "Action items" = "Tarefas";
 "Open questions" = "Questões em aberto";

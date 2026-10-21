@@ -120,6 +120,12 @@ enum AudioFiles {
         while !finished {
             var error: NSError?
             let status = converter.convert(to: outBuffer, error: &error) { _, outStatus in
+                // AVAudioFile throws when asked to read past the end, so check first:
+                // only an error *before* the end means a damaged file.
+                if input.framePosition >= input.length {
+                    outStatus.pointee = .endOfStream
+                    return nil
+                }
                 do {
                     try input.read(into: inBuffer, frameCount: readSize)
                 } catch {
