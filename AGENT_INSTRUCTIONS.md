@@ -166,9 +166,9 @@ A correction that only lives in a chat log gets repeated next week.
 
 ## What this is
 
-A SwiftUI menu bar app for macOS 14+ on Apple Silicon (`LSUIElement`), built with SwiftPM —
+A SwiftUI menu bar app for macOS 14.2+ on Apple Silicon (`LSUIElement`), built with SwiftPM —
 no Xcode project. It records the microphone (AVAudioEngine) and system audio
-(ScreenCaptureKit) into two 16 kHz mono WAV tracks, then transcribes them with whisper.cpp
+(a Core Audio process tap) into two 16 kHz mono WAV tracks, then transcribes them with whisper.cpp
 locally or with the OpenAI API, and writes `transcript.md` into
 `~/Documents/Meetings/<date> <app>/`.
 
@@ -187,6 +187,14 @@ Layout:
   reimplement the bundle layout anywhere else.
 
 ## Rules specific to this repo
+
+- **System audio permission** ("System Audio Recording Only") is read and requested through
+  TCC SPI in `SystemAudio.swift`. Measured on macOS 26: a tap started before the user answers
+  delivers nothing, and a grant only applies to a process started after it — hence ask-first and
+  the one-time automatic restart in `SetupModel`. To retest the first-run flow:
+  `tccutil reset AudioCapture ai.interactive.ata`, then `Ata --diagnose` from a
+  Developer-ID-signed build (the user has to click Allow). Never chain a test after a build
+  with `;` — a failed build silently reruns the old binary and burns a permission prompt.
 
 - **Strings are localized.** Every user-facing string goes through SwiftUI `Text` or the
   `L()` helper, with the English text as the key, and must be added to BOTH

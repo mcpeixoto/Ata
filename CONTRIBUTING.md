@@ -5,7 +5,7 @@ dependencies — so most changes are approachable in an afternoon.
 
 ## Five-minute setup
 
-You need a Mac with Apple Silicon, macOS 14+, and Xcode 26 (for Swift 6.2 package tools).
+You need a Mac with Apple Silicon, macOS 14.2+, and Xcode 26 (for Swift 6.2 package tools).
 
 ```bash
 git clone https://github.com/mcpeixoto/Ata.git

@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/mcpeixoto/Ata/actions/workflows/ci.yml/badge.svg)](https://github.com/mcpeixoto/Ata/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/mcpeixoto/Ata?label=download&color=7c4dff)](https://github.com/mcpeixoto/Ata/releases/latest)
-![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black?logo=apple)
+![macOS 14.2+](https://img.shields.io/badge/macOS-14.2%2B-black?logo=apple)
 ![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-arm64-black)
 ![Swift 5.9](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -71,10 +71,14 @@ On your Mac with Whisper, or through the OpenAI API. Your call.
 2. Drag Ata into Applications and open it.
 3. Grant the microphone and system-audio permissions in the welcome window, and pick an engine.
 
+Ata asks for two permissions: the **microphone**, and **System Audio Recording Only** — the
+sound your Mac plays, never your screen. Allow both once and Ata restarts itself to start using
+them.
+
 Releases are signed with a Developer ID and notarized by Apple, so they open without warnings — and
 Ata keeps itself up to date from then on.
 
-**Requirements:** macOS 14 Sonoma or later, Apple Silicon.
+**Requirements:** macOS 14.2 Sonoma or later, Apple Silicon.
 
 <details>
 <summary><b>Build from source instead</b></summary>
