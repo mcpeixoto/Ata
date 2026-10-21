@@ -235,7 +235,7 @@ private struct RecordingContent: View {
             }
 
             VStack(spacing: 8) {
-                meter(Pref.d.string(forKey: Pref.myName) ?? L("Me"), icon: "mic.fill",
+                meter(Pref.myNameOrDefault, icon: "mic.fill",
                       level: store.micLevel, tint: Theme.meTint)
                 meter(L("Others"), icon: "speaker.wave.2.fill", level: store.systemLevel, tint: Theme.othersTint)
             }
@@ -453,6 +453,14 @@ struct UpdateBanner: View {
                 ProgressView().controlSize(.small)
                 Text("Installing the update…").font(.system(size: 11)).foregroundStyle(.secondary)
                 Spacer()
+            }
+        case .failed(let message):
+            row {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                Text(message).font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                Button { updater.dismiss() } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
+                    .buttonStyle(.plain).foregroundStyle(.secondary)
             }
         default:
             EmptyView()

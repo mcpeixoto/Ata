@@ -9,6 +9,13 @@ enum OpenAIEngine {
     /// 32 kB/s, so ten minutes is ~19 MB — comfortably under the limit.
     static let chunkSeconds = 600
 
+    /// The gpt-4o transcription models cap their output at about 2,000 tokens,
+    /// which ten minutes of dense speech can exceed — the end of the chunk would
+    /// silently go missing. Five minutes stays well under it.
+    static func chunkSeconds(for model: String) -> Int {
+        model.hasPrefix("gpt-4o") ? 300 : chunkSeconds
+    }
+
     struct Result {
         let segments: [Segment]
         /// True when the model returned no timestamps, so echo removal is skipped.
@@ -20,7 +27,8 @@ enum OpenAIEngine {
         guard let client = OpenAIClient() else { throw OpenAIError.noKey }
 
         let scratch = audio.deletingLastPathComponent().appendingPathComponent(".upload", isDirectory: true)
-        let chunks = try AudioFiles.split(audio, maxSeconds: chunkSeconds, into: scratch)
+        let chunkLength = chunkSeconds(for: model)
+        let chunks = try AudioFiles.split(audio, maxSeconds: chunkLength, into: scratch)
         defer {
             AudioFiles.cleanUp(chunks)
             try? FileManager.default.removeItem(at: scratch)
@@ -38,7 +46,7 @@ enum OpenAIEngine {
                 guard !text.isEmpty, !Transcriber.isNoise(text) else { continue }
                 // A coarse chunk has no internal timing: span it across the chunk
                 // so speakers still interleave in the right order.
-                let end = s.end > s.start ? s.end : chunkSeconds * 1000
+                let end = s.end > s.start ? s.end : chunkLength * 1000
                 segments.append(Segment(speaker: speaker,
                                         start: chunk.offsetMs + s.start,
                                         end: chunk.offsetMs + end,

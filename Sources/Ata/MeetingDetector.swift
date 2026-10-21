@@ -109,7 +109,7 @@ enum CoreAudioProbe {
         if let app = NSRunningApplication(processIdentifier: pid), let name = app.localizedName {
             return name.replacingOccurrences(of: " Helper", with: "")
         }
-        return bundle.isEmpty ? "Meeting" : (bundle.split(separator: ".").last.map(String.init) ?? "Meeting")
+        return bundle.isEmpty ? L("Meeting") : (bundle.split(separator: ".").last.map(String.init) ?? L("Meeting"))
     }
 
     // MARK: Core Audio

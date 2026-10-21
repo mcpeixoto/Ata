@@ -104,4 +104,10 @@ enum Pref {
     }
 
     static var d: UserDefaults { .standard }
+
+    /// Your name in transcripts. An empty field means "Me", never a blank speaker.
+    static var myNameOrDefault: String {
+        let name = d.string(forKey: myName)?.trimmingCharacters(in: .whitespaces) ?? ""
+        return name.isEmpty ? L("Me") : name
+    }
 }

@@ -61,8 +61,10 @@ struct OpenAIClient {
 
         let data = try await send(req, body: body)
 
+        // A silent chunk comes back with no segments; it is still timestamped, so it
+        // must not mark the whole meeting as coarse.
         if wantsSegments, let parsed = try? JSONDecoder().decode(VerboseResponse.self, from: data),
-           let segments = parsed.segments, !segments.isEmpty {
+           let segments = parsed.segments {
             return TranscriptionChunk(
                 segments: segments.map {
                     (start: Int(($0.start * 1000).rounded()),
@@ -122,7 +124,26 @@ struct OpenAIClient {
 
     // MARK: - Plumbing
 
+    /// Retries rate limits (429), server errors (5xx) and dropped connections
+    /// with backoff, so one hiccup in a long meeting doesn't fail the whole
+    /// transcript and make "Try again" pay for every chunk twice.
     private func send(_ request: URLRequest, body: Data?) async throws -> Data {
+        var attempt = 0
+        while true {
+            do {
+                return try await sendOnce(request, body: body)
+            } catch let error as OpenAIError {
+                guard case .http(let code, _) = error, code == 429 || code >= 500, attempt < 3 else { throw error }
+            } catch let error as URLError where [.timedOut, .networkConnectionLost, .notConnectedToInternet,
+                                                  .cannotConnectToHost].contains(error.code) {
+                guard attempt < 3 else { throw error }
+            }
+            attempt += 1
+            try await Task.sleep(nanoseconds: UInt64(pow(2.0, Double(attempt)) * 1_000_000_000))
+        }
+    }
+
+    private func sendOnce(_ request: URLRequest, body: Data?) async throws -> Data {
         var req = request
         let (data, response): (Data, URLResponse)
         if let body {

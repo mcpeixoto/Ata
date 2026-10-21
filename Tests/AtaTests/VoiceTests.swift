@@ -213,3 +213,74 @@ final class WordSplitTests: XCTestCase {
         XCTAssertEqual(SpeakerAssignment.split(s, turns: turns).map(\.speaker), ["S2"])
     }
 }
+
+final class VoiceLibraryConsistencyTests: XCTestCase {
+    private var file: URL!
+
+    override func setUp() {
+        super.setUp()
+        file = FileManager.default.temporaryDirectory.appendingPathComponent("voices-\(UUID().uuidString).json")
+        VoiceLibrary.matchThreshold = 0.6
+        VoiceLibrary.requiredLead = 0.1
+    }
+
+    override func tearDown() {
+        try? FileManager.default.removeItem(at: file)
+        super.tearDown()
+    }
+
+    private func s(_ label: String, _ axis: Int) -> MeetingSpeaker {
+        var e = [Float](repeating: 0, count: 8); e[axis] = 1
+        return MeetingSpeaker(label: label, embedding: e, seconds: 30, voiceID: nil)
+    }
+
+    func testTranscribingTheSameMeetingAgainDoesNotCountItTwice() {
+        let lib = VoiceLibrary(file: file)
+        lib.assign([s("S1", 0)], meetingID: "m1")
+        lib.assign([s("S1", 0)], meetingID: "m1")
+        XCTAssertEqual(lib.voices.count, 1)
+        XCTAssertEqual(lib.voices[0].observations, 1)
+        XCTAssertEqual(lib.voices[0].meetingIDs, ["m1"])
+    }
+
+    func testDeletingAMeetingForgetsOnlyTheVoicesItAloneIntroduced() {
+        let lib = VoiceLibrary(file: file)
+        lib.assign([s("S1", 0), s("S2", 3)], meetingID: "m1")
+        lib.assign([s("S1", 0)], meetingID: "m2")
+        let named = lib.voices.first { $0.meetingIDs == ["m1"] }!
+        lib.assign([s("S1", 5)], meetingID: "m3")
+        lib.rename(lib.voices.first { $0.meetingIDs == ["m3"] }!.id, to: "Ana")
+
+        let gone = lib.removeMeeting("m1")
+        XCTAssertEqual(gone.map(\.id), [named.id], "the unnamed voice heard only in m1 goes")
+        XCTAssertEqual(lib.voices.first { $0.meetingIDs.contains("m2") }?.meetingIDs, ["m2"], "the shared voice stays")
+        _ = lib.removeMeeting("m3")
+        XCTAssertTrue(lib.voices.contains { $0.name == "Ana" }, "a named voice is kept even with no meetings")
+    }
+
+    func testAnUnreadableLibraryIsNeverOverwritten() throws {
+        try Data("not json".utf8).write(to: file)
+        let lib = VoiceLibrary(file: file)
+        XCTAssertTrue(lib.loadFailed)
+        lib.assign([s("S1", 0)], meetingID: "m1")
+        XCTAssertThrowsError(try lib.save())
+        XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "not json")
+    }
+}
+
+final class SmallRulesTests: XCTestCase {
+    func testAnEmptyNameBecomesMe() {
+        let saved = Pref.d.string(forKey: Pref.myName)
+        defer { Pref.d.set(saved, forKey: Pref.myName) }
+        Pref.d.set("   ", forKey: Pref.myName)
+        XCTAssertEqual(Pref.myNameOrDefault, "Me")
+        Pref.d.set("Rita", forKey: Pref.myName)
+        XCTAssertEqual(Pref.myNameOrDefault, "Rita")
+    }
+
+    func testGPT4oModelsGetShorterChunks() {
+        XCTAssertEqual(OpenAIEngine.chunkSeconds(for: "whisper-1"), 600)
+        XCTAssertEqual(OpenAIEngine.chunkSeconds(for: "gpt-4o-transcribe"), 300)
+        XCTAssertEqual(OpenAIEngine.chunkSeconds(for: "gpt-4o-mini-transcribe"), 300)
+    }
+}

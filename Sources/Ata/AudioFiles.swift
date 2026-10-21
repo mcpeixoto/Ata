@@ -116,12 +116,15 @@ enum AudioFiles {
 
         var bytesWritten = 0
         var finished = false
+        var readError: Error?
         while !finished {
             var error: NSError?
             let status = converter.convert(to: outBuffer, error: &error) { _, outStatus in
                 do {
                     try input.read(into: inBuffer, frameCount: readSize)
                 } catch {
+                    // A corrupt file must fail, not quietly become a shorter transcript.
+                    readError = error
                     outStatus.pointee = .endOfStream
                     return nil
                 }
@@ -140,6 +143,7 @@ enum AudioFiles {
             }
             if status == .endOfStream || status == .error { finished = true }
         }
+        if let readError { throw readError }
 
         try handle.seek(toOffset: 0)
         try handle.write(contentsOf: WavWriter.header(dataBytes: UInt32(clamping: bytesWritten)))

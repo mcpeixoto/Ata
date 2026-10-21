@@ -26,6 +26,7 @@ final class AppStore: ObservableObject {
     private let detector = MeetingDetector()
     private var current: Meeting?
     private var ticker: Timer?
+    private var maintenance: Timer?
     private var autoStarted = false
     private var bootstrapped = false
     private var pendingAutoStop = false
@@ -51,6 +52,14 @@ final class AppStore: ObservableObject {
         pruneOldAudio()
         pump()
         Updater.shared.checkInBackground()
+        // Ata often runs for weeks as a login item: retention and update checks
+        // can't only happen at launch.
+        maintenance = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { _ in
+            MainActor.assumeIsolated {
+                AppStore.shared.pruneOldAudio()
+                Updater.shared.checkInBackground()
+            }
+        }
     }
 
     /// Interrupted recordings (crash, power loss, force quit) go back into the queue.
@@ -88,7 +97,7 @@ final class AppStore: ObservableObject {
 
     /// Deletes audio from meetings older than the retention window, keeping the
     /// transcripts. Runs at launch; 0 means keep audio forever.
-    private func pruneOldAudio() {
+    func pruneOldAudio() {
         let days = Pref.d.integer(forKey: Pref.audioRetentionDays)
         guard days > 0 else { return }
         let cutoff = Date().addingTimeInterval(-Double(days) * 86_400)
@@ -150,6 +159,8 @@ final class AppStore: ObservableObject {
 
     func startRecording(app: String?) {
         guard phase == .idle else { return }
+        // An auto-stop armed for an earlier meeting must never end this one.
+        pendingAutoStop = false
         setup.refresh()
         guard setup.mic || AVAuthorization.micUndetermined else {
             lastError = L("Grant microphone access to record.")
@@ -179,7 +190,8 @@ final class AppStore: ObservableObject {
                 autoStarted = false
                 lastError = error.localizedDescription
                 setup.refresh()
-                if error is RecorderError { WindowManager.shared.showOnboarding() }
+                // Only a refused permission is something the welcome window can fix.
+                if let e = error as? RecorderError, e.isPermission { WindowManager.shared.showOnboarding() }
                 reload()
             }
         }
@@ -212,6 +224,7 @@ final class AppStore: ObservableObject {
     func discardRecording() {
         guard phase == .recording, let m = current else { return }
         phase = .stopping
+        pendingAutoStop = false
         Task {
             _ = await recorder.stop()
             stopTicker()
@@ -284,6 +297,7 @@ final class AppStore: ObservableObject {
     func delete(_ m: Meeting) {
         guard m.id != current?.id, m.id != transcribingID else { return }
         Library.trash(m)
+        PeopleModel.shared.removeMeeting(m.id)
         reload()
     }
 
@@ -331,7 +345,9 @@ final class AppStore: ObservableObject {
             var m = job
             do {
                 let outcome = try await Transcriber.transcribe(m, options: options) { p in
-                    Task { @MainActor in AppStore.shared.transcribeProgress = p }
+                    Task { @MainActor in
+                        if AppStore.shared.transcribingID == job.id { AppStore.shared.transcribeProgress = p }
+                    }
                 }
                 var history = m.transcriptions ?? []
                 if let archived = outcome.archivedPrevious, !history.isEmpty {
@@ -344,6 +360,10 @@ final class AppStore: ObservableObject {
                 Library.save(m)
                 await self.handleAudio(of: m)
                 Notifier.shared.transcriptReady(m)
+            } catch TranscriberError.cancelled {
+                // Stopped because Ata is quitting: back in the queue for the next launch.
+                m.status = .pending
+                Library.save(m)
             } catch {
                 m.status = .failed
                 m.error = error.localizedDescription
@@ -374,6 +394,9 @@ final class AppStore: ObservableObject {
     /// Once setup is complete, work through whatever is queued.
     func setupChanged() {
         setup.refresh()
+        if setup.hasOpenAIKey, lastError == L("No OpenAI API key. Add one in Settings → Transcription.") {
+            lastError = nil
+        }
         pump()
     }
 }

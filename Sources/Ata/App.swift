@@ -27,6 +27,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         endStaleCopies()
+        if Diagnostics.requested {
+            Diagnostics.run()
+            return
+        }
         if Updater.commandLineRequested {
             Updater.shared.runFromCommandLine()
             return

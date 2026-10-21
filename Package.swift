@@ -3,7 +3,8 @@ import PackageDescription
 
 let package = Package(
     name: "Ata",
-    platforms: [.macOS(.v14)],
+    // 14.2: Core Audio process taps, for recording system audio without Screen Recording.
+    platforms: [.macOS("14.2")],
     dependencies: [
         // On-device speaker diarization and voice embeddings for "who said what".
         // traits: [] leaves out FluidAudio's default NemoTextProcessing trait, an

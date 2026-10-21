@@ -184,7 +184,9 @@ struct SettingsView: View {
                  : L("Audio is deleted once the transcript is written. A failed transcription never deletes it."))
                 .font(.system(size: 11)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Picker("Delete saved audio after", selection: $audioRetentionDays) {
+            Picker("Delete saved audio after", selection: Binding(
+                get: { audioRetentionDays },
+                set: { audioRetentionDays = $0; store.pruneOldAudio() })) {
                 Text("Never").tag(0)
                 Text("7 days").tag(7)
                 Text("30 days").tag(30)
@@ -254,7 +256,7 @@ struct LocalModelRows: View {
         Picker("Model", selection: Binding(get: { model.id }, set: {
             Pref.d.set($0, forKey: Pref.localModel)
             generation += 1
-            setup.refresh()
+            AppStore.shared.setupChanged()
         })) {
             ForEach(LocalModel.all) { m in
                 Text(m.id == LocalModel.defaultID ? L("%@ — recommended", m.title) : m.title).tag(m.id)

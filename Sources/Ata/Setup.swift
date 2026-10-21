@@ -8,7 +8,9 @@ import UserNotifications
 @MainActor
 final class SetupModel: ObservableObject {
     @Published private(set) var mic = false
-    @Published private(set) var screen = false
+    /// System audio permission ("System Audio Recording Only").
+    @Published private(set) var systemAudio = false
+    @Published private(set) var systemAudioStatus = SystemAudioPermission.Status.unknown
     @Published private(set) var whisper = false
     @Published private(set) var model = false
     @Published private(set) var notifications = false
@@ -18,8 +20,6 @@ final class SetupModel: ObservableObject {
     @Published private(set) var downloadError: String?
     @Published private(set) var installingWhisper = false
     @Published private(set) var whisperStatus: String?
-    /// macOS only picks up the screen-recording permission after the app is reopened.
-    @Published private(set) var screenNeedsRelaunch = false
 
     /// True when the OpenAI engine is selected, in which case whisper.cpp and
     /// the local model are not needed to be ready.
@@ -28,9 +28,15 @@ final class SetupModel: ObservableObject {
 
     var hasBrew: Bool { Paths.brew() != nil }
 
+    /// Denied, or not asked yet when Ata could ask. When Ata can't read the
+    /// state at all, macOS asks on the first recording, so that isn't missing.
+    var systemAudioMissing: Bool {
+        systemAudioStatus == .denied || (systemAudioStatus == .unknown && SystemAudioPermission.canAsk)
+    }
+
     /// Everything needed to record and transcribe with the selected engine.
     var ready: Bool {
-        guard mic && screen else { return false }
+        guard mic && !systemAudioMissing else { return false }
         return usesOpenAI ? hasOpenAIKey : (whisper && model)
     }
 
@@ -40,7 +46,7 @@ final class SetupModel: ObservableObject {
     var missingSummary: String? {
         var m: [String] = []
         if !mic { m.append(L("microphone")) }
-        if !screen { m.append(L("system audio")) }
+        if systemAudioMissing { m.append(L("system audio")) }
         if usesOpenAI {
             if !hasOpenAIKey { m.append(L("OpenAI API key")) }
         } else {
@@ -59,7 +65,9 @@ final class SetupModel: ObservableObject {
     func refresh() {
         guard !Self.frozen else { return }
         mic = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
-        screen = CGPreflightScreenCaptureAccess()
+        systemAudioStatus = SystemAudioPermission.status
+        systemAudio = systemAudioStatus == .authorized
+        if !Snapshots.rendering && !Diagnostics.requested { restartIfAudioWasJustGranted() }
         whisper = Paths.whisperCLI() != nil
         model = Paths.hasWhisperModel
         usesOpenAI = Engine.current == .openAI
@@ -73,7 +81,7 @@ final class SetupModel: ObservableObject {
 
     /// Everything installed and granted, for the snapshot renderer.
     func applySnapshotFixture() {
-        mic = true; screen = true; whisper = true; model = true
+        mic = true; systemAudio = true; systemAudioStatus = .authorized; whisper = true; model = true
         notifications = true; launchAtLogin = true
         usesOpenAI = false; hasOpenAIKey = true
         Self.frozen = true
@@ -93,13 +101,39 @@ final class SetupModel: ObservableObject {
         }
     }
 
-    func requestScreen() {
-        if !CGRequestScreenCaptureAccess() {
-            Self.openPrivacy("Privacy_ScreenCapture")
+    /// Shows the system prompt the first time; after a refusal, macOS won't ask
+    /// again, so this opens the settings pane instead. No relaunch needed: the
+    /// state is read again as soon as Ata is back in front.
+    func requestSystemAudio() {
+        if systemAudioStatus != .denied,
+           SystemAudioPermission.ask({ [weak self] _ in Task { @MainActor in self?.refresh() } }) {
+            return
         }
-        screenNeedsRelaunch = true
-        refresh()
+        Self.openPrivacy("Privacy_AudioCapture")
     }
+
+    /// The permission state when this process started. Core Audio settles a
+    /// process's right to capture system audio when the process first uses it,
+    /// so a grant given while Ata is running only takes effect after a restart
+    /// (measured: the tap delivered nothing until then).
+    private let systemAudioAtLaunch = SystemAudioPermission.status
+
+    /// Restarts Ata once, by itself, right after system audio was granted —
+    /// never during a recording. Called from `refresh`.
+    private func restartIfAudioWasJustGranted() {
+        guard systemAudioAtLaunch != .authorized, systemAudioStatus == .authorized,
+              !Self.restarting, AppStore.shared.phase == .idle else { return }
+        Self.restarting = true
+        NSLog("Ata: system audio was just allowed; restarting so capture can use it")
+        let path = Bundle.main.bundlePath
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/sh")
+        p.arguments = ["-c", "sleep 1; /usr/bin/open \"\(path)\""]
+        try? p.run()
+        NSApp.terminate(nil)
+    }
+
+    private static var restarting = false
 
     func requestNotifications() {
         Task {
@@ -120,15 +154,6 @@ final class SetupModel: ObservableObject {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)") {
             NSWorkspace.shared.open(url)
         }
-    }
-
-    func relaunch() {
-        let path = Bundle.main.bundlePath
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/bin/sh")
-        p.arguments = ["-c", "sleep 1; /usr/bin/open \"\(path)\""]
-        try? p.run()
-        NSApp.terminate(nil)
     }
 
     // MARK: Launch at login
@@ -240,6 +265,8 @@ final class SetupModel: ObservableObject {
             self.fetch(model.url, to: model.path, skipIf: model.isInstalled, weight: 1) { ok2 in
                 self.downloadProgress = nil
                 self.refresh()
+                // Meetings may be waiting for exactly this model.
+                AppStore.shared.setupChanged()
                 if !ok2 && self.downloadError == nil { self.downloadError = L("The download failed. Try again.") }
                 _ = ok
             }

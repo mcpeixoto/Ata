@@ -1,7 +1,7 @@
 import Foundation
 
 enum TranscriberError: LocalizedError {
-    case whisperMissing, modelMissing, noAudio
+    case whisperMissing, modelMissing, noAudio, cancelled
     case failed(String)
 
     var errorDescription: String? {
@@ -9,6 +9,7 @@ enum TranscriberError: LocalizedError {
         case .whisperMissing: return L("The local transcription engine (whisper.cpp) is not installed.")
         case .modelMissing: return L("The transcription model has not been downloaded yet.")
         case .noAudio: return L("No audio was found for this meeting.")
+        case .cancelled: return L("Transcription was stopped.")
         case .failed(let log): return L("Whisper failed: %@", log)
         }
     }
@@ -62,7 +63,7 @@ struct TranscribeOptions {
     static func current() -> TranscribeOptions {
         TranscribeOptions(
             engine: Engine.current,
-            myName: Pref.d.string(forKey: Pref.myName) ?? L("Me"),
+            myName: Pref.myNameOrDefault,
             language: Pref.d.string(forKey: Pref.language) ?? "auto",
             openAIModel: Pref.d.string(forKey: Pref.openAIModel) ?? Pref.defaultOpenAIModel,
             localModel: LocalModel.current.id,
@@ -193,8 +194,8 @@ enum Transcriber {
             } else {
                 // The WAV was compressed after an earlier run: decode it back.
                 let temp = source.deletingPathExtension().appendingPathExtension("decoded.wav")
+                prepared.append((speaker, temp, true))  // listed first, so a failed decode is cleaned up too
                 try AudioFiles.decodeToWAV(source, to: temp)
-                prepared.append((speaker, temp, true))
             }
         }
         guard !prepared.isEmpty else { throw TranscriberError.noAudio }
@@ -238,7 +239,11 @@ enum Transcriber {
             segments = removeEcho(segments, me: Speakers.me)
         }
 
-        if options.recogniseVoices, let diarizer = Diarization.current {
+        // Splitting by speaker needs real timestamps: a timestamp-less OpenAI chunk is
+        // ten minutes of several people, which must not all go to one name.
+        // A run without voice recognition leaves no stale speaker map behind.
+        try? FileManager.default.removeItem(at: meeting.speakersURL)
+        if options.recogniseVoices, !coarse, let diarizer = Diarization.current {
             progress(0.97)
             segments = await recogniseSpeakers(segments, meeting: meeting, diarizer: diarizer,
                                                system: prepared.first { $0.speaker == Speakers.others }?.audio,
