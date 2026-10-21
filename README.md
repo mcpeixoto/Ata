@@ -101,8 +101,8 @@ installs it in `/Applications` and opens it. There's no Xcode project — it's a
 |---|---|---|
 | Where the audio goes | nowhere — it never leaves your Mac | uploaded to OpenAI |
 | Cost | free | per minute of audio |
-| Setup | whisper.cpp + a model (0.5–3 GB, your pick), installed for you from the welcome window | paste an API key |
-| Speed | fast on Apple Silicon (Metal) | depends on your connection |
+| Setup | whisper.cpp + a model (0.6–1.6 GB, your pick), installed for you from the welcome window | paste an API key |
+| Speed | about 11 min per hour of audio with Large v3, 3 min with Turbo (M4) | depends on your connection |
 | Timestamps | per line | per line with `whisper-1`; none with the `gpt-4o-transcribe` models |
 
 Switch any time in **Settings → Transcription**, where you can also pick the local model —

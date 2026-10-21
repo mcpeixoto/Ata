@@ -13,6 +13,7 @@ final class FilesTests: XCTestCase {
         setenv("ATA_MEETINGS_DIR", root.path, 1)
         setenv("ATA_SUPPORT_DIR", root.appendingPathComponent("support").path, 1)
         precondition(Paths.meetingsDir.path == root.path, "tests must never touch real meetings")
+        precondition(Paths.supportDir.path.hasPrefix(root.path), "tests must never touch the real models")
         precondition(Paths.voicesDir.path.hasPrefix(root.path), "tests must never touch the real voice library")
     }
 
@@ -175,7 +176,7 @@ final class RerenderTests: XCTestCase {
         try Transcriber.rerender(m, myName: "Alex")
         md = try String(contentsOf: m.transcriptURL, encoding: .utf8)
         XCTAssertTrue(md.contains("**[00:02] Rita:** Hi, thanks for having me"))
-        XCTAssertTrue(md.contains("**[00:06] Speaker 2:** Shall we start"))
+        XCTAssertTrue(md.contains("**[00:06] Speaker 2:** Shall we start"), "speakers without a voice keep a per-meeting label")
         XCTAssertFalse(FileManager.default.fileExists(atPath: m.versionsDir.path), "a rename is not a new version")
     }
 }

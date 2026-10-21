@@ -20,8 +20,14 @@ struct Voice: Codable, Equatable, Identifiable {
     var lastSeen: Date
     /// The person using this Mac, learned from the microphone track.
     var isMe: Bool = false
+    /// Stable "Voice 3" number, given when the voice is first heard, so an
+    /// unnamed voice reads the same in every transcript and in the People tab.
+    var number: Int? = nil
 
     var meetings: Int { meetingIDs.count }
+
+    /// The name, or "Voice 3" until it has one.
+    var displayName: String { name ?? L("Voice %d", number ?? 0) }
 }
 
 /// One speaker found in one meeting, before or after matching.
@@ -121,9 +127,10 @@ final class VoiceLibrary {
         }
 
         for (s, speaker) in speakers.enumerated() where !takenSpeakers.contains(s) && !speaker.embedding.isEmpty {
+            let next = (voices.compactMap(\.number).max() ?? 0) + 1
             let voice = Voice(id: UUID(), name: nil, centroid: Self.normalised(speaker.embedding), observations: 1,
                               meetingIDs: [meetingID], sample: nil, firstSeen: date, lastSeen: date,
-                              isMe: speaker.label == "me")
+                              isMe: speaker.label == "me", number: next)
             voices.append(voice)
             result[s].voiceID = voice.id
         }
@@ -237,6 +244,75 @@ enum SpeakerAssignment {
         let nearest = turns.min { gap($0, start, end) < gap($1, start, end) }
         if let nearest, gap(nearest, start, end) <= 1_000 { return nearest.label }
         return nil
+    }
+
+    /// Splits a system-track segment wherever the speaker changes, using word
+    /// timings, and labels each piece. Without word timings the whole segment
+    /// goes to whoever spoke most during it.
+    static func split(_ s: Segment, turns: [SpeakerTurn]) -> [Segment] {
+        let whole = label(start: s.start, end: s.end, turns: turns) ?? s.speaker
+        guard !s.words.isEmpty else {
+            return [Segment(speaker: whole, start: s.start, end: s.end, text: s.text)]
+        }
+        // A label per word, from the turn it overlaps.
+        var labels: [String] = []
+        for w in s.words {
+            labels.append(label(start: w.start, end: max(w.end, w.start + 1), turns: turns) ?? labels.last ?? whole)
+        }
+        snapChangesToPauses(&labels, words: s.words)
+
+        var pieces: [Segment] = []
+        var i = 0
+        while i < s.words.count {
+            var j = i
+            while j + 1 < s.words.count && labels[j + 1] == labels[i] { j += 1 }
+            let run = Array(s.words[i...j])
+            pieces.append(Segment(speaker: labels[i], start: run.first!.start, end: run.last!.end,
+                                  text: run.map(\.text).joined(separator: " "), words: run))
+            i = j + 1
+        }
+        return pieces
+    }
+
+    /// Whisper's word times run a few hundred milliseconds off the audio, and it
+    /// stretches a word over the silence after it, so a change of speaker read
+    /// from the turns often lands one word early or late. People change turns at
+    /// the end of a sentence or at a pause, so each change moves, within two
+    /// words, to the nearest sentence end — or, in unpunctuated text, to the
+    /// clearly longest pause.
+    static func snapChangesToPauses(_ labels: inout [String], words: [Segment.Word]) {
+        guard words.count > 2 else { return }
+        func pause(before k: Int) -> Int { max(0, words[k].start - words[k - 1].end) }
+        func endsSentence(before k: Int) -> Bool {
+            guard let last = words[k - 1].text.last else { return false }
+            return ".?!…".contains(last)
+        }
+        var k = 1
+        while k < words.count {
+            defer { k += 1 }
+            guard labels[k] != labels[k - 1] else { continue }
+            let before = labels[k - 1], after = labels[k]
+            let window = max(1, k - 2)...min(words.count - 1, k + 2)
+
+            var target: Int?
+            if endsSentence(before: k) {
+                continue // already right after a sentence end
+            } else if let p = window.filter({ endsSentence(before: $0) }).min(by: { abs($0 - k) < abs($1 - k) }) {
+                target = p
+            } else if pause(before: k) < 150,
+                      let best = window.max(by: { pause(before: $0) < pause(before: $1) }),
+                      pause(before: best) >= 150, pause(before: best) - pause(before: k) >= 100 {
+                target = best
+            }
+            guard let target, target != k else { continue }
+
+            // Words before `target` belong to the earlier speaker, from `target` on to the
+            // later one — only if that touches nothing but the two speakers of this change.
+            let range = min(k, target)..<max(k, target)
+            guard range.allSatisfy({ labels[$0] == before || labels[$0] == after }) else { continue }
+            for m in range { labels[m] = target > k ? before : after }
+            k = max(k, target)
+        }
     }
 
     private static func gap(_ t: SpeakerTurn, _ start: Int, _ end: Int) -> Int {

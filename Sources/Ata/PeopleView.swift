@@ -15,9 +15,7 @@ struct PeopleView: View {
             } else {
                 if !people.worthAsking.isEmpty {
                     section(L("Who's this?"), footnote: L("Heard in several meetings. Play a sample, then type a name.")) {
-                        ForEach(Array(people.worthAsking.enumerated()), id: \.element.id) { i, voice in
-                            VoiceRow(voice: voice, asking: true, number: i + 1)
-                        }
+                        ForEach(people.worthAsking) { VoiceRow(voice: $0, asking: true) }
                     }
                 }
                 if !people.named.isEmpty {
@@ -103,7 +101,6 @@ private struct VoiceRow: View {
     @StateObject private var people = PeopleModel.shared
     let voice: Voice
     let asking: Bool
-    var number = 0
     @State private var name = ""
     @State private var editing = false
     @FocusState private var focused: Bool
@@ -124,7 +121,7 @@ private struct VoiceRow: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 if asking {
-                    Text(L("Unknown voice %d", number)).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                    Text(voice.displayName).font(.system(size: 12, weight: .semibold)).lineLimit(1)
                 } else if !editing {
                     Text(voice.name ?? "").font(.system(size: 12, weight: .semibold)).lineLimit(1)
                 }

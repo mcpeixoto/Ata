@@ -143,3 +143,73 @@ final class SpeakerAssignmentTests: XCTestCase {
         XCTAssertNil(SpeakerAssignment.label(start: 12_000, end: 15_000, turns: turns))
     }
 }
+
+final class WordSplitTests: XCTestCase {
+    private func token(_ text: String, _ from: Int, _ to: Int) -> LocalEngine.Token {
+        try! JSONDecoder().decode(LocalEngine.Token.self,
+                                  from: Data(#"{"text":\#(String(reflecting: text)),"offsets":{"from":\#(from),"to":\#(to)}}"#.utf8))
+    }
+
+    func testTokensBecomeWordsWithPunctuationAttached() {
+        let words = LocalEngine.words([
+            token("[_BEG_]", 0, 0), token(" list", 8610, 8840), token(".", 8840, 8850),
+            token(" Sounds", 9090, 9380), token(" good", 9480, 9640), token("[_TT_500]", 9640, 9640),
+        ])
+        XCTAssertEqual(words.map(\.text), ["list.", "Sounds", "good"])
+        XCTAssertEqual(words[0].end, 8850)
+    }
+
+    func testASegmentIsSplitWhereTheSpeakerChanges() {
+        let words: [Segment.Word] = [
+            .init(start: 6170, end: 6480, text: "with"), .init(start: 8610, end: 8840, text: "list."),
+            .init(start: 9090, end: 9380, text: "Sounds"), .init(start: 9480, end: 9640, text: "good."),
+        ]
+        let s = Segment(speaker: "others", start: 6160, end: 9640, text: "with list. Sounds good.", words: words)
+        let turns = [SpeakerTurn(start: 0, end: 8900, label: "S1"), SpeakerTurn(start: 9000, end: 16000, label: "S2")]
+        let pieces = SpeakerAssignment.split(s, turns: turns)
+        XCTAssertEqual(pieces.map(\.speaker), ["S1", "S2"])
+        XCTAssertEqual(pieces.map(\.text), ["with list.", "Sounds good."])
+        XCTAssertEqual(pieces[1].start, 9090)
+    }
+
+    func testAChangeLandingMidPhraseMovesToThePause() {
+        // As measured: Whisper times "list" late, so the turns hand it to the next speaker,
+        // but the real pause is after "list".
+        let words: [Segment.Word] = [
+            .init(start: 7990, end: 8230, text: "the"), .init(start: 8230, end: 8610, text: "press"),
+            .init(start: 8610, end: 8840, text: "list."), .init(start: 9090, end: 9380, text: "Sounds"),
+            .init(start: 9480, end: 9640, text: "good."),
+        ]
+        let s = Segment(speaker: "others", start: 7990, end: 9640, text: "", words: words)
+        let turns = [SpeakerTurn(start: 0, end: 8600, label: "S1"), SpeakerTurn(start: 8600, end: 16000, label: "S2")]
+        XCTAssertEqual(SpeakerAssignment.split(s, turns: turns).map(\.text), ["the press list.", "Sounds good."])
+    }
+
+    func testAChangeMovesToTheSentenceEnd() {
+        // As measured in meeting two: "Great" (the next speaker's first word) was
+        // timed into the previous turn because "now." was stretched over the silence.
+        let words: [Segment.Word] = [
+            .init(start: 5000, end: 5400, text: "done"), .init(start: 5400, end: 6900, text: "now."),
+            .init(start: 6900, end: 7200, text: "Great"), .init(start: 7300, end: 7600, text: "news."),
+        ]
+        let s = Segment(speaker: "others", start: 5000, end: 7600, text: "", words: words)
+        let turns = [SpeakerTurn(start: 0, end: 7250, label: "S1"), SpeakerTurn(start: 7250, end: 9000, label: "S2")]
+        XCTAssertEqual(SpeakerAssignment.split(s, turns: turns).map(\.text), ["done now.", "Great news."])
+    }
+
+    func testAChangeAlreadyAtAPauseStays() {
+        let words: [Segment.Word] = [
+            .init(start: 0, end: 300, text: "one"), .init(start: 300, end: 600, text: "two"),
+            .init(start: 1200, end: 1500, text: "three"), .init(start: 1500, end: 1800, text: "four"),
+        ]
+        let s = Segment(speaker: "others", start: 0, end: 1800, text: "", words: words)
+        let turns = [SpeakerTurn(start: 0, end: 900, label: "S1"), SpeakerTurn(start: 900, end: 2000, label: "S2")]
+        XCTAssertEqual(SpeakerAssignment.split(s, turns: turns).map(\.text), ["one two", "three four"])
+    }
+
+    func testWithoutWordsTheWholeSegmentGoesToTheMainSpeaker() {
+        let s = Segment(speaker: "others", start: 0, end: 10_000, text: "hello")
+        let turns = [SpeakerTurn(start: 0, end: 3_000, label: "S1"), SpeakerTurn(start: 3_000, end: 10_000, label: "S2")]
+        XCTAssertEqual(SpeakerAssignment.split(s, turns: turns).map(\.speaker), ["S2"])
+    }
+}

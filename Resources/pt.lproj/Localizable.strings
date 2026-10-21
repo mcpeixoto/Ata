@@ -30,13 +30,11 @@
 "produced no output" = "não produziu resultado";
 "exit code %d" = "código %d";
 "Large v3" = "Large v3";
-"Most accurate. Slower, biggest download." = "O mais preciso. Mais lento, o maior download.";
-"Large v3 (compressed)" = "Large v3 (comprimido)";
-"Nearly as accurate, a third of the size." = "Quase tão preciso, com um terço do tamanho.";
-"Large v3 Turbo" = "Large v3 Turbo";
-"Fastest. Weaker on accents and noisy calls." = "O mais rápido. Pior com sotaques e chamadas com ruído.";
-"Large v3 Turbo (compressed)" = "Large v3 Turbo (comprimido)";
-"Smallest download, lowest accuracy." = "O download mais pequeno, a precisão mais baixa.";
+"Most accurate, best for Portuguese and noisy calls. About 11 minutes per hour of audio." = "O mais preciso, o melhor para português e chamadas com ruído. Cerca de 11 minutos por hora de áudio.";
+"Turbo" = "Turbo";
+"Fastest, a little less accurate. About 3 minutes per hour of audio." = "O mais rápido, um pouco menos preciso. Cerca de 3 minutos por hora de áudio.";
+"Turbo compact" = "Turbo compacto";
+"Turbo's accuracy in a third of the download and under 1 GB of memory. About 4 minutes per hour." = "A precisão do Turbo com um terço do download e menos de 1 GB de memória. Cerca de 4 minutos por hora.";
 "Meeting" = "Meeting";
 "<1 min" = "<1 min";
 "Record" = "Gravar";
@@ -111,7 +109,6 @@
 "Listening for voices" = "À escuta de vozes";
 "Voices show up here after your next meetings are transcribed. Ata asks about a voice once it has heard it in at least two meetings." = "As vozes aparecem aqui depois de as próximas meetings serem transcritas. A Ata pergunta por uma voz quando já a ouviu em pelo menos duas meetings.";
 "Play a sample" = "Ouvir uma amostra";
-"Unknown voice %d" = "Voz desconhecida %d";
 "Name" = "Nome";
 "Type their name…" = "Escreve o nome…";
 "%d meetings · heard %@" = "%d meetings · ouvida %@";
@@ -206,6 +203,8 @@
 "Source on GitHub" = "Código no GitHub";
 "Model" = "Modelo";
 "%@ — recommended" = "%@ — recomendado";
+"Switch to %@" = "Mudar para %@";
+"%@ is more accurate, especially on calls and in Portuguese." = "O %@ é mais preciso, sobretudo em chamadas e em português.";
 "Downloaded" = "Descarregado";
 "Download %@" = "Descarregar %@";
 "Other models on disk: %@" = "Outros modelos no disco: %@";
@@ -242,3 +241,4 @@
 "The downloaded update is not notarized by Apple. Nothing was installed." = "A atualização descarregada não está notarizada pela Apple. Não foi instalado nada.";
 "The downloaded update is signed by a different developer. Nothing was installed." = "A atualização descarregada está assinada por outro developer. Não foi instalado nada.";
 "%@ failed with code %d" = "%@ falhou com o código %d";
+"Voice %d" = "Voz %d";
