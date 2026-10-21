@@ -12,6 +12,12 @@ struct Meeting: Codable, Identifiable, Equatable {
     var app: String?
     var status: Status
     var error: String?
+    /// Every transcription this meeting has had, oldest first. Absent for
+    /// meetings transcribed before Ata 2.2.
+    var transcriptions: [TranscriptionRecord]? = nil
+    /// Engine and model for the next run, when the user picked "Transcribe
+    /// again with…". Cleared once that run starts.
+    var override: TranscribeOverride? = nil
 
     var dir: URL { Paths.meetingsDir.appendingPathComponent(id, isDirectory: true) }
     var metaURL: URL { dir.appendingPathComponent("meeting.json") }
@@ -34,6 +40,11 @@ struct Meeting: Codable, Identifiable, Equatable {
     /// `systemAudioURL` instead.
     var micURL: URL { dir.appendingPathComponent("mic.wav") }
     var systemURL: URL { dir.appendingPathComponent("system.wav") }
+
+    /// Earlier transcripts, moved aside when the meeting was transcribed again.
+    var versionsDir: URL { dir.appendingPathComponent("versions", isDirectory: true) }
+
+    var latestTranscription: TranscriptionRecord? { transcriptions?.last }
 
     var micAudioURL: URL? { Self.resolveAudio(micURL) }
     var systemAudioURL: URL? { Self.resolveAudio(systemURL) }
@@ -83,6 +94,12 @@ struct Meeting: Codable, Identifiable, Equatable {
         try FileManager.default.createDirectory(at: m.dir, withIntermediateDirectories: true)
         return m
     }
+}
+
+/// A one-off choice of engine and model for re-transcribing a meeting.
+struct TranscribeOverride: Codable, Equatable {
+    var engine: String
+    var model: String
 }
 
 /// Reads and writes meeting metadata (meeting.json inside each folder).

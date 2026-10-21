@@ -32,14 +32,32 @@ struct PopoverView: View {
     @EnvironmentObject var store: AppStore
     @EnvironmentObject var setup: SetupModel
 
+    enum Tab: Hashable { case record, insights }
+    @State private var tab: Tab
+
+    init(tab: Tab = .record) {
+        _tab = State(initialValue: tab)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
             if let missing = setup.missingSummary { setupBanner(missing) }
             UpdateBanner()
             if let err = store.lastError { errorBanner(err) }
-            recordCard
-            if !store.meetings.isEmpty { recent }
+            Picker("", selection: $tab) {
+                Text("Record").tag(Tab.record)
+                Text("Insights").tag(Tab.insights)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            switch tab {
+            case .record:
+                recordCard
+                if !store.meetings.isEmpty { recent }
+            case .insights:
+                InsightsView()
+            }
             Divider().opacity(0.5)
             footer
         }
@@ -250,7 +268,7 @@ private struct RecordingContent: View {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { confirmDiscard = false }
                     }
                 } label: {
-                    Text(confirmDiscard ? "Delete?" : "Discard")
+                    Text(confirmDiscard ? L("Delete?") : L("Discard"))
                         .font(.system(size: 12, weight: .medium))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
@@ -357,6 +375,29 @@ struct MeetingRow: View {
         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([meeting.dir]) }
         if meeting.hasAudio && meeting.status != .transcribing && meeting.status != .recording {
             Button("Transcribe again") { store.retry(meeting) }
+            Menu("Transcribe again with") {
+                Section("On this Mac") {
+                    ForEach(LocalModel.all) { model in
+                        Button(model.isInstalled ? model.title : L("%@ (not downloaded)", model.title)) {
+                            store.retry(meeting, with: TranscribeOverride(engine: Engine.local.rawValue,
+                                                                          model: model.id))
+                        }
+                        .disabled(!model.isInstalled)
+                    }
+                }
+                Section("OpenAI") {
+                    ForEach(Pref.openAIModels, id: \.self) { model in
+                        Button(model) {
+                            store.retry(meeting, with: TranscribeOverride(engine: Engine.openAI.rawValue,
+                                                                          model: model))
+                        }
+                        .disabled(!Keychain.has(Keychain.openAIKey))
+                    }
+                }
+            }
+        }
+        if FileManager.default.fileExists(atPath: meeting.versionsDir.path) {
+            Button("Show earlier versions") { NSWorkspace.shared.open(meeting.versionsDir) }
         }
         Divider()
         Button("Delete", role: .destructive) { store.delete(meeting) }

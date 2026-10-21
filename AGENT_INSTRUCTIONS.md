@@ -203,11 +203,14 @@ Layout:
 
 ```bash
 swift build -c release --arch arm64
+swift test
 ./scripts/check-localization.sh
 ./scripts/build-app.sh
 ```
 
-There is no test suite yet. Anything touching recording or transcription also needs a run
+`swift test` covers pricing, version comparison, echo removal, talk time, WAV splitting,
+transcript versioning, backfill and insights; tests that touch disk work under
+`ATA_MEETINGS_DIR` in a temp folder. Anything touching recording or transcription also needs a run
 of the real app — against a scratch folder, never the user's real meetings:
 `ATA_MEETINGS_DIR=/tmp/ata-dev open build/Ata.app`, record a few seconds, and confirm a
 transcript appears there.

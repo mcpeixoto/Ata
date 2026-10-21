@@ -7,6 +7,10 @@ cd "$(dirname "$0")/.."
 status=0
 base=Resources/en.lproj/Localizable.strings
 
+# Every string the code uses must be in English, and English must not keep
+# strings the code dropped.
+python3 -I scripts/lib/strings.py "$PWD" --check || status=1
+
 keys() { grep -oE '^"([^"\\]|\\.)*"' "$1" | sort; }
 
 for file in Resources/*.lproj/Localizable.strings; do

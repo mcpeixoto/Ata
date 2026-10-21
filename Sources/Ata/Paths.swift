@@ -13,17 +13,20 @@ enum Paths {
         return home.appendingPathComponent("Documents/Meetings", isDirectory: true)
     }()
 
-    static let supportDir = home.appendingPathComponent("Library/Application Support/Ata", isDirectory: true)
+    /// Models (and, later, voice data). `ATA_SUPPORT_DIR` points it elsewhere,
+    /// so tests and development never touch the real library.
+    static let supportDir: URL = {
+        if let custom = ProcessInfo.processInfo.environment["ATA_SUPPORT_DIR"], !custom.isEmpty {
+            return URL(fileURLWithPath: custom, isDirectory: true)
+        }
+        return home.appendingPathComponent("Library/Application Support/Ata", isDirectory: true)
+    }()
     static let modelsDir = supportDir.appendingPathComponent("models", isDirectory: true)
 
-    static let whisperModel = modelsDir.appendingPathComponent("ggml-large-v3-turbo.bin")
+    /// The selected local model; see `LocalModel` for the catalogue.
+    static var whisperModel: URL { LocalModel.current.path }
     static let vadModel = modelsDir.appendingPathComponent("ggml-silero-v5.1.2.bin")
-
-    static let whisperModelURL = URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin")!
     static let vadModelURL = URL(string: "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin")!
-
-    /// The turbo model is ~1.6 GB; anything smaller is an incomplete download.
-    static let whisperModelMinBytes: Int64 = 1_400_000_000
 
     static func whisperCLI() -> URL? {
         firstExecutable(["/opt/homebrew/bin/whisper-cli", "/usr/local/bin/whisper-cli"])
@@ -38,12 +41,14 @@ enum Paths {
             .first { FileManager.default.isExecutableFile(atPath: $0.path) }
     }
 
+    /// Size of the file, following symlinks — so a model linked in from
+    /// another disk counts as downloaded.
     static func fileSize(_ url: URL) -> Int64 {
-        let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+        let attrs = try? FileManager.default.attributesOfItem(atPath: url.resolvingSymlinksInPath().path)
         return (attrs?[.size] as? NSNumber)?.int64Value ?? 0
     }
 
-    static var hasWhisperModel: Bool { fileSize(whisperModel) >= whisperModelMinBytes }
+    static var hasWhisperModel: Bool { LocalModel.current.isInstalled }
     static var hasVADModel: Bool { fileSize(vadModel) > 100_000 }
 }
 
@@ -57,6 +62,7 @@ enum Pref {
     static let myName = "myName"             // how you appear in the transcript
     static let onboarded = "onboarded"
     static let engine = "engine"             // "local" | "openai"
+    static let localModel = "localModel"     // LocalModel.id
     static let openAIModel = "openAIModel"
     static let summarize = "summarize"       // append an AI summary
     static let summaryModel = "summaryModel"

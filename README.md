@@ -36,10 +36,10 @@ On your Mac with Whisper, or through the OpenAI API. Your call.
 </td>
 <td width="50%" align="center">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/menu-idle-dark.png">
-  <img src="docs/images/menu-idle-light.png" alt="Ata idle: record button and recent meetings, one transcribing" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/menu-insights-dark.png">
+  <img src="docs/images/menu-insights-light.png" alt="Ata's Insights tab: hours recorded, meetings per week, who talks, cost per transcription" width="100%">
 </picture>
-<br><sub><b>After.</b> Transcription runs in the background; recent meetings are one click away.</sub>
+<br><sub><b>Insights.</b> What you've recorded, who did the talking, and what each transcript cost.</sub>
 </td>
 </tr>
 </table>
@@ -55,6 +55,10 @@ On your Mac with Whisper, or through the OpenAI API. Your call.
   or just starts, if you tell it to.
 - **Summaries, if you want them.** Overview, decisions, action items and open questions, above the
   transcript.
+- **See your history.** An Insights tab charts hours recorded, who talks how much, where your
+  meetings happen and what every transcript cost.
+- **Change your mind later.** Re-transcribe any meeting with a different model; the old
+  transcript is kept next to the new one.
 - **Hard to lose a recording.** Survives switching microphones, sleep, crashes and power loss.
 - **Plain files.** Every meeting is a folder with a `transcript.md` and the audio. Grep it, sync it,
   feed it to anything.
@@ -97,11 +101,14 @@ installs it in `/Applications` and opens it. There's no Xcode project — it's a
 |---|---|---|
 | Where the audio goes | nowhere — it never leaves your Mac | uploaded to OpenAI |
 | Cost | free | per minute of audio |
-| Setup | whisper.cpp + a 1.6 GB model, installed for you from the welcome window | paste an API key |
-| Speed | fast on Apple Silicon (Metal) | depends on your connection |
+| Setup | whisper.cpp + a model (0.6–1.6 GB, your pick), installed for you from the welcome window | paste an API key |
+| Speed | about 11 min per hour of audio with Large v3, 3 min with Turbo (M4) | depends on your connection |
 | Timestamps | per line | per line with `whisper-1`; none with the `gpt-4o-transcribe` models |
 
-Switch any time in **Settings → Transcription**. The **AI summary** works with either engine; it
+Switch any time in **Settings → Transcription**, where you can also pick the local model —
+from a small, fast one to the most accurate — and right-click any meeting to **transcribe it
+again with a different model**. Earlier transcripts are kept in the meeting's `versions/`
+folder. The **AI summary** works with either engine; it
 always goes through OpenAI because it needs a language model, and it sends only the finished text.
 Your API key lives in the login keychain — never in a file, never in a meeting folder.
 
@@ -114,7 +121,8 @@ Each meeting lands in `~/Documents/Meetings/<date> <app>/`:
 ├── transcript.md
 ├── mic.m4a          ← you
 ├── system.m4a       ← everyone else
-└── meeting.json
+├── meeting.json     ← times, app, and every transcription: model, minutes, cost
+└── versions/        ← earlier transcripts, if you re-transcribed
 ```
 
 ```markdown

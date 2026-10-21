@@ -265,10 +265,17 @@ final class AppStore: ObservableObject {
     // MARK: - Transcription queue
 
     func retry(_ m: Meeting) {
+        retry(m, with: nil)
+    }
+
+    /// Queues a meeting again, optionally with a different engine and model
+    /// than the current settings. The transcript it replaces is kept in versions/.
+    func retry(_ m: Meeting, with override: TranscribeOverride?) {
         var m = m
-        guard m.hasAudio else { return }
+        guard m.hasAudio, m.id != transcribingID, m.id != current?.id else { return }
         m.status = .pending
         m.error = nil
+        m.override = override
         Library.save(m)
         reload()
         pump()
@@ -285,12 +292,25 @@ final class AppStore: ObservableObject {
         guard transcribingID == nil else { return }
         guard var m = Library.loadAll().last(where: { $0.status == .pending }) else { return }
 
-        let options = TranscribeOptions.current()
+        let options = TranscribeOptions.current(for: m)
         switch options.engine {
         case .local:
-            guard setup.whisper && setup.model else {
+            guard setup.whisper else {
                 setup.refresh()
                 return // stays queued until the local engine is installed
+            }
+            guard LocalModel.find(options.localModel)?.isInstalled == true else {
+                if m.override != nil {
+                    // A one-off request for a model that isn't here would block
+                    // the whole queue; fail just this meeting instead.
+                    m.override = nil
+                    m.status = .failed
+                    m.error = L("That model is not downloaded. Download it in Settings → Transcription.")
+                    Library.save(m)
+                    reload()
+                    pump()
+                }
+                return // the default model is still downloading: stays queued
             }
         case .openAI:
             guard Keychain.has(Keychain.openAIKey) else {
@@ -302,6 +322,7 @@ final class AppStore: ObservableObject {
         transcribingID = m.id
         transcribeProgress = 0
         m.status = .transcribing
+        m.override = nil
         Library.save(m)
         reload()
         let job = m
@@ -309,9 +330,15 @@ final class AppStore: ObservableObject {
         Task {
             var m = job
             do {
-                _ = try await Transcriber.transcribe(m, options: options) { p in
+                let outcome = try await Transcriber.transcribe(m, options: options) { p in
                     Task { @MainActor in AppStore.shared.transcribeProgress = p }
                 }
+                var history = m.transcriptions ?? []
+                if let archived = outcome.archivedPrevious, !history.isEmpty {
+                    history[history.count - 1].archivedAs = archived
+                }
+                history.append(outcome.record)
+                m.transcriptions = history
                 m.status = .done
                 m.error = nil
                 Library.save(m)

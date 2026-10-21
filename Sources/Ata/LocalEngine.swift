@@ -5,33 +5,68 @@ enum LocalEngine {
     /// Current whisper process, so it can be terminated when the app quits.
     nonisolated(unsafe) static var currentProcess: Process?
 
-    static func transcribe(audio: URL, speaker: String, language: String,
+    private static var threads: Int { max(4, ProcessInfo.processInfo.activeProcessorCount - 2) }
+
+    /// Decoding settings, measured on real European Portuguese and English
+    /// speech (clean, VoIP and phone quality; see docs/plans):
+    /// - beam search 5 / best-of 5, pinned so a whisper.cpp update can't change them;
+    /// - `-mc 0`: no text context carried between windows. With context on,
+    ///   every model sometimes fell into a repetition loop (one inserted 788 words).
+    /// No `--prompt`: it made loops more likely, and `-mc 0` ignores it anyway.
+    static let decoding = ["-bs", "5", "-bo", "5", "-mc", "0"]
+
+    /// Silero VAD, looser than whisper.cpp's defaults: short conversational
+    /// turns had their first words clipped (VoIP meeting WER 32.0 → 22.7).
+    static var vad: [String] {
+        ["--vad", "-vm", Paths.vadModel.path, "-vt", "0.35", "-vp", "300", "-vsd", "500"]
+    }
+
+    /// Asks whisper which language a track is in, without transcribing it.
+    /// Returns the language code and whisper's confidence, or nil.
+    static func detectLanguage(audio: URL, model: LocalModel) async -> (code: String, p: Double)? {
+        guard let cli = Paths.whisperCLI(), model.isInstalled else { return nil }
+        var args = ["-m", model.path.path, "-f", audio.path, "-l", "auto", "-dl", "-t", String(threads)]
+        if Paths.hasVADModel { args += vad }
+        guard let log = try? await runProcess(cli, args, progress: { _ in }) else { return nil }
+        return parseDetection(log)
+    }
+
+    /// "whisper_full_with_state: auto-detected language: pt (p = 0.973118)"
+    static func parseDetection(_ log: String) -> (code: String, p: Double)? {
+        guard let r = log.range(of: #"auto-detected language: ([a-z]{2,3}) \(p = ([0-9.]+)\)"#,
+                                options: .regularExpression) else { return nil }
+        let match = String(log[r])
+        let parts = match.replacingOccurrences(of: "auto-detected language: ", with: "")
+            .replacingOccurrences(of: "(p = ", with: "").replacingOccurrences(of: ")", with: "")
+            .split(separator: " ")
+        guard parts.count == 2, let p = Double(parts[1]) else { return nil }
+        return (String(parts[0]), p)
+    }
+
+    static func transcribe(audio: URL, speaker: String, model: LocalModel, language: String,
                            progress: @escaping @Sendable (Double) -> Void) async throws -> [Segment] {
         guard let cli = Paths.whisperCLI() else { throw TranscriberError.whisperMissing }
-        guard Paths.hasWhisperModel else { throw TranscriberError.modelMissing }
+        guard model.isInstalled else { throw TranscriberError.modelMissing }
 
         let outBase = audio.deletingPathExtension().appendingPathExtension("whisper")
         let jsonURL = outBase.appendingPathExtension("json")
         try? FileManager.default.removeItem(at: jsonURL)
 
-        let threads = max(4, ProcessInfo.processInfo.activeProcessorCount - 2)
-        var args = [
-            "-m", Paths.whisperModel.path,
+        let base = [
+            "-m", model.path.path,
             "-f", audio.path,
             "-l", language,
             "-t", String(threads),
             "-oj", "-of", outBase.path,
             "-pp",
-        ]
+        ] + decoding
         let useVAD = Paths.hasVADModel
-        if useVAD { args += ["--vad", "-vm", Paths.vadModel.path] }
 
         do {
-            try await runProcess(cli, args, progress: progress)
+            _ = try await runProcess(cli, useVAD ? base + vad : base, progress: progress)
         } catch where useVAD {
             // Older whisper.cpp builds have no VAD support: retry without it.
-            args.removeLast(3)
-            try await runProcess(cli, args, progress: progress)
+            _ = try await runProcess(cli, base, progress: progress)
         }
 
         guard let data = try? Data(contentsOf: jsonURL) else {
@@ -56,9 +91,10 @@ enum LocalEngine {
         var text: String { lock.lock(); defer { lock.unlock() }; return String(decoding: data, as: UTF8.self) }
     }
 
+    @discardableResult
     private static func runProcess(_ exe: URL, _ args: [String],
-                                   progress: @escaping @Sendable (Double) -> Void) async throws {
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+                                   progress: @escaping @Sendable (Double) -> Void) async throws -> String {
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
             let p = Process()
             p.executableURL = exe
             p.arguments = args
@@ -81,9 +117,11 @@ enum LocalEngine {
             }
             p.terminationHandler = { proc in
                 pipe.fileHandleForReading.readabilityHandler = nil
+                // Whatever was still buffered when the process exited.
+                log.append(pipe.fileHandleForReading.readDataToEndOfFile())
                 LocalEngine.currentProcess = nil
                 if proc.terminationStatus == 0 {
-                    cont.resume()
+                    cont.resume(returning: log.text)
                 } else {
                     let tail = log.text.split(separator: "\n").suffix(4).joined(separator: "\n")
                     cont.resume(throwing: TranscriberError.failed(

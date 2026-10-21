@@ -42,8 +42,12 @@ struct TranscribeOptions {
     var myName: String
     var language: String
     var openAIModel: String
+    var localModel: String
     var summarize: Bool
     var summaryModel: String
+
+    /// The model that will actually run, for records and file names.
+    var modelID: String { engine.isLocal ? localModel : openAIModel }
 
     static func current() -> TranscribeOptions {
         TranscribeOptions(
@@ -51,8 +55,55 @@ struct TranscribeOptions {
             myName: Pref.d.string(forKey: Pref.myName) ?? L("Me"),
             language: Pref.d.string(forKey: Pref.language) ?? "auto",
             openAIModel: Pref.d.string(forKey: Pref.openAIModel) ?? Pref.defaultOpenAIModel,
+            localModel: LocalModel.current.id,
             summarize: Pref.d.bool(forKey: Pref.summarize),
             summaryModel: Pref.d.string(forKey: Pref.summaryModel) ?? Pref.defaultSummaryModel)
+    }
+
+    /// The current settings, with a meeting's one-off engine/model choice on top.
+    static func current(for meeting: Meeting) -> TranscribeOptions {
+        var o = current()
+        guard let override = meeting.override, let engine = Engine(rawValue: override.engine) else { return o }
+        o.engine = engine
+        if engine.isLocal { o.localModel = override.model } else { o.openAIModel = override.model }
+        return o
+    }
+}
+
+/// What a finished run produced: its record, and where the transcript it
+/// replaced was moved, if there was one.
+struct TranscriptionOutcome {
+    let record: TranscriptionRecord
+    let archivedPrevious: String?
+}
+
+/// Picks a language per track when the setting is "Automatic".
+///
+/// whisper's own auto-detect decides once per file from its first seconds, and
+/// in testing it was confidently wrong surprisingly often: UK English came out
+/// as Welsh at p 0.89–0.99, and short clips of a quiet microphone track as
+/// Russian or Bulgarian. So a detection only counts if it is confident *and*
+/// a language the user plausibly speaks.
+enum LanguageChoice {
+    static let confidence = 0.8
+
+    /// Languages from the user's macOS language list, plus English.
+    static var plausible: [String] {
+        var codes = Locale.preferredLanguages.compactMap { Locale(identifier: $0).language.languageCode?.identifier }
+        codes.append("en")
+        var seen = Set<String>()
+        return codes.filter { seen.insert($0).inserted }
+    }
+
+    /// One language per track, in the order given.
+    static func pick(_ detections: [(code: String, p: Double)?], plausible: [String]) -> [String] {
+        let confident = detections.map { d -> String? in
+            guard let d, d.p >= confidence, plausible.contains(d.code) else { return nil }
+            return d.code
+        }
+        // Unsure tracks borrow a confident answer from another track, else the main language.
+        let fallback = confident.compactMap { $0 }.first ?? plausible.first ?? "en"
+        return confident.map { $0 ?? fallback }
     }
 }
 
@@ -60,7 +111,8 @@ struct TranscribeOptions {
 /// tracks into one timeline, drops microphone echo and writes the Markdown.
 enum Transcriber {
     static func transcribe(_ meeting: Meeting, options: TranscribeOptions,
-                           progress: @escaping @Sendable (Double) -> Void) async throws -> URL {
+                           progress: @escaping @Sendable (Double) -> Void) async throws -> TranscriptionOutcome {
+        let started = Date()
         let others = L("Others")
 
         // Only tracks with at least ~0.5 s of audio are worth sending to an engine.
@@ -82,6 +134,15 @@ enum Transcriber {
             }
         }
         guard !prepared.isEmpty else { throw TranscriberError.noAudio }
+        let audioSeconds = prepared.reduce(0) { $0 + WavWriter.duration(of: $1.audio) }
+
+        // The local engine gets an explicit language per track; see LanguageChoice.
+        var languages = Array(repeating: options.language, count: prepared.count)
+        if options.engine.isLocal, options.language == "auto", let model = LocalModel.find(options.localModel) {
+            var detections: [(code: String, p: Double)?] = []
+            for track in prepared { detections.append(await LocalEngine.detectLanguage(audio: track.audio, model: model)) }
+            languages = LanguageChoice.pick(detections, plausible: LanguageChoice.plausible)
+        }
 
         var segments: [Segment] = []
         var coarse = false
@@ -92,8 +153,12 @@ enum Transcriber {
 
             switch options.engine {
             case .local:
+                guard let model = LocalModel.find(options.localModel), model.isInstalled else {
+                    throw TranscriberError.modelMissing
+                }
                 segments += try await LocalEngine.transcribe(audio: track.audio, speaker: track.speaker,
-                                                             language: options.language, progress: step)
+                                                             model: model, language: languages[i],
+                                                             progress: step)
             case .openAI:
                 let result = try await OpenAIEngine.transcribe(audio: track.audio, speaker: track.speaker,
                                                                language: options.language,
@@ -111,17 +176,75 @@ enum Transcriber {
 
         var md = render(segments, meeting: meeting, options: options, coarse: coarse)
 
+        var cost = options.engine.isLocal ? 0 : Pricing.transcription(model: options.openAIModel,
+                                                                       seconds: audioSeconds)
         if options.summarize, !segments.isEmpty {
             if let summary = await Summarizer.summarize(markdown: md, options: options) {
-                md = insertSummary(summary, into: md)
+                md = insertSummary(summary.text, into: md)
+                cost += summary.costUSD
             }
         }
         // No summary (disabled, or the call failed): leave no marker behind.
         md = md.replacingOccurrences(of: summaryPlaceholder + "\n\n", with: "")
             .replacingOccurrences(of: summaryPlaceholder, with: "")
 
+        // Never overwrite an earlier transcript: move it into versions/ first.
+        let archived = try archivePrevious(of: meeting)
         try md.write(to: meeting.transcriptURL, atomically: true, encoding: .utf8)
-        return meeting.transcriptURL
+
+        let talk = talkTime(segments, me: options.myName, coarse: coarse)
+        let record = TranscriptionRecord(
+            engine: options.engine.rawValue,
+            model: options.modelID,
+            finishedAt: Date(),
+            audioSeconds: audioSeconds,
+            processingSeconds: Date().timeIntervalSince(started),
+            costUSD: cost,
+            words: segments.reduce(0) { $0 + wordCount($1.text) },
+            mySpeechSeconds: talk.me,
+            othersSpeechSeconds: talk.others,
+            archivedAs: nil)
+        return TranscriptionOutcome(record: record, archivedPrevious: archived)
+    }
+
+    // MARK: - Versions
+
+    /// Moves the current transcript to `versions/<date> <model>.md` and returns
+    /// that file name, or nil when there was nothing to move.
+    static func archivePrevious(of meeting: Meeting) throws -> String? {
+        guard let current = meeting.existingTranscriptURL else { return nil }
+        let fm = FileManager.default
+        try fm.createDirectory(at: meeting.versionsDir, withIntermediateDirectories: true)
+
+        let previous = meeting.latestTranscription
+        let date = previous?.finishedAt
+            ?? ((try? fm.attributesOfItem(atPath: current.path)[.modificationDate]) as? Date)
+            ?? Date()
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd HH.mm.ss"
+        var name = "\(f.string(from: date)) \(previous?.model ?? "earlier").md"
+        if fm.fileExists(atPath: meeting.versionsDir.appendingPathComponent(name).path) {
+            name = "\(f.string(from: date)) \(previous?.model ?? "earlier") \(UUID().uuidString.prefix(4)).md"
+        }
+        try fm.moveItem(at: current, to: meeting.versionsDir.appendingPathComponent(name))
+        return name
+    }
+
+    // MARK: - Statistics
+
+    static func wordCount(_ text: String) -> Int {
+        text.split { !$0.isLetter && !$0.isNumber }.count
+    }
+
+    /// Seconds each side spoke. Without timestamps, estimated from words at a
+    /// typical 2.5 words a second.
+    static func talkTime(_ segments: [Segment], me: String, coarse: Bool) -> (me: Double, others: Double) {
+        var mine = 0.0, theirs = 0.0
+        for s in segments {
+            let seconds = coarse ? Double(wordCount(s.text)) / 2.5 : Double(max(0, s.end - s.start)) / 1000
+            if s.speaker == me { mine += seconds } else { theirs += seconds }
+        }
+        return (mine, theirs)
     }
 
     static func isNoise(_ t: String) -> Bool {
@@ -135,7 +258,7 @@ enum Transcriber {
     /// Without headphones the microphone picks up the other participants, so the
     /// same sentence shows up twice, once attributed to you. Drop microphone
     /// segments that repeat almost word for word what the others said at the same time.
-    private static func removeEcho(_ segments: [Segment], me: String) -> [Segment] {
+    static func removeEcho(_ segments: [Segment], me: String) -> [Segment] {
         let others = segments.filter { $0.speaker != me }
         guard !others.isEmpty else { return segments }
         return segments.filter { s in
@@ -176,7 +299,8 @@ enum Transcriber {
         }
 
         let df = DateFormatter()
-        df.locale = .autoupdatingCurrent
+        // The same language as the rest of the transcript, not the system region.
+        df.locale = Locale(identifier: Bundle.main.preferredLocalizations.first ?? "en")
         df.dateStyle = .long
         df.timeStyle = .short
 
@@ -198,7 +322,7 @@ enum Transcriber {
         }
         md += "---\n"
         md += options.engine.isLocal
-            ? "_" + L("Transcribed locally by Ata.") + "_\n"
+            ? "_" + L("Transcribed locally by Ata (%@).", options.localModel) + "_\n"
             : "_" + L("Transcribed by Ata with OpenAI (%@).", options.openAIModel) + "_\n"
         return md
     }

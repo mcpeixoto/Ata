@@ -129,12 +129,12 @@ final class Updater: ObservableObject {
 
     // MARK: - Versions
 
-    static func normalize(_ tag: String) -> String {
+    nonisolated static func normalize(_ tag: String) -> String {
         tag.hasPrefix("v") || tag.hasPrefix("V") ? String(tag.dropFirst()) : tag
     }
 
     /// Numeric compare of dot-separated versions, so 2.10 > 2.9.
-    static func isNewer(_ a: String, than b: String) -> Bool {
+    nonisolated static func isNewer(_ a: String, than b: String) -> Bool {
         let lhs = a.split(separator: ".").map { Int($0.filter(\.isNumber)) ?? 0 }
         let rhs = b.split(separator: ".").map { Int($0.filter(\.isNumber)) ?? 0 }
         for i in 0..<max(lhs.count, rhs.count) {
