@@ -237,6 +237,7 @@
 "Transcribed locally by Ata (%@)." = "Transcribed locally by Ata (%@).";
 "Transcribed by Ata with OpenAI (%@)." = "Transcribed by Ata with OpenAI (%@).";
 "Could not reach the update server (HTTP %d)." = "Could not reach the update server (HTTP %d).";
+"Finish the recording first, then install the update." = "Finish the recording first, then install the update.";
 "The download did not contain an app." = "The download did not contain an app.";
 "The downloaded update is not notarized by Apple. Nothing was installed." = "The downloaded update is not notarized by Apple. Nothing was installed.";
 "The downloaded update is signed by a different developer. Nothing was installed." = "The downloaded update is signed by a different developer. Nothing was installed.";

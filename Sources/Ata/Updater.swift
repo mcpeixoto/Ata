@@ -149,6 +149,11 @@ final class Updater: ObservableObject {
 
     func installUpdate() {
         guard let asset = pendingAsset, !isDownloading else { return }
+        // Installing restarts the app; never in the middle of a meeting.
+        guard AppStore.shared.phase == .idle else {
+            state = .failed(L("Finish the recording first, then install the update."))
+            return
+        }
         state = .downloading(0)
         let dest = FileManager.default.temporaryDirectory
             .appendingPathComponent("Ata-update-\(UUID().uuidString).zip")

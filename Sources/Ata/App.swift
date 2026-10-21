@@ -26,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Snapshots.run()
             return
         }
+        endStaleCopies()
         if Updater.commandLineRequested {
             Updater.shared.runFromCommandLine()
             return
@@ -39,11 +40,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // Only a live recording needs an asynchronous shutdown. Anything else
+        // quits at once: replying later from a Task deadlocks when terminate()
+        // itself was called from a Task — the updater does exactly that — and
+        // left the old copy hung beside the new one after every update.
+        guard AppStore.shared.phase == .recording else {
+            LocalEngine.currentProcess?.terminate()
+            return .terminateNow
+        }
         Task { @MainActor in
             await AppStore.shared.prepareForQuit()
             sender.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
+    }
+
+    /// Ends any other copy of Ata running from this same app bundle — typically
+    /// the pre-update copy, which Ata 2.1 and 2.2 left hung after updating.
+    /// Two copies would also fight over the microphone and the meetings folder.
+    private func endStaleCopies() {
+        let me = NSRunningApplication.current
+        guard let id = Bundle.main.bundleIdentifier else { return }
+        for app in NSRunningApplication.runningApplications(withBundleIdentifier: id)
+            where app.processIdentifier != me.processIdentifier
+            && app.bundleURL?.standardizedFileURL == Bundle.main.bundleURL.standardizedFileURL {
+            NSLog("Ata: ending a stale copy (pid \(app.processIdentifier))")
+            if !app.terminate() { app.forceTerminate() }
+        }
     }
 }
 
