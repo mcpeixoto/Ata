@@ -77,6 +77,36 @@ struct TranscriptionOutcome {
     let archivedPrevious: String?
 }
 
+/// Picks a language per track when the setting is "Automatic".
+///
+/// whisper's own auto-detect decides once per file from its first seconds, and
+/// in testing it was confidently wrong surprisingly often: UK English came out
+/// as Welsh at p 0.89–0.99, and short clips of a quiet microphone track as
+/// Russian or Bulgarian. So a detection only counts if it is confident *and*
+/// a language the user plausibly speaks.
+enum LanguageChoice {
+    static let confidence = 0.8
+
+    /// Languages from the user's macOS language list, plus English.
+    static var plausible: [String] {
+        var codes = Locale.preferredLanguages.compactMap { Locale(identifier: $0).language.languageCode?.identifier }
+        codes.append("en")
+        var seen = Set<String>()
+        return codes.filter { seen.insert($0).inserted }
+    }
+
+    /// One language per track, in the order given.
+    static func pick(_ detections: [(code: String, p: Double)?], plausible: [String]) -> [String] {
+        let confident = detections.map { d -> String? in
+            guard let d, d.p >= confidence, plausible.contains(d.code) else { return nil }
+            return d.code
+        }
+        // Unsure tracks borrow a confident answer from another track, else the main language.
+        let fallback = confident.compactMap { $0 }.first ?? plausible.first ?? "en"
+        return confident.map { $0 ?? fallback }
+    }
+}
+
 /// Runs a transcription end to end: picks the engine per track, merges the two
 /// tracks into one timeline, drops microphone echo and writes the Markdown.
 enum Transcriber {
@@ -106,6 +136,14 @@ enum Transcriber {
         guard !prepared.isEmpty else { throw TranscriberError.noAudio }
         let audioSeconds = prepared.reduce(0) { $0 + WavWriter.duration(of: $1.audio) }
 
+        // The local engine gets an explicit language per track; see LanguageChoice.
+        var languages = Array(repeating: options.language, count: prepared.count)
+        if options.engine.isLocal, options.language == "auto", let model = LocalModel.find(options.localModel) {
+            var detections: [(code: String, p: Double)?] = []
+            for track in prepared { detections.append(await LocalEngine.detectLanguage(audio: track.audio, model: model)) }
+            languages = LanguageChoice.pick(detections, plausible: LanguageChoice.plausible)
+        }
+
         var segments: [Segment] = []
         var coarse = false
         for (i, track) in prepared.enumerated() {
@@ -119,7 +157,7 @@ enum Transcriber {
                     throw TranscriberError.modelMissing
                 }
                 segments += try await LocalEngine.transcribe(audio: track.audio, speaker: track.speaker,
-                                                             model: model, language: options.language,
+                                                             model: model, language: languages[i],
                                                              progress: step)
             case .openAI:
                 let result = try await OpenAIEngine.transcribe(audio: track.audio, speaker: track.speaker,
@@ -261,7 +299,8 @@ enum Transcriber {
         }
 
         let df = DateFormatter()
-        df.locale = .autoupdatingCurrent
+        // The same language as the rest of the transcript, not the system region.
+        df.locale = Locale(identifier: Bundle.main.preferredLocalizations.first ?? "en")
         df.dateStyle = .long
         df.timeStyle = .short
 

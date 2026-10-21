@@ -13,7 +13,14 @@ enum Paths {
         return home.appendingPathComponent("Documents/Meetings", isDirectory: true)
     }()
 
-    static let supportDir = home.appendingPathComponent("Library/Application Support/Ata", isDirectory: true)
+    /// Models (and, later, voice data). `ATA_SUPPORT_DIR` points it elsewhere,
+    /// so tests and development never touch the real library.
+    static let supportDir: URL = {
+        if let custom = ProcessInfo.processInfo.environment["ATA_SUPPORT_DIR"], !custom.isEmpty {
+            return URL(fileURLWithPath: custom, isDirectory: true)
+        }
+        return home.appendingPathComponent("Library/Application Support/Ata", isDirectory: true)
+    }()
     static let modelsDir = supportDir.appendingPathComponent("models", isDirectory: true)
 
     /// The selected local model; see `LocalModel` for the catalogue.
@@ -34,8 +41,10 @@ enum Paths {
             .first { FileManager.default.isExecutableFile(atPath: $0.path) }
     }
 
+    /// Size of the file, following symlinks — so a model linked in from
+    /// another disk counts as downloaded.
     static func fileSize(_ url: URL) -> Int64 {
-        let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+        let attrs = try? FileManager.default.attributesOfItem(atPath: url.resolvingSymlinksInPath().path)
         return (attrs?[.size] as? NSNumber)?.int64Value ?? 0
     }
 
@@ -82,7 +91,6 @@ enum Pref {
             myName: first.isEmpty ? L("Me") : first,
             onboarded: false,
             engine: Engine.local.rawValue,
-            localModel: LocalModel.defaultID,
             openAIModel: defaultOpenAIModel,
             summarize: false,
             summaryModel: defaultSummaryModel,

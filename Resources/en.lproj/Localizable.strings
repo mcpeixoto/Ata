@@ -30,13 +30,11 @@
 "produced no output" = "produced no output";
 "exit code %d" = "exit code %d";
 "Large v3" = "Large v3";
-"Most accurate. Slower, biggest download." = "Most accurate. Slower, biggest download.";
-"Large v3 (compressed)" = "Large v3 (compressed)";
-"Nearly as accurate, a third of the size." = "Nearly as accurate, a third of the size.";
-"Large v3 Turbo" = "Large v3 Turbo";
-"Fastest. Weaker on accents and noisy calls." = "Fastest. Weaker on accents and noisy calls.";
-"Large v3 Turbo (compressed)" = "Large v3 Turbo (compressed)";
-"Smallest download, lowest accuracy." = "Smallest download, lowest accuracy.";
+"Most accurate, best for Portuguese and noisy calls. About 11 minutes per hour of audio." = "Most accurate, best for Portuguese and noisy calls. About 11 minutes per hour of audio.";
+"Turbo" = "Turbo";
+"Fastest, a little less accurate. About 3 minutes per hour of audio." = "Fastest, a little less accurate. About 3 minutes per hour of audio.";
+"Turbo compact" = "Turbo compact";
+"Turbo's accuracy in a third of the download and under 1 GB of memory. About 4 minutes per hour." = "Turbo's accuracy in a third of the download and under 1 GB of memory. About 4 minutes per hour.";
 "Meeting" = "Meeting";
 "<1 min" = "<1 min";
 "Record" = "Record";
@@ -182,6 +180,8 @@
 "Source on GitHub" = "Source on GitHub";
 "Model" = "Model";
 "%@ — recommended" = "%@ — recommended";
+"Switch to %@" = "Switch to %@";
+"%@ is more accurate, especially on calls and in Portuguese." = "%@ is more accurate, especially on calls and in Portuguese.";
 "Downloaded" = "Downloaded";
 "Download %@" = "Download %@";
 "Other models on disk: %@" = "Other models on disk: %@";

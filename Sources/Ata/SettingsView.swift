@@ -244,17 +244,34 @@ struct SettingsView: View {
 /// Model picker for the local engine, with download and clean-up.
 struct LocalModelRows: View {
     @EnvironmentObject var setup: SetupModel
-    @AppStorage(Pref.localModel) private var selected = LocalModel.defaultID
-    /// Bumped after a delete so installed sizes are read again.
+    /// Bumped after a change so the model state is read again.
     @State private var generation = 0
 
-    private var model: LocalModel { LocalModel.find(selected) ?? LocalModel.current }
+    private var model: LocalModel { _ = generation; return LocalModel.current }
     private var others: [LocalModel] { LocalModel.installed.filter { $0.id != model.id } }
 
     var body: some View {
-        Picker("Model", selection: Binding(get: { selected }, set: { selected = $0; setup.refresh() })) {
+        Picker("Model", selection: Binding(get: { model.id }, set: {
+            Pref.d.set($0, forKey: Pref.localModel)
+            generation += 1
+            setup.refresh()
+        })) {
             ForEach(LocalModel.all) { m in
                 Text(m.id == LocalModel.defaultID ? L("%@ — recommended", m.title) : m.title).tag(m.id)
+            }
+        }
+        if LocalModel.betterAvailable, let better = LocalModel.find(LocalModel.defaultID) {
+            LabeledContent {
+                Button(L("Switch to %@", better.title)) {
+                    Pref.d.set(better.id, forKey: Pref.localModel)
+                    generation += 1
+                    setup.refresh()
+                    setup.downloadModels()
+                }
+            } label: {
+                Text(L("%@ is more accurate, especially on calls and in Portuguese.", better.title))
+                    .font(.system(size: 11)).foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         LabeledContent {

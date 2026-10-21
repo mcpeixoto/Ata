@@ -23,24 +23,38 @@ struct LocalModel: Identifiable, Equatable {
 
     var sizeText: String { ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file) }
 
+    /// Word error rates below are from 425 runs on real European Portuguese and
+    /// English speech; times are per hour of audio on an M4.
     static let all: [LocalModel] = [
-        LocalModel(id: "large-v3", file: "ggml-large-v3.bin", bytes: 3_095_033_483,
-                   title: L("Large v3"), detail: L("Most accurate. Slower, biggest download.")),
         LocalModel(id: "large-v3-q5_0", file: "ggml-large-v3-q5_0.bin", bytes: 1_081_140_203,
-                   title: L("Large v3 (compressed)"), detail: L("Nearly as accurate, a third of the size.")),
+                   title: L("Large v3"),
+                   detail: L("Most accurate, best for Portuguese and noisy calls. About 11 minutes per hour of audio.")),
         LocalModel(id: "large-v3-turbo", file: "ggml-large-v3-turbo.bin", bytes: 1_624_555_275,
-                   title: L("Large v3 Turbo"), detail: L("Fastest. Weaker on accents and noisy calls.")),
+                   title: L("Turbo"),
+                   detail: L("Fastest, a little less accurate. About 3 minutes per hour of audio.")),
         LocalModel(id: "large-v3-turbo-q5_0", file: "ggml-large-v3-turbo-q5_0.bin", bytes: 574_041_195,
-                   title: L("Large v3 Turbo (compressed)"), detail: L("Smallest download, lowest accuracy.")),
+                   title: L("Turbo compact"),
+                   detail: L("Turbo's accuracy in a third of the download and under 1 GB of memory. About 4 minutes per hour.")),
     ]
 
     static let defaultID = "large-v3-q5_0"
 
     static func find(_ id: String) -> LocalModel? { all.first { $0.id == id } }
 
-    /// The model the user picked, or the default.
+    /// The model to use: the one the user picked; otherwise the default once it
+    /// is downloaded; otherwise any model already on disk, so an install from
+    /// before the default changed keeps working until the better one arrives.
     static var current: LocalModel {
-        find(Pref.d.string(forKey: Pref.localModel) ?? defaultID) ?? find(defaultID)!
+        if let picked = Pref.d.string(forKey: Pref.localModel), let m = find(picked) { return m }
+        let preferred = find(defaultID)!
+        if preferred.isInstalled { return preferred }
+        return installed.first ?? preferred
+    }
+
+    /// True when the app is running on an older model only because the
+    /// recommended one has not been downloaded yet.
+    static var betterAvailable: Bool {
+        Pref.d.string(forKey: Pref.localModel) == nil && current.id != defaultID
     }
 
     static var installed: [LocalModel] { all.filter(\.isInstalled) }

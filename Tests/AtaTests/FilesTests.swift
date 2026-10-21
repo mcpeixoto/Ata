@@ -11,7 +11,9 @@ final class FilesTests: XCTestCase {
         super.setUp()
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         setenv("ATA_MEETINGS_DIR", root.path, 1)
+        setenv("ATA_SUPPORT_DIR", root.appendingPathComponent("support").path, 1)
         precondition(Paths.meetingsDir.path == root.path, "tests must never touch real meetings")
+        precondition(Paths.supportDir.path.hasPrefix(root.path), "tests must never touch the real models")
     }
 
     override class func tearDown() {
