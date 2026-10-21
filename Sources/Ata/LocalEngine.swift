@@ -57,7 +57,8 @@ enum LocalEngine {
             "-f", audio.path,
             "-l", language,
             "-t", String(threads),
-            "-oj", "-of", outBase.path,
+            // Full JSON: segments plus per-token timings, for splitting by speaker.
+            "-ojf", "-of", outBase.path,
             "-pp",
         ] + decoding
         let useVAD = Paths.hasVADModel
@@ -80,7 +81,8 @@ enum LocalEngine {
         return parsed.transcription.compactMap { item in
             let text = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty, !Transcriber.isNoise(text) else { return nil }
-            return Segment(speaker: speaker, start: item.offsets.from, end: item.offsets.to, text: text)
+            return Segment(speaker: speaker, start: item.offsets.from, end: item.offsets.to, text: text,
+                           words: words(item.tokens ?? []))
         }
     }
 
@@ -137,11 +139,37 @@ enum LocalEngine {
         }
     }
 
+    /// Turns Whisper's tokens into words: a token starting with a space starts a
+    /// word, any other continues the previous one (sub-word pieces and
+    /// punctuation), and control tokens such as [_BEG_] are dropped.
+    static func words(_ tokens: [Token]) -> [Segment.Word] {
+        var out: [Segment.Word] = []
+        for t in tokens {
+            if t.text.hasPrefix("[_") || t.text.hasPrefix("<|") || t.text.isEmpty { continue }
+            if t.text.hasPrefix(" ") || out.isEmpty {
+                let text = t.text.trimmingCharacters(in: .whitespaces)
+                if text.isEmpty { continue }
+                out.append(.init(start: t.offsets.from, end: t.offsets.to, text: text))
+            } else {
+                let last = out.removeLast()
+                out.append(.init(start: last.start, end: max(last.end, t.offsets.to), text: last.text + t.text))
+            }
+        }
+        return out
+    }
+
+    struct Token: Decodable {
+        struct Offsets: Decodable { let from: Int; let to: Int }
+        let text: String
+        let offsets: Offsets
+    }
+
     private struct WhisperJSON: Decodable {
         struct Item: Decodable {
             struct Offsets: Decodable { let from: Int; let to: Int }
             let offsets: Offsets
             let text: String
+            let tokens: [Token]?
         }
         let transcription: [Item]
     }

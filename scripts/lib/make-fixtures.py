@@ -82,3 +82,33 @@ for i in range(22):
     rec = (record("openai", "whisper-1", finished, minutes, round(minutes * 2 * 0.006, 3), 0.4)
            if use_openai else record(*LOCAL, finished, minutes, 0.0, random.uniform(0.3, 0.5)))
     meeting(f"fixture-old-{i:02d}", apps[i % len(apps)], int(days * 1440), minutes, records=[rec])
+
+# Voices for the People tab: two recurring voices to name, three named people.
+# Written to the support folder the snapshot run points ATA_SUPPORT_DIR at.
+support = os.environ.get("ATA_FIXTURE_SUPPORT")
+if support:
+    import uuid
+    voices_dir = os.path.join(support, "voices")
+    os.makedirs(voices_dir, exist_ok=True)
+
+    def iso_ms(d):
+        return d.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+    def voice(name, meetings, last_days, me=False):
+        vid = str(uuid.UUID(int=random.getrandbits(128))).upper()
+        sample = f"{vid}.m4a"
+        open(os.path.join(voices_dir, sample), "wb").close()
+        return {
+            "id": vid, "name": name, "centroid": [1.0, 0.0, 0.0], "observations": meetings,
+            "meetingIDs": [f"fixture-old-{i:02d}" for i in range(meetings)], "sample": sample,
+            "firstSeen": iso_ms(now - timedelta(days=50)), "lastSeen": iso_ms(now - timedelta(days=last_days)),
+            "isMe": me,
+        }
+
+    voices = [
+        voice(None, 6, 0.1), voice(None, 3, 2),
+        voice("Rita Almeida", 14, 0.2), voice("João Costa", 9, 1), voice("Sam Patel", 4, 6),
+        voice("Alex", 27, 0.1, me=True),
+    ]
+    with open(os.path.join(voices_dir, "voices.json"), "w") as f:
+        json.dump([{k: v for k, v in x.items() if v is not None} for x in voices], f, indent=2)

@@ -13,8 +13,8 @@ enum Paths {
         return home.appendingPathComponent("Documents/Meetings", isDirectory: true)
     }()
 
-    /// Models (and, later, voice data). `ATA_SUPPORT_DIR` points it elsewhere,
-    /// so tests and development never touch the real library.
+    /// Models and voice data. `ATA_SUPPORT_DIR` points it elsewhere, so tests
+    /// and development never touch the real library.
     static let supportDir: URL = {
         if let custom = ProcessInfo.processInfo.environment["ATA_SUPPORT_DIR"], !custom.isEmpty {
             return URL(fileURLWithPath: custom, isDirectory: true)
@@ -22,6 +22,8 @@ enum Paths {
         return home.appendingPathComponent("Library/Application Support/Ata", isDirectory: true)
     }()
     static let modelsDir = supportDir.appendingPathComponent("models", isDirectory: true)
+    /// Voice fingerprints and samples. Never uploaded.
+    static let voicesDir = supportDir.appendingPathComponent("voices", isDirectory: true)
 
     /// The selected local model; see `LocalModel` for the catalogue.
     static var whisperModel: URL { LocalModel.current.path }
@@ -67,6 +69,7 @@ enum Pref {
     static let summarize = "summarize"       // append an AI summary
     static let summaryModel = "summaryModel"
     static let audioRetentionDays = "audioRetentionDays" // 0 = keep forever
+    static let recogniseVoices = "recogniseVoices" // diarize and match voices; off by default
     static let autoUpdate = "autoUpdate"     // check GitHub for new releases
     static let updateFeed = "updateFeed"     // override the release feed (forks)
 
@@ -96,6 +99,7 @@ enum Pref {
             summaryModel: defaultSummaryModel,
             autoUpdate: true,
             audioRetentionDays: 0,
+            recogniseVoices: false,
         ])
     }
 

@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.3.0
+
+- **Know who said what.** Turn on voice recognition in the new **People** tab and Ata tells the
+  other participants apart, learns their voices across meetings, and asks about a voice once it
+  has heard it twice: play a short sample, type a name, and every transcript — past ones
+  included — uses it. Unnamed voices keep a stable number ("Voice 3") everywhere.
+- Lines are split where the speaker changes, word by word, rather than following Whisper's
+  segments, which run across turns.
+- Merge two voices that are the same person, rename, forget one or all.
+- All on this Mac: voice fingerprints and samples never leave it, even when OpenAI transcribes.
+  The first time it runs, Ata downloads 21 MB of on-device models
+  ([FluidAudio](https://github.com/FluidInference/FluidAudio), Core ML). Off by default; needs
+  macOS 15, since an Apple bug in macOS 14 crashes the pipeline.
+- **Fixed: updating left the old copy running.** It hung while quitting, so two Ata icons sat in
+  the menu bar after an update. Ata now quits cleanly, and on launch it ends any stale copy left
+  behind by an update from 2.1 or 2.2. Updates also wait until a recording has finished.
+- `Ata.app/Contents/MacOS/Ata --update-now` checks for and installs an update without the UI.
+- Transcripts are now also saved as `transcript.json` (segments with speaker labels), so names
+  can change without transcribing again.
+- For contributors: FluidAudio is the project's first dependency; Package.swift now uses tools
+  6.2 (Xcode 26), and every `swift` command takes `--disable-keychain`.
+
 ## 2.2.0
 
 - **Better local transcripts.** Measured on 425 runs of real European Portuguese and English

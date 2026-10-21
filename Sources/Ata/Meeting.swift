@@ -41,6 +41,11 @@ struct Meeting: Codable, Identifiable, Equatable {
     var micURL: URL { dir.appendingPathComponent("mic.wav") }
     var systemURL: URL { dir.appendingPathComponent("system.wav") }
 
+    /// The transcript as data (segments with speaker labels), for re-rendering.
+    var storedTranscriptURL: URL { dir.appendingPathComponent("transcript.json") }
+    /// Who spoke in this meeting: diarized speakers, their turns and voices.
+    var speakersURL: URL { dir.appendingPathComponent("speakers.json") }
+
     /// Earlier transcripts, moved aside when the meeting was transcribed again.
     var versionsDir: URL { dir.appendingPathComponent("versions", isDirectory: true) }
 

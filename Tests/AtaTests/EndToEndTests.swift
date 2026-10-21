@@ -92,4 +92,98 @@ final class EndToEndTests: XCTestCase {
         XCTAssertGreaterThan(outcome.record.othersSpeechSeconds, 3)
         XCTAssertNil(outcome.archivedPrevious)
     }
+
+    /// Joins several spoken lines, each in its own voice, into one track with pauses.
+    private func conversation(_ lines: [(voice: String, text: String)], to wav: URL) throws {
+        var pcm = Data()
+        let pause = Data(count: Int(WavWriter.sampleRate) * 2 * 6 / 10)
+        for (i, line) in lines.enumerated() {
+            let part = wav.deletingLastPathComponent().appendingPathComponent("part-\(i).wav")
+            try speak(line.voice, line.text, to: part)
+            pcm.append(try Data(contentsOf: part).dropFirst(44))
+            pcm.append(pause)
+            try? FileManager.default.removeItem(at: part)
+        }
+        var data = WavWriter.header(dataBytes: UInt32(pcm.count))
+        data.append(pcm)
+        try data.write(to: wav)
+    }
+
+    @MainActor
+    func testVoicesAreLearnedNamedAndRecognisedInTheNextMeeting() async throws {
+        try XCTSkipUnless(Diarization.isSupported, "voice recognition needs macOS 15")
+        let model = try XCTUnwrap(LocalModel.find("large-v3-turbo-q5_0"))
+        try install(model.url, as: model.file, bytes: model.bytes)
+        try install(Paths.vadModelURL, as: Paths.vadModel.lastPathComponent, bytes: 885_098)
+        PeopleModel.shared.forgetAll()
+
+        var options = TranscribeOptions.current()
+        options.engine = .local
+        options.localModel = model.id
+        options.language = "en"
+        options.myName = "Alex"
+        options.summarize = false
+        options.recogniseVoices = true
+
+        // Meeting one: Daniel and Samantha remote, Alex on the mic.
+        var one = try Meeting.new(app: "Zoom")
+        try speak("Fred", "Morning both. Let's keep this short, I only have fifteen minutes before my next call.", to: one.micURL)
+        try conversation([
+            ("Daniel", "Good morning everyone, thanks for joining. Let's go through the launch plan for next week, starting with the marketing site and the press list."),
+            ("Samantha", "Sounds good. The marketing site is ready, but we're still waiting on the final screenshots from the design team before we can publish it."),
+            ("Daniel", "Okay. Can we get those by Wednesday? I'd like a full day to review everything before we go live on Thursday morning."),
+            ("Samantha", "I'll ask them today. If they slip, we can launch with the old screenshots and swap them in later that afternoon."),
+        ], to: one.systemURL)
+        one.duration = 50
+        one.status = .done
+        Library.save(one)  // as the queue does; renaming re-renders finished meetings only
+        if let keep = ProcessInfo.processInfo.environment["ATA_KEEP_AUDIO_DIR"] {
+            try? FileManager.default.copyItem(at: one.systemURL, to: URL(fileURLWithPath: keep).appendingPathComponent("one-system.wav"))
+        }
+        _ = try await Transcriber.transcribe(one, options: options) { _ in }
+
+        var md = try String(contentsOf: one.transcriptURL, encoding: .utf8)
+        XCTAssertTrue(md.contains("Voice 1:**") && md.contains("Voice 2:**"), md)
+        XCTAssertFalse(md.contains("Others:**"), "every remote line got a speaker")
+        let map = try XCTUnwrap(MeetingVoices.load(for: one))
+        XCTAssertEqual(map.speakers.filter { $0.label != Speakers.me }.count, 2)
+
+        // Name the voice that said "marketing site is ready" — Samantha.
+        let stored = try XCTUnwrap(StoredTranscript.load(from: one.storedTranscriptURL))
+        if ProcessInfo.processInfo.environment["ATA_PRINT_TRANSCRIPT"] == "1" {
+            for s in stored.segments { print("SEG \(s.speaker) \(s.start)-\(s.end): \(s.text)") }
+            for t in map.speakers { print("SPK \(t.label) \(t.seconds)s dim \(t.embedding.count)") }
+        }
+        let samanthaLabel = try XCTUnwrap(stored.segments.first { $0.text.lowercased().contains("design team") }?.speaker)
+        let samanthaVoice = try XCTUnwrap(map.speakers.first { $0.label == samanthaLabel }?.voiceID)
+        PeopleModel.shared.reload()
+        let voice = try XCTUnwrap(PeopleModel.shared.voices.first { $0.id == samanthaVoice })
+        XCTAssertNotNil(voice.sample, "a sample was cut so the user can hear who it is")
+        PeopleModel.shared.rename(voice, to: "Samantha")
+
+        md = try String(contentsOf: one.transcriptURL, encoding: .utf8)
+        XCTAssertTrue(md.contains("Samantha:**"), "naming rewrote the existing transcript:\n\(md)")
+        XCTAssertTrue(md.lowercased().contains("samantha:** sounds good"), "the turn starts at the right word:\n\(md)")
+        let danielNumber = try XCTUnwrap(PeopleModel.shared.voices.first { !$0.isMe && $0.id != samanthaVoice }?.number)
+
+        // Meeting two: the same people, different words.
+        var two = try Meeting.new(app: "Zoom")
+        try speak("Fred", "Quick sync today, I just want to confirm we are still on track for the launch.", to: two.micURL)
+        try conversation([
+            ("Samantha", "Quick update from my side: finance approved the pricing page this morning, so that part of the launch is fully done now."),
+            ("Daniel", "Great news. The screenshots arrived last night as well, so we are on track for Thursday as originally planned."),
+            ("Samantha", "Perfect. I'll schedule the announcement email for nine in the morning and let support know what to expect."),
+            ("Daniel", "Thanks. Let's do a final check on Wednesday afternoon and then we can all relax a little before launch day."),
+        ], to: two.systemURL)
+        two.duration = 45
+        let voicesBefore = PeopleModel.shared.voices.count
+        _ = try await Transcriber.transcribe(two, options: options) { _ in }
+
+        let md2 = try String(contentsOf: two.transcriptURL, encoding: .utf8)
+        if ProcessInfo.processInfo.environment["ATA_PRINT_TRANSCRIPT"] == "1" { print(md, "\n\n", md2) }
+        XCTAssertTrue(md2.lowercased().contains("samantha:** quick update"), "recognised by name in a new meeting:\n\(md2)")
+        XCTAssertTrue(md2.contains("Voice \(danielNumber):** Great news"), "the same unnamed voice keeps its number:\n\(md2)")
+        XCTAssertEqual(PeopleModel.shared.voices.count, voicesBefore, "no new voices: everyone was recognised")
+        XCTAssertEqual(PeopleModel.shared.voices.first { $0.id == samanthaVoice }?.meetings, 2)
+    }
 }

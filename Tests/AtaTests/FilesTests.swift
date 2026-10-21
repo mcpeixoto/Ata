@@ -14,6 +14,7 @@ final class FilesTests: XCTestCase {
         setenv("ATA_SUPPORT_DIR", root.appendingPathComponent("support").path, 1)
         precondition(Paths.meetingsDir.path == root.path, "tests must never touch real meetings")
         precondition(Paths.supportDir.path.hasPrefix(root.path), "tests must never touch the real models")
+        precondition(Paths.voicesDir.path.hasPrefix(root.path), "tests must never touch the real voice library")
     }
 
     override class func tearDown() {
@@ -133,5 +134,49 @@ final class FilesTests: XCTestCase {
         XCTAssertEqual(i.weeks.count, Insights.weeksShown)
         XCTAssertEqual(i.weeks.last?.meetings, 2)
         XCTAssertEqual(i.apps.map(\.name), ["Slack", "Zoom"])
+    }
+}
+
+final class RerenderTests: XCTestCase {
+    static let root = FilesTests.root
+
+    override class func setUp() {
+        super.setUp()
+        FilesTests.setUp()
+    }
+
+    func testNamingAVoiceRewritesTheTranscriptWithoutTranscribingAgain() throws {
+        var m = try Meeting.new(app: "Zoom")
+        m.duration = 120
+        let stored = StoredTranscript(segments: [
+            .init(start: 0, end: 2_000, text: "Hello everyone", speaker: Speakers.me),
+            .init(start: 2_500, end: 5_000, text: "Hi, thanks for having me", speaker: "S1"),
+            .init(start: 6_000, end: 8_000, text: "Shall we start", speaker: "S2"),
+        ], coarse: false, summary: "**Overview** — a greeting.", engine: "local", model: "large-v3")
+        try stored.save(to: m.storedTranscriptURL)
+        XCTAssertEqual(StoredTranscript.load(from: m.storedTranscriptURL), stored)
+
+        // Before any voice is known: generic labels.
+        try Transcriber.rerender(m, myName: "Alex")
+        var md = try String(contentsOf: m.transcriptURL, encoding: .utf8)
+        XCTAssertTrue(md.contains("**[00:00] Alex:** Hello everyone"))
+        XCTAssertTrue(md.contains("**[00:02] Speaker 1:** Hi, thanks for having me"))
+        XCTAssertTrue(md.contains("**[00:06] Speaker 2:** Shall we start"))
+        XCTAssertTrue(md.contains("## Summary"), "the summary survives a re-render")
+        XCTAssertTrue(md.contains("Participants: Alex, Speaker 1, Speaker 2"))
+
+        // S1 is matched to a voice, and that voice gets a name.
+        let library = VoiceLibrary()
+        let assigned = library.assign([MeetingSpeaker(label: "S1", embedding: [1, 0, 0], seconds: 3, voiceID: nil)],
+                                      meetingID: m.id)
+        library.rename(try XCTUnwrap(assigned[0].voiceID), to: "Rita")
+        try library.save()
+        try MeetingVoices(speakers: assigned, turns: []).save(for: m)
+
+        try Transcriber.rerender(m, myName: "Alex")
+        md = try String(contentsOf: m.transcriptURL, encoding: .utf8)
+        XCTAssertTrue(md.contains("**[00:02] Rita:** Hi, thanks for having me"))
+        XCTAssertTrue(md.contains("**[00:06] Speaker 2:** Shall we start"), "speakers without a voice keep a per-meeting label")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: m.versionsDir.path), "a rename is not a new version")
     }
 }

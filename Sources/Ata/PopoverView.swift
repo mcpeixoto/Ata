@@ -32,7 +32,7 @@ struct PopoverView: View {
     @EnvironmentObject var store: AppStore
     @EnvironmentObject var setup: SetupModel
 
-    enum Tab: Hashable { case record, insights }
+    enum Tab: Hashable { case record, insights, people }
     @State private var tab: Tab
 
     init(tab: Tab = .record) {
@@ -44,10 +44,12 @@ struct PopoverView: View {
             header
             if let missing = setup.missingSummary { setupBanner(missing) }
             UpdateBanner()
+            if tab != .people { NameVoicesBanner { tab = .people } }
             if let err = store.lastError { errorBanner(err) }
             Picker("", selection: $tab) {
                 Text("Record").tag(Tab.record)
                 Text("Insights").tag(Tab.insights)
+                Text("People").tag(Tab.people)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -57,6 +59,8 @@ struct PopoverView: View {
                 if !store.meetings.isEmpty { recent }
             case .insights:
                 InsightsView()
+            case .people:
+                PeopleView()
             }
             Divider().opacity(0.5)
             footer
@@ -461,5 +465,36 @@ struct UpdateBanner: View {
             .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color.accentColor.opacity(0.12)))
             .contentShape(Rectangle())
+    }
+}
+
+
+/// "2 voices to name" — shown until the user has named the voices Ata keeps hearing.
+struct NameVoicesBanner: View {
+    @StateObject private var people = PeopleModel.shared
+    let open: () -> Void
+
+    var body: some View {
+        let count = people.enabled ? people.worthAsking.count : 0
+        if count > 0 {
+            Button(action: open) {
+                HStack(spacing: 8) {
+                    Image(systemName: "person.crop.circle.badge.questionmark").foregroundStyle(Color.accentColor)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(count == 1 ? L("1 voice to name") : L("%d voices to name", count))
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Name them once; every transcript uses the name.")
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.accentColor.opacity(0.12)))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .onAppear { people.reload() }
+        }
     }
 }
