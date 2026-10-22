@@ -235,3 +235,96 @@ final class MenuIconTests: XCTestCase {
         }
     }
 }
+
+/// Older meetings and sharing: what gets an MP3, and what the share sheet is handed.
+final class MeetingSharingTests: XCTestCase {
+    override class func setUp() {
+        super.setUp()
+        FilesTests.setUp()
+    }
+
+    private func meeting(_ app: String = "Share") throws -> Meeting {
+        try Meeting.new(app: "\(app) \(UUID().uuidString.prefix(8))")
+    }
+
+    private func tone(_ seconds: Double, at url: URL) throws {
+        let samples = Int(seconds * WavWriter.sampleRate)
+        var data = WavWriter.header(dataBytes: UInt32(samples * 2))
+        for i in 0..<samples {
+            let v = Int16(8000 * sin(2 * .pi * 440 * Double(i) / WavWriter.sampleRate))
+            withUnsafeBytes(of: v.littleEndian) { data.append(contentsOf: $0) }
+        }
+        try data.write(to: url)
+    }
+
+    private var scratch: URL {
+        FilesTests.root.appendingPathComponent("share-\(UUID().uuidString)", isDirectory: true)
+    }
+
+    func testOnlyMeetingsWithTracksAndNoMP3AreBackfilled() throws {
+        var old = try meeting("Old")              // recorded before 2.4: tracks, no MP3
+        old.status = .done
+        try tone(1, at: old.micURL)
+        var merged = try meeting("Merged")        // already has its MP3
+        merged.status = .done
+        try tone(1, at: merged.micURL)
+        try MergedAudio.write(merged)
+        var gone = try meeting("Gone")            // audio deleted by retention
+        gone.status = .done
+        var live = try meeting("Live")            // still recording
+        live.status = .recording
+        try tone(1, at: live.micURL)
+
+        let picked = MergedAudio.missing(in: [old, merged, gone, live]).map(\.id)
+        XCTAssertEqual(picked, [old.id])
+    }
+
+    func testSharingAMeetingFromBefore24MixesItsTracksWithoutTouchingTheFolder() throws {
+        let m = try meeting()
+        try tone(2, at: m.micURL)
+        try tone(2, at: m.systemURL)
+        let out = scratch.appendingPathComponent(MeetingSharing.name(for: m) + ".mp3")
+
+        try MeetingSharing.audio(of: m, to: out, link: true)
+
+        XCTAssertGreaterThan(Paths.fileSize(out), 0)
+        XCTAssertFalse(m.hasMergedAudio, "sharing makes a copy for the share sheet, not meeting.mp3")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: m.micURL.path))
+    }
+
+    func testSharingUsesMeetingMP3WhenThereIsOne() throws {
+        let m = try meeting()
+        try tone(1, at: m.micURL)
+        try MergedAudio.write(m)
+        let original = try Data(contentsOf: m.mergedAudioURL)
+
+        for link in [true, false] {
+            let out = scratch.appendingPathComponent("Shared.mp3")
+            try MeetingSharing.audio(of: m, to: out, link: link)
+            XCTAssertEqual(try Data(contentsOf: out), original)
+            try MeetingSharing.audio(of: m, to: out, link: link) // again, over the first copy
+            XCTAssertEqual(try Data(contentsOf: out), original)
+        }
+        XCTAssertEqual(try Data(contentsOf: m.mergedAudioURL), original, "the meeting's own MP3 is untouched")
+    }
+
+    func testTheTranscriptIsSharedUnderTheMeetingsName() throws {
+        let m = try meeting()
+        let dir = scratch
+        XCTAssertNil(try MeetingSharing.transcript(of: m, in: dir), "nothing to share before a transcript exists")
+
+        try "# Zoom\n".write(to: m.transcriptURL, atomically: true, encoding: .utf8)
+        let shared = try XCTUnwrap(MeetingSharing.transcript(of: m, in: dir))
+        XCTAssertEqual(shared.lastPathComponent, MeetingSharing.name(for: m) + ".md")
+        XCTAssertEqual(try String(contentsOf: shared, encoding: .utf8), "# Zoom\n")
+    }
+
+    func testShareNamesNeverBecomePaths() throws {
+        var m = try meeting()
+        m.app = "Teams: Work/Home"
+        let name = MeetingSharing.name(for: m)
+        XCTAssertFalse(name.contains("/"))
+        XCTAssertFalse(name.contains(":"))
+        XCTAssertTrue(name.hasPrefix("Teams- Work-Home "))
+    }
+}

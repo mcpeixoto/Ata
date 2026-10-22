@@ -54,6 +54,53 @@ enum MeetingNotes {
     }
 }
 
+/// Files to hand to the share sheet, AirDrop or a drag, named after the
+/// meeting so whoever gets them sees "Zoom 2026-10-22 14.02.mp3", not "meeting.mp3".
+enum MeetingSharing {
+    /// A folder of its own under the temporary directory, emptied at launch:
+    /// a share sheet may still be reading a file after its window closed.
+    static let root = FileManager.default.temporaryDirectory.appendingPathComponent("Ata Share", isDirectory: true)
+
+    static func cleanUp() {
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    static func name(for m: Meeting) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd HH.mm"
+        let raw = "\(m.title) \(f.string(from: m.startedAt))"
+        // App names come from the system; keep them from making a path.
+        return raw.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+    }
+
+    /// The meeting's audio as one MP3 at `destination`: meeting.mp3 when there
+    /// is one, otherwise the tracks mixed straight into `destination` — which
+    /// is how a meeting from before 2.4, or with the MP3 setting off, is shared.
+    /// `link` hard-links instead of copying when it can, for throwaway share copies.
+    static func audio(of m: Meeting, to destination: URL, link: Bool) throws {
+        let fm = FileManager.default
+        try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if fm.fileExists(atPath: destination.path) { try fm.removeItem(at: destination) }
+        if m.hasMergedAudio {
+            if link, (try? fm.linkItem(at: m.mergedAudioURL, to: destination)) != nil { return }
+            try fm.copyItem(at: m.mergedAudioURL, to: destination)
+        } else {
+            try MergedAudio.write(tracks: [m.micAudioURL, m.systemAudioURL].compactMap { $0 }, to: destination)
+        }
+    }
+
+    /// transcript.md under the meeting's name, or nil before there is one.
+    static func transcript(of m: Meeting, in dir: URL) throws -> URL? {
+        guard let source = m.existingTranscriptURL else { return nil }
+        let fm = FileManager.default
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        let out = dir.appendingPathComponent(name(for: m) + ".md")
+        if fm.fileExists(atPath: out.path) { try fm.removeItem(at: out) }
+        try fm.copyItem(at: source, to: out)
+        return out
+    }
+}
+
 /// Everything the meeting window shows, loaded from the meeting's folder and
 /// loaded again whenever the history or a voice's name changes.
 @MainActor
@@ -95,6 +142,13 @@ final class MeetingModel: ObservableObject {
     @Published private(set) var writingNotes = false
     @Published private(set) var exporting = false
     @Published var message: String?
+
+    /// Ready-to-share copies; see `MeetingSharing`.
+    @Published private(set) var sharedAudio: URL?
+    @Published private(set) var sharedTranscript: URL?
+    @Published private(set) var preparingAudio = false
+    private let shareDir = MeetingSharing.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    private var sharedTranscriptStamp: Date?
 
     private var savedNotes = ""
     private var pendingSave: DispatchWorkItem?
@@ -156,6 +210,45 @@ final class MeetingModel: ObservableObject {
         }
         // Meetings from before Ata saved an MP3 get one the first time they're opened.
         AppStore.shared.saveMergedAudio(of: m)
+        prepareSharing(m)
+    }
+
+    /// Makes the share copies: the transcript again whenever it changes (a
+    /// voice was named, notes were written), the audio once.
+    private func prepareSharing(_ m: Meeting) {
+        let stamp = m.existingTranscriptURL.flatMap {
+            (try? FileManager.default.attributesOfItem(atPath: $0.path))?[.modificationDate] as? Date
+        }
+        if stamp != sharedTranscriptStamp {
+            sharedTranscript = try? MeetingSharing.transcript(of: m, in: shareDir)
+            sharedTranscriptStamp = stamp
+        }
+
+        guard sharedAudio == nil, !preparingAudio, m.hasAudio || m.hasMergedAudio else { return }
+        preparingAudio = true
+        let destination = shareDir.appendingPathComponent(MeetingSharing.name(for: m) + ".mp3")
+        Task {
+            // If meeting.mp3 is being written, share that rather than mixing twice.
+            await AppStore.shared.saveMergedAudio(of: m)?.value
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    try MeetingSharing.audio(of: m, to: destination, link: true)
+                }.value
+                sharedAudio = destination
+            } catch {
+                message = L("Could not prepare the audio for sharing: %@", error.localizedDescription)
+            }
+            preparingAudio = false
+        }
+    }
+
+    /// Your notes and the summary as one text, for copying and sharing.
+    var notesText: String {
+        var parts: [String] = []
+        if let summary { parts.append(summary) }
+        let mine = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !mine.isEmpty { parts.append(mine) }
+        return parts.joined(separator: "\n\n")
     }
 
     /// "S12" → 12, so speakers list in the order they first spoke.
@@ -246,12 +339,8 @@ final class MeetingModel: ObservableObject {
     }
 
     func copyNotes() {
-        var parts: [String] = []
-        if let summary { parts.append(summary) }
-        let mine = notes.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !mine.isEmpty { parts.append(mine) }
-        guard !parts.isEmpty else { return }
-        copy(parts.joined(separator: "\n\n"))
+        guard !notesText.isEmpty else { return }
+        copy(notesText)
     }
 
     private func copy(_ text: String) {
@@ -265,7 +354,7 @@ final class MeetingModel: ObservableObject {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.mp3]
         panel.canCreateDirectories = true
-        panel.nameFieldStringValue = "\(meeting.title) \(Self.fileDate.string(from: meeting.startedAt)).mp3"
+        panel.nameFieldStringValue = MeetingSharing.name(for: meeting) + ".mp3"
         guard panel.runModal() == .OK, let destination = panel.url else { return }
 
         exporting = true
@@ -274,14 +363,7 @@ final class MeetingModel: ObservableObject {
             let m = meeting
             do {
                 try await Task.detached(priority: .userInitiated) {
-                    let fm = FileManager.default
-                    if fm.fileExists(atPath: destination.path) { try fm.removeItem(at: destination) }
-                    if m.hasMergedAudio {
-                        try fm.copyItem(at: m.mergedAudioURL, to: destination)
-                    } else {
-                        try MergedAudio.write(tracks: [m.micAudioURL, m.systemAudioURL].compactMap { $0 },
-                                              to: destination)
-                    }
+                    try MeetingSharing.audio(of: m, to: destination, link: false)
                 }.value
                 NSWorkspace.shared.activateFileViewerSelecting([destination])
             } catch {
@@ -290,12 +372,6 @@ final class MeetingModel: ObservableObject {
             exporting = false
         }
     }
-
-    private static let fileDate: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd HH.mm"
-        return f
-    }()
 }
 
 /// Plays a meeting: meeting.mp3 when there is one, otherwise both tracks

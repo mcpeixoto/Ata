@@ -46,7 +46,8 @@ struct MeetingView: View {
             status(meeting)
             PlayerBar(player: model.player,
                       hasAudio: meeting.hasAudio || meeting.hasMergedAudio,
-                      fallbackDuration: meeting.duration ?? 0)
+                      fallbackDuration: meeting.duration ?? 0,
+                      sharedAudio: model.sharedAudio)
             if let message = model.message {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
@@ -102,6 +103,8 @@ struct MeetingView: View {
             }
             Spacer()
             HStack(spacing: 2) {
+                shareMenu(meeting)
+
                 Menu {
                     Button("Copy transcript") { model.copyTranscript() }
                         .disabled(meeting.existingTranscriptURL == nil)
@@ -146,6 +149,37 @@ struct MeetingView: View {
             .font(.system(size: 14))
             .foregroundStyle(.secondary)
         }
+    }
+
+    /// AirDrop, Mail, Messages and the rest, for the audio, the transcript or the notes.
+    private func shareMenu(_ meeting: Meeting) -> some View {
+        Menu {
+            if let audio = model.sharedAudio {
+                ShareLink(item: audio) { Label("Audio (MP3)", systemImage: "waveform") }
+            } else if model.preparingAudio {
+                Text("Preparing the audio…")
+            }
+            if let transcript = model.sharedTranscript {
+                ShareLink(item: transcript) { Label("Transcript", systemImage: "doc.text") }
+            }
+            if !model.notesText.isEmpty {
+                ShareLink(item: model.notesText) { Label("Notes", systemImage: "note.text") }
+            }
+            if let audio = model.sharedAudio, let transcript = model.sharedTranscript {
+                ShareLink(items: [audio, transcript]) {
+                    Label("Audio and transcript", systemImage: "square.stack")
+                }
+            }
+        } label: {
+            Image(systemName: "square.and.arrow.up")
+        }
+        .menuStyle(.button)
+        .buttonStyle(.borderless)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(L("Share"))
+        .disabled(model.sharedAudio == nil && !model.preparingAudio && model.sharedTranscript == nil
+                  && model.notesText.isEmpty)
     }
 
     private func toolbarButton(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {
@@ -198,6 +232,9 @@ private struct PlayerBar: View {
     @ObservedObject var player: MeetingPlayer
     let hasAudio: Bool
     let fallbackDuration: Double
+    /// The meeting as an MP3 named after it, once ready: dragged out of the
+    /// player into Mail, Slack or Finder.
+    let sharedAudio: URL?
 
     private var duration: Double { player.duration > 0 ? player.duration : fallbackDuration }
 
@@ -244,6 +281,16 @@ private struct PlayerBar: View {
                     .menuIndicator(.hidden)
                     .fixedSize()
                     .help(L("Playback speed"))
+
+                    if let sharedAudio {
+                        Image(systemName: "arrow.up.doc")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 24, height: 24)
+                            .contentShape(Rectangle())
+                            .onDrag { NSItemProvider(contentsOf: sharedAudio) ?? NSItemProvider() }
+                            .help(L("Drag the MP3 into another app"))
+                    }
                 }
             } else {
                 HStack(spacing: 8) {

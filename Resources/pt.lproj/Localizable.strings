@@ -307,3 +307,9 @@
 "Pulse while recording" = "Pulsar durante a gravação";
 "Show transcription progress" = "Mostrar o progresso da transcrição";
 "Also save the whole meeting as one MP3" = "Guardar também a reunião inteira num só MP3";
+"Could not prepare the audio for sharing: %@" = "Não foi possível preparar o áudio para partilhar: %@";
+"Audio (MP3)" = "Áudio (MP3)";
+"Preparing the audio…" = "A preparar o áudio…";
+"Audio and transcript" = "Áudio e transcrição";
+"Share" = "Partilhar";
+"Drag the MP3 into another app" = "Arrasta o MP3 para outra app";

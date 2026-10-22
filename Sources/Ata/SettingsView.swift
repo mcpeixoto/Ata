@@ -206,7 +206,8 @@ struct SettingsView: View {
             Toggle("Keep the audio after transcribing", isOn: $keepAudio)
             Toggle("Compress kept audio to m4a", isOn: $compressAudio)
                 .disabled(!keepAudio)
-            Toggle("Also save the whole meeting as one MP3", isOn: $saveMP3)
+            Toggle("Also save the whole meeting as one MP3", isOn: Binding(
+                get: { saveMP3 }, set: { saveMP3 = $0; if $0 { store.backfillMergedAudio() } }))
                 .disabled(!keepAudio)
             Text(keepAudio
                  ? (compressAudio

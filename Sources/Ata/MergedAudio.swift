@@ -64,6 +64,12 @@ enum MergedAudio {
                   to: meeting.mergedAudioURL)
     }
 
+    /// Meetings that have their tracks but no meeting.mp3 yet — everything
+    /// recorded before Ata 2.4, oldest last. A meeting still recording is left alone.
+    static func missing(in meetings: [Meeting]) -> [Meeting] {
+        meetings.filter { $0.status != .recording && $0.hasAudio && !$0.hasMergedAudio }
+    }
+
     /// Sample-by-sample sum, clamped so two loud voices at once clip instead
     /// of wrapping around into noise. A shorter track counts as silence.
     static func mix(_ tracks: [[Int16]]) -> [Int16] {

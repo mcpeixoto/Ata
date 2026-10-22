@@ -167,7 +167,12 @@ Click a meeting in the menu to open it:
 - **Transcript**, searchable.
 - **People**: every voice in this meeting, with a play button and a name field. Name a voice here
   even if Ata has only heard it once, and every transcript uses the name.
+- **Share** the audio, the transcript or the notes through AirDrop, Mail, Messages or any app —
+  named after the meeting — or drag the MP3 out of the player.
 - Copy the transcript or notes, **Save as MP3…**, transcribe again with another model, or delete.
+
+Meetings recorded before Ata 2.4 work the same way: their MP3 is made in the background after
+the update, from whatever audio is still kept.
 
 The menu bar icon while recording is yours to choose in **Settings → Menu bar**: a record dot,
 a waveform, a microphone or Ata's glyph; in the menu bar's colour, red or your accent colour;

@@ -12,12 +12,17 @@
   - a searchable transcript;
   - **People**: every voice in the meeting, with a play button and a name field, so a voice heard
     only once can be named too;
+  - **Share** the audio, the transcript, the notes, or audio and transcript together, through
+    AirDrop, Mail, Messages or any app's share extension; the files are named after the meeting.
+    Drag the MP3 out of the player straight into another app;
   - copy the transcript or notes, **Save as MP3…**, transcribe again, or delete.
 - **The whole meeting as one MP3.** Ata mixes your microphone and the others into
   `meeting.mp3` next to the transcript (48 kbps, about 21 MB an hour) as soon as a recording
   stops, so you can listen before the transcript is ready. The separate tracks are kept for
-  transcribing again. Meetings from before 2.4 get their MP3 the first time you open them. Off
-  in **Settings → Audio** if you'd rather not.
+  transcribing again. **Meetings recorded before 2.4 get theirs too**: after updating, Ata works
+  through your history in the background, newest first, one meeting at a time — and any meeting
+  whose audio is still there can be heard, shared and saved as MP3 from its window right away.
+  Off in **Settings → Audio** if you'd rather not.
 - **Choose how the menu bar icon looks while recording**, in **Settings → Menu bar**: a record
   dot, a waveform, a microphone or Ata's glyph; in the menu bar's colour, red, or your accent
   colour; with or without the timer; pulsing or still. Transcription progress can be hidden too.

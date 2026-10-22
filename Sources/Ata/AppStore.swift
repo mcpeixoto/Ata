@@ -52,6 +52,8 @@ final class AppStore: ObservableObject {
         recoverInterrupted()
         pruneOldAudio()
         pump()
+        MeetingSharing.cleanUp()
+        backfillMergedAudio()
         Updater.shared.checkInBackground()
         // Ata often runs for weeks as a login item: retention and update checks
         // can't only happen at launch.
@@ -420,6 +422,19 @@ final class AppStore: ObservableObject {
         }
         mergeTasks[m.id] = task
         return task
+    }
+
+    /// Gives every meeting recorded before Ata 2.4 its meeting.mp3, newest
+    /// first and one at a time, so an upgrade never decodes the whole history at once.
+    func backfillMergedAudio() {
+        guard Pref.d.bool(forKey: Pref.keepAudio), Pref.d.bool(forKey: Pref.saveMP3) else { return }
+        let pending = MergedAudio.missing(in: Library.loadAll())
+        guard !pending.isEmpty else { return }
+        Task {
+            for m in pending {
+                await saveMergedAudio(of: m)?.value
+            }
+        }
     }
 
     /// Once setup is complete, work through whatever is queued.

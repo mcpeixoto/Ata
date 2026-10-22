@@ -123,6 +123,12 @@ summarizes an already-transcribed meeting through `Summarizer`, stores the summa
 `transcript.json`, re-renders `transcript.md`, and adds the cost to the latest transcription.
 Naming a voice there goes through `PeopleModel.rename`, like the People tab.
 
+Sharing hands the share sheet copies named after the meeting (`MeetingSharing`), in a temporary
+folder emptied at the next launch — a share extension may still be reading after the window
+closes. A meeting without `meeting.mp3` is mixed straight into the share copy. At launch,
+`backfillMergedAudio` gives every older meeting that still has its tracks a `meeting.mp3`, one at
+a time.
+
 ## 5½. Who said what — `Diarization`, `Voices`, `PeopleModel`
 
 With voice recognition on (off by default; macOS 15+), after the tracks are transcribed:
