@@ -125,8 +125,10 @@ Each meeting lands in `~/Documents/Meetings/<date> <app>/`:
 ```
 2026-10-20 14.02.11 Zoom/
 ├── transcript.md
+├── meeting.mp3      ← the whole meeting in one file, to listen to or share
 ├── mic.m4a          ← you
 ├── system.m4a       ← everyone else
+├── notes.md         ← your own notes, if you wrote any
 ├── meeting.json     ← times, app, and every transcription: model, minutes, cost
 └── versions/        ← earlier transcripts, if you re-transcribed
 ```
@@ -150,8 +152,26 @@ Duration: 47 min · Participants: Alex, Others
 ```
 
 **Audio is kept by default**, compressed to m4a — about a tenth of the raw size — so you can always
-re-transcribe or listen back. Turn that off, or have Ata delete audio after 7, 30 or 90 days, in
+re-transcribe or listen back. Ata also mixes both tracks into one `meeting.mp3` (about 21 MB an
+hour) that opens anywhere. Turn either off, or have Ata delete audio after 7, 30 or 90 days, in
 **Settings → Audio**.
+
+## Every meeting in its own window
+
+Click a meeting in the menu to open it:
+
+- **Listen** to the whole meeting, with ±15 s skips and 1×–2× speed. Click any line of the
+  transcript to jump to that moment; the line being played is highlighted as you listen.
+- **Notes**: the AI summary, with the decisions and action items. No summary yet? **Write notes**
+  creates one from the transcript text. Below it is space for your own notes, saved as `notes.md`.
+- **Transcript**, searchable.
+- **People**: every voice in this meeting, with a play button and a name field. Name a voice here
+  even if Ata has only heard it once, and every transcript uses the name.
+- Copy the transcript or notes, **Save as MP3…**, transcribe again with another model, or delete.
+
+The menu bar icon while recording is yours to choose in **Settings → Menu bar**: a record dot,
+a waveform, a microphone or Ata's glyph; in the menu bar's colour, red or your accent colour;
+with or without the timer; pulsing or still.
 
 ## Who said what
 
@@ -224,7 +244,7 @@ Ideas with an issue attached are up for grabs — see
 - [ ] Global keyboard shortcut to start and stop ([#2](https://github.com/mcpeixoto/Ata/issues/2))
 - [ ] Subtitles (`.srt`) and plain text next to each transcript ([#3](https://github.com/mcpeixoto/Ata/issues/3))
 - [ ] More languages — Spanish first ([#4](https://github.com/mcpeixoto/Ata/issues/4))
-- [ ] A transcript window with search across meetings ([#6](https://github.com/mcpeixoto/Ata/issues/6))
+- [ ] A transcript window with search across meetings ([#6](https://github.com/mcpeixoto/Ata/issues/6)) — each meeting has its own window with search since 2.4; search across meetings is still to do
 
 ## Contributing
 
@@ -238,7 +258,8 @@ pieces fit. Please read the [code of conduct](CODE_OF_CONDUCT.md) first, and rep
 Ata stands on [whisper.cpp](https://github.com/ggerganov/whisper.cpp) by Georgi Gerganov and
 contributors, OpenAI's [Whisper](https://github.com/openai/whisper) models, and
 [FluidAudio](https://github.com/FluidInference/FluidAudio) by FluidInference with its
-pyannote and WeSpeaker speaker models. Model licences are listed in [NOTICE](NOTICE).
+pyannote and WeSpeaker speaker models, and the [LAME](https://lame.sourceforge.io) MP3 encoder.
+Licences are listed in [NOTICE](NOTICE).
 
 ## License
 

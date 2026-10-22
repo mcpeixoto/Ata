@@ -58,10 +58,18 @@ enum Snapshots {
 
             store.applySnapshotFixture(recordingApp: nil, elapsed: 0, mic: 0, system: 0,
                                        transcribingID: nil, progress: 0)
+            // A meeting's own window: its notes, and its transcript.
+            for (tab, name) in [(MeetingView.Tab.notes, "notes"), (MeetingView.Tab.transcript, "transcript")] {
+                let meeting = render(MeetingView(model: MeetingModel(id: Fixture.meetingID), tab: tab, height: 760)
+                                        .environmentObject(store),
+                                     width: 600, height: 760, appearance: appearance)
+                write(frame(meeting, appearance), to: out, name: "meeting-\(name)-\(appearance.name)")
+            }
+
             // Taller than the real window so the README shows every section
             // instead of a form cut off mid-scroll.
-            let settings = render(SettingsView(height: 1330).environmentObject(store).environmentObject(store.setup),
-                                  width: 540, height: 1330, appearance: appearance)
+            let settings = render(SettingsView(height: 1600).environmentObject(store).environmentObject(store.setup),
+                                  width: 540, height: 1600, appearance: appearance)
             write(frame(settings, appearance), to: out, name: "settings-\(appearance.name)")
 
             let onboarding = render(OnboardingView(height: 890).environmentObject(store).environmentObject(store.setup),
@@ -210,6 +218,8 @@ enum Snapshots {
 
     enum Fixture {
         static let transcribingID = "fixture-slack"
+        /// Has a summary, your notes and named voices; see make-fixtures.py.
+        static let meetingID = "fixture-zoom"
     }
 
     /// The README hero: name, pitch, and the menu mid-recording.

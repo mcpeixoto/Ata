@@ -16,6 +16,12 @@ Silero VAD — MIT licence
   https://github.com/snakers4/silero-vad
   Downloaded on first use; not bundled.
 
+LAME 3.100 (the MP3 encoder) — GNU LGPL, version 2 or later
+  https://lame.sourceforge.io
+  Built into Ata from source in Sources/CLame, where the licence (COPYING) and the
+  exact files taken are listed. Ata's full source is public, so it can be rebuilt
+  against a modified LAME.
+
 FluidAudio — Apache License 2.0
   https://github.com/FluidInference/FluidAudio
   Compiled into Ata.

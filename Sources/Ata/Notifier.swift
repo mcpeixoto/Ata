@@ -46,7 +46,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sen
     func transcriptReady(_ m: Meeting) {
         clear("recording")
         post(id: "ready-\(m.id)", category: ID.ready, title: L("Transcript ready"),
-             body: "\(m.title) · \(m.subtitle)", info: ["path": m.transcriptURL.path])
+             body: "\(m.title) · \(m.subtitle)", info: ["path": m.transcriptURL.path, "meeting": m.id])
     }
 
     func transcriptFailed(_ m: Meeting, error: String) {
@@ -88,6 +88,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sen
         let info = response.notification.request.content.userInfo
         let category = response.notification.request.content.categoryIdentifier
         let path = info["path"] as? String
+        let meetingID = info["meeting"] as? String
         let app = info["app"] as? String
         DispatchQueue.main.async {
             MainActor.assumeIsolated {
@@ -100,7 +101,11 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sen
                 case (ID.update, ID.install), (ID.update, UNNotificationDefaultActionIdentifier):
                     Updater.shared.installUpdate()
                 case (ID.ready, _):
-                    if let path, action != UNNotificationDismissActionIdentifier {
+                    guard action != UNNotificationDismissActionIdentifier else { break }
+                    if let meetingID {
+                        WindowManager.shared.showMeeting(meetingID)
+                    } else if let path {
+                        // Delivered by Ata 2.3 or earlier, before notifications named the meeting.
                         NSWorkspace.shared.open(URL(fileURLWithPath: path))
                     }
                 default:

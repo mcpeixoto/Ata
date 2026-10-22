@@ -421,8 +421,9 @@ enum Transcriber {
 
     // MARK: - Markdown
 
-    /// Markdown for a stored transcript, with speaker labels turned into names.
-    static func render(_ t: StoredTranscript, meeting: Meeting, names: (String) -> String) -> String {
+    /// The transcript as it reads: in time order, with one speaker's lines that
+    /// follow each other within 2.5 s joined into one block.
+    static func blocks(_ t: StoredTranscript) -> [StoredTranscript.Line] {
         var blocks: [StoredTranscript.Line] = []
         for s in t.segments.sorted(by: { $0.start < $1.start }) {
             if let last = blocks.last, last.speaker == s.speaker, s.start - last.end < 2_500 {
@@ -432,6 +433,12 @@ enum Transcriber {
                 blocks.append(s)
             }
         }
+        return blocks
+    }
+
+    /// Markdown for a stored transcript, with speaker labels turned into names.
+    static func render(_ t: StoredTranscript, meeting: Meeting, names: (String) -> String) -> String {
+        let blocks = Transcriber.blocks(t)
 
         let df = DateFormatter()
         // The same language as the rest of the transcript, not the system region.
@@ -477,7 +484,7 @@ enum Transcriber {
         try md.write(to: meeting.transcriptURL, atomically: true, encoding: .utf8)
     }
 
-    private static func timestamp(_ ms: Int) -> String {
+    static func timestamp(_ ms: Int) -> String {
         let s = ms / 1000
         return s >= 3600
             ? String(format: "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60)

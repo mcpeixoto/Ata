@@ -181,6 +181,9 @@ Layout:
   (recording, detection, the transcription queue, history); `Recorder` + `WavWriter` own
   capture; `Transcriber` coordinates and `LocalEngine` / `OpenAIEngine` do the work;
   `Updater` installs releases; `SettingsView` / `OnboardingView` / `PopoverView` are the UI.
+- Meeting window (2.4): `MeetingView` / `MeetingModel` (player, notes, transcript, its voices);
+  `MergedAudio` writes `meeting.mp3` with LAME, vendored unchanged in `Sources/CLame` (LGPL —
+  update it only as that README says). The MP3 is an extra file, never a replacement for the tracks.
 - `Resources/` — `Info.plist` (version, repo, donate URL), the iconset, the entitlements,
   and `en.lproj` / `pt.lproj`.
 - `scripts/build-app.sh` — assembles `build/Ata.app`. CI runs this exact script; never
