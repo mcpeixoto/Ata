@@ -87,6 +87,7 @@ final class WindowManager {
     static let shared = WindowManager()
     private var onboarding: NSWindow?
     private var settings: NSWindow?
+    private var meetings: [String: (window: NSWindow, model: MeetingModel, closing: NSObjectProtocol)] = [:]
 
     func showOnboarding() {
         onboarding = present(onboarding, title: L("Welcome to Ata")) {
@@ -108,21 +109,65 @@ final class WindowManager {
         }
     }
 
-    private func present<V: View>(_ existing: NSWindow?, title: String, @ViewBuilder content: () -> V) -> NSWindow {
+    /// A meeting's own window, one per meeting. `play` starts the audio.
+    func showMeeting(_ id: String, play: Bool = false) {
+        if let open = meetings[id] {
+            NSApp.activate(ignoringOtherApps: true)
+            open.window.makeKeyAndOrderFront(nil)
+            if play { open.model.player.play() }
+            return
+        }
+        let model = MeetingModel(id: id)
+        let w = present(nil, title: model.meeting?.title ?? L("Meeting"), size: NSSize(width: 600, height: 720),
+                        resizable: true) {
+            MeetingView(model: model)
+                .environmentObject(AppStore.shared)
+        }
+        if let last = meetings.values.map({ $0.window }).last {
+            w.setFrameTopLeftPoint(w.cascadeTopLeft(from: NSPoint(x: last.frame.minX, y: last.frame.maxY)))
+        }
+        // Closing drops the view, which stops the audio and saves your notes.
+        let closing = NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification,
+                                                             object: w, queue: .main) { _ in
+            MainActor.assumeIsolated { WindowManager.shared.forgetMeeting(id) }
+        }
+        meetings[id] = (w, model, closing)
+        if play { model.player.play() }
+    }
+
+    func closeMeeting(_ id: String) {
+        meetings[id]?.window.close()
+    }
+
+    private func forgetMeeting(_ id: String) {
+        guard let open = meetings.removeValue(forKey: id) else { return }
+        NotificationCenter.default.removeObserver(open.closing)
+        open.model.close()
+        open.window.contentView = nil
+    }
+
+    private func present<V: View>(_ existing: NSWindow?, title: String, size: NSSize = NSSize(width: 520, height: 600),
+                                  resizable: Bool = false, @ViewBuilder content: () -> V) -> NSWindow {
         if let existing {
             NSApp.activate(ignoringOtherApps: true)
             existing.makeKeyAndOrderFront(nil)
             return existing
         }
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 600),
-                         styleMask: [.titled, .closable, .fullSizeContentView],
+        var style: NSWindow.StyleMask = [.titled, .closable, .fullSizeContentView]
+        if resizable { style.formUnion([.resizable, .miniaturizable]) }
+        let w = NSWindow(contentRect: NSRect(origin: .zero, size: size),
+                         styleMask: style,
                          backing: .buffered, defer: false)
         w.title = title
         w.titlebarAppearsTransparent = true
         w.titleVisibility = .hidden
         w.isMovableByWindowBackground = true
         w.isReleasedWhenClosed = false
-        w.contentView = NSHostingView(rootView: content())
+        let host = NSHostingView(rootView: content())
+        // A resizable window takes only its minimum size from SwiftUI, or the
+        // view's ideal size would pin the window at that size.
+        if resizable { host.sizingOptions = [.minSize] }
+        w.contentView = host
         w.center()
         NSApp.activate(ignoringOtherApps: true)
         w.makeKeyAndOrderFront(nil)

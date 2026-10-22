@@ -12,8 +12,13 @@ let package = Package(
         .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.17.7", traits: []),
     ],
     targets: [
+        // LAME 3.100, vendored: macOS can play MP3 but has no MP3 encoder. See Sources/CLame/README.md.
+        .target(name: "CLame",
+                path: "Sources/CLame",
+                exclude: ["COPYING", "README.md"],
+                cSettings: [.define("HAVE_CONFIG_H"), .headerSearchPath(".")]),
         .executableTarget(name: "Ata",
-                          dependencies: [.product(name: "FluidAudio", package: "FluidAudio")],
+                          dependencies: ["CLame", .product(name: "FluidAudio", package: "FluidAudio")],
                           path: "Sources/Ata"),
         .testTarget(name: "AtaTests", dependencies: ["Ata"], path: "Tests/AtaTests"),
     ],

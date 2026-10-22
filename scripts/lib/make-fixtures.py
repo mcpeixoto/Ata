@@ -112,3 +112,44 @@ if support:
     ]
     with open(os.path.join(voices_dir, "voices.json"), "w") as f:
         json.dump([{k: v for k, v in x.items() if v is not None} for x in voices], f, indent=2)
+
+    # The meeting window: fixture-zoom gets a transcript, a summary, your notes,
+    # and two voices — one named, one waiting for a name.
+    zoom = os.path.join(out, "fixture-zoom")
+    lines = [
+        (0, 6, "me", "Morning both. Shall we start with the launch date?"),
+        (7, 15, "S1", "Yes. Design is done; the last thing is the onboarding copy, which I can finish by Wednesday."),
+        (16, 22, "S2", "QA needs two days after that, so Friday works if nothing slips."),
+        (23, 29, "me", "Friday it is. Rita, can you send the copy to Sam when it's ready?"),
+        (30, 34, "S1", "Will do. I'll also update the screenshots."),
+        (35, 44, "S2", "One open question: do we keep the old pricing page live during the switch?"),
+        (45, 52, "me", "Let's decide that Thursday, once we see the numbers from the beta."),
+        (53, 58, "S1", "Sounds good. I'll book thirty minutes."),
+    ]
+    summary = (
+        "**Overview** — The team agreed to launch on Friday, once the onboarding copy is finished "
+        "and QA has had two days with it.\n\n"
+        "**Decisions**\n- Launch on Friday.\n\n"
+        "**Action items**\n- Rita: finish the onboarding copy by Wednesday and send it to Sam.\n"
+        "- Rita: update the screenshots.\n- Rita: book a 30-minute check-in on Thursday.\n\n"
+        "**Open questions**\n- Keep the old pricing page live during the switch?"
+    )
+    with open(os.path.join(zoom, "transcript.json"), "w") as f:
+        json.dump({
+            "segments": [{"start": a * 1000, "end": b * 1000, "speaker": sp, "text": t} for a, b, sp, t in lines],
+            "coarse": False, "summary": summary, "engine": "local", "model": "large-v3-q5_0",
+        }, f, indent=2)
+    with open(os.path.join(zoom, "transcript.md"), "w") as f:
+        f.write("# Zoom\n")
+    with open(os.path.join(zoom, "notes.md"), "w") as f:
+        f.write("Ask Sam about the beta numbers before Thursday.\nCheck the pricing page copy with legal.\n")
+    rita = next(v for v in voices if v["name"] == "Rita Almeida")
+    unnamed = voices[1]
+    with open(os.path.join(zoom, "speakers.json"), "w") as f:
+        json.dump({
+            "speakers": [
+                {"label": "S1", "embedding": [1.0, 0.0, 0.0], "seconds": 22.0, "voiceID": rita["id"]},
+                {"label": "S2", "embedding": [0.0, 1.0, 0.0], "seconds": 15.0, "voiceID": unnamed["id"]},
+            ],
+            "turns": [{"start": a * 1000, "end": b * 1000, "label": sp} for a, b, sp, _ in lines if sp != "me"],
+        }, f, indent=2)

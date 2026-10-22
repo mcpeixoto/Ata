@@ -1,5 +1,34 @@
 # Changelog
 
+## 2.4.0
+
+- **Every meeting in its own window.** Click a meeting in the menu to listen to it, read its
+  notes and transcript, and name the people in it:
+  - a player with ±15 s skips and 1×–2× speed; click any line of the transcript to play from
+    there, and the line being heard is highlighted as you listen;
+  - **Notes**: the AI summary, or **Write notes** to create one for a meeting transcribed without
+    it (sends the transcript text to OpenAI, never the audio), plus your own notes, saved as
+    `notes.md` in the meeting folder;
+  - a searchable transcript;
+  - **People**: every voice in the meeting, with a play button and a name field, so a voice heard
+    only once can be named too;
+  - **Share** the audio, the transcript, the notes, or audio and transcript together, through
+    AirDrop, Mail, Messages or any app's share extension; the files are named after the meeting.
+    Drag the MP3 out of the player straight into another app;
+  - copy the transcript or notes, **Save as MP3…**, transcribe again, or delete.
+- **The whole meeting as one MP3.** Ata mixes your microphone and the others into
+  `meeting.mp3` next to the transcript (48 kbps, about 21 MB an hour) as soon as a recording
+  stops, so you can listen before the transcript is ready. The separate tracks are kept for
+  transcribing again. **Meetings recorded before 2.4 get theirs too**: after updating, Ata works
+  through your history in the background, newest first, one meeting at a time — and any meeting
+  whose audio is still there can be heard, shared and saved as MP3 from its window right away.
+  Off in **Settings → Audio** if you'd rather not.
+- **Choose how the menu bar icon looks while recording**, in **Settings → Menu bar**: a record
+  dot, a waveform, a microphone or Ata's glyph; in the menu bar's colour, red, or your accent
+  colour; with or without the timer; pulsing or still. Transcription progress can be hidden too.
+- The "Transcript ready" notification opens the meeting window.
+- MP3 encoding uses [LAME](https://lame.sourceforge.io) 3.100, built in from source.
+
 ## 2.3.1
 
 - **Fixed: Ata kept asking for system-audio permission you had already given.** It recorded

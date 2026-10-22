@@ -61,6 +61,7 @@ enum Pref {
     static let autoStop = "autoStop"         // stop when the meeting ends
     static let keepAudio = "keepAudio"       // keep the audio after transcribing
     static let compressAudio = "compressAudio" // re-encode kept audio to m4a
+    static let saveMP3 = "saveMP3"           // also keep both tracks mixed into meeting.mp3
     static let myName = "myName"             // how you appear in the transcript
     static let onboarded = "onboarded"
     static let engine = "engine"             // "local" | "openai"
@@ -72,6 +73,11 @@ enum Pref {
     static let recogniseVoices = "recogniseVoices" // diarize and match voices; off by default
     static let autoUpdate = "autoUpdate"     // check GitHub for new releases
     static let updateFeed = "updateFeed"     // override the release feed (forks)
+    static let menuIconSymbol = "menuIconSymbol"     // MenuIcon.Symbol while recording
+    static let menuIconTint = "menuIconTint"         // MenuIcon.Tint while recording
+    static let menuIconTimer = "menuIconTimer"       // elapsed time next to the icon
+    static let menuIconPulse = "menuIconPulse"       // icon breathes while recording
+    static let menuIconProgress = "menuIconProgress" // % next to the icon while transcribing
 
     static let defaultOpenAIModel = "whisper-1"
     static let defaultSummaryModel = "gpt-4o-mini"
@@ -91,6 +97,7 @@ enum Pref {
             autoStop: true,
             keepAudio: true,
             compressAudio: true,
+            saveMP3: true,
             myName: first.isEmpty ? L("Me") : first,
             onboarded: false,
             engine: Engine.local.rawValue,
@@ -100,6 +107,11 @@ enum Pref {
             autoUpdate: true,
             audioRetentionDays: 0,
             recogniseVoices: false,
+            menuIconSymbol: MenuIcon.Symbol.dot.rawValue,
+            menuIconTint: MenuIcon.Tint.monochrome.rawValue,
+            menuIconTimer: true,
+            menuIconPulse: false,
+            menuIconProgress: true,
         ])
     }
 

@@ -11,6 +11,7 @@ struct SettingsView: View {
     @AppStorage(Pref.autoStop) private var autoStop = true
     @AppStorage(Pref.keepAudio) private var keepAudio = true
     @AppStorage(Pref.compressAudio) private var compressAudio = true
+    @AppStorage(Pref.saveMP3) private var saveMP3 = true
     @AppStorage(Pref.language) private var language = "auto"
     @AppStorage(Pref.myName) private var myName = ""
     @AppStorage(Pref.engine) private var engine = Engine.local.rawValue
@@ -19,6 +20,11 @@ struct SettingsView: View {
     @AppStorage(Pref.summaryModel) private var summaryModel = Pref.defaultSummaryModel
     @AppStorage(Pref.autoUpdate) private var autoUpdate = true
     @AppStorage(Pref.audioRetentionDays) private var audioRetentionDays = 0
+    @AppStorage(Pref.menuIconSymbol) private var menuIconSymbol = MenuIcon.Symbol.dot.rawValue
+    @AppStorage(Pref.menuIconTint) private var menuIconTint = MenuIcon.Tint.monochrome.rawValue
+    @AppStorage(Pref.menuIconTimer) private var menuIconTimer = true
+    @AppStorage(Pref.menuIconPulse) private var menuIconPulse = false
+    @AppStorage(Pref.menuIconProgress) private var menuIconProgress = true
 
     @State private var apiKey = ""
 
@@ -32,6 +38,7 @@ struct SettingsView: View {
             header
             Form {
                 recordingSection
+                menuBarSection
                 transcriptionSection
                 if usesOpenAI || summarize { openAISection }
                 audioSection
@@ -81,6 +88,28 @@ struct SettingsView: View {
             .disabled(!autoDetect)
             Toggle("Stop on its own when the meeting ends", isOn: $autoStop)
                 .disabled(!autoDetect)
+        }
+    }
+
+    private var menuBarSection: some View {
+        Section("Menu bar") {
+            LabeledContent("While recording") {
+                MenuIconPreview(style: MenuIcon.Style(symbol: menuIconSymbol, tint: menuIconTint,
+                                                      timer: menuIconTimer, pulse: menuIconPulse))
+            }
+            Picker("Icon", selection: $menuIconSymbol) {
+                ForEach(MenuIcon.Symbol.allCases) { symbol in
+                    Label(symbol.title, systemImage: symbol.systemName).tag(symbol.rawValue)
+                }
+            }
+            Picker("Color", selection: $menuIconTint) {
+                ForEach(MenuIcon.Tint.allCases) { tint in
+                    Text(tint.title).tag(tint.rawValue)
+                }
+            }
+            Toggle("Show the recording time", isOn: $menuIconTimer)
+            Toggle("Pulse while recording", isOn: $menuIconPulse)
+            Toggle("Show transcription progress", isOn: $menuIconProgress)
         }
     }
 
@@ -176,6 +205,9 @@ struct SettingsView: View {
         Section("Audio") {
             Toggle("Keep the audio after transcribing", isOn: $keepAudio)
             Toggle("Compress kept audio to m4a", isOn: $compressAudio)
+                .disabled(!keepAudio)
+            Toggle("Also save the whole meeting as one MP3", isOn: Binding(
+                get: { saveMP3 }, set: { saveMP3 = $0; if $0 { store.backfillMergedAudio() } }))
                 .disabled(!keepAudio)
             Text(keepAudio
                  ? (compressAudio
@@ -309,6 +341,29 @@ struct LocalModelRows: View {
         if let error = setup.downloadError {
             Text(error).font(.system(size: 11)).foregroundStyle(.red)
         }
+    }
+}
+
+/// The recording icon on a strip of menu bar, so a change in Settings shows
+/// before the next meeting does.
+struct MenuIconPreview: View {
+    let style: MenuIcon.Style
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 12, paused: !style.pulse)) { context in
+            HStack(spacing: 4) {
+                RecordingMenuIcon(style: style, date: context.date)
+                if style.timer { Text(verbatim: "12:34").monospacedDigit() }
+            }
+            .font(.system(size: 13))
+            .foregroundStyle(scheme == .dark ? Color.white : Color.black)
+            .padding(.horizontal, 10)
+            .frame(height: 24)
+            .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.primary.opacity(0.08)))
+        }
+        .accessibilityHidden(true)
     }
 }
 

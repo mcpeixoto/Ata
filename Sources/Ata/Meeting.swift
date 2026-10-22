@@ -46,6 +46,14 @@ struct Meeting: Codable, Identifiable, Equatable {
     /// Who spoke in this meeting: diarized speakers, their turns and voices.
     var speakersURL: URL { dir.appendingPathComponent("speakers.json") }
 
+    /// Both tracks mixed into one file, for listening and sharing. Never the
+    /// only copy of the audio: the tracks stay for transcribing again.
+    var mergedAudioURL: URL { dir.appendingPathComponent("meeting.mp3") }
+    var hasMergedAudio: Bool { Paths.fileSize(mergedAudioURL) > 0 }
+
+    /// Your own notes, typed in the meeting window.
+    var notesURL: URL { dir.appendingPathComponent("notes.md") }
+
     /// Earlier transcripts, moved aside when the meeting was transcribed again.
     var versionsDir: URL { dir.appendingPathComponent("versions", isDirectory: true) }
 
@@ -67,6 +75,7 @@ struct Meeting: Codable, Identifiable, Equatable {
     /// Total size of the audio kept for this meeting, in bytes.
     var audioBytes: Int64 {
         [micAudioURL, systemAudioURL].compactMap { $0 }.reduce(0) { $0 + Paths.fileSize($1) }
+            + Paths.fileSize(mergedAudioURL)
     }
 
     var title: String { app ?? L("Meeting") }
@@ -143,6 +152,15 @@ enum Library {
             return m
         }
         .sorted { $0.startedAt > $1.startedAt }
+    }
+
+    /// One meeting, read fresh from its folder.
+    static func load(_ id: String) -> Meeting? {
+        let dir = Paths.meetingsDir.appendingPathComponent(id, isDirectory: true)
+        guard let data = try? Data(contentsOf: dir.appendingPathComponent("meeting.json")),
+              var m = try? decoder.decode(Meeting.self, from: data) else { return nil }
+        m.id = id
+        return m
     }
 
     static func trash(_ m: Meeting) {

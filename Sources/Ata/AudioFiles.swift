@@ -94,31 +94,61 @@ enum AudioFiles {
     /// shape whisper.cpp expects. Used when re-transcribing a recording whose
     /// WAV has already been replaced by a compressed m4a.
     static func decodeToWAV(_ source: URL, to destination: URL) throws {
-        let input = try AVAudioFile(forReading: source)
-        guard let target = AVAudioFormat(commonFormat: .pcmFormatInt16,
-                                         sampleRate: WavWriter.sampleRate,
-                                         channels: 1,
-                                         interleaved: true),
-              let converter = AVAudioConverter(from: input.processingFormat, to: target) else {
-            throw CocoaError(.fileReadCorruptFile)
-        }
+        let reader = try PCM16Reader(source)
 
         FileManager.default.createFile(atPath: destination.path, contents: nil)
         let handle = try FileHandle(forWritingTo: destination)
         defer { try? handle.close() }
         try handle.write(contentsOf: WavWriter.header(dataBytes: 0))
 
-        let readSize: AVAudioFrameCount = 16_384
-        guard let inBuffer = AVAudioPCMBuffer(pcmFormat: input.processingFormat, frameCapacity: readSize),
-              let outBuffer = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: readSize) else {
-            throw CocoaError(.fileReadCorruptFile)
+        var bytesWritten = 0
+        while let block = try reader.next() {
+            let data = block.withUnsafeBufferPointer { Data(buffer: $0) }
+            try handle.write(contentsOf: data)
+            bytesWritten += data.count
         }
 
-        var bytesWritten = 0
-        var finished = false
-        var readError: Error?
+        try handle.seek(toOffset: 0)
+        try handle.write(contentsOf: WavWriter.header(dataBytes: UInt32(clamping: bytesWritten)))
+    }
+}
+
+/// Reads any audio file the system can decode as 16 kHz mono 16-bit samples,
+/// one block at a time, so a two-hour meeting never sits in memory.
+final class PCM16Reader {
+    static let blockFrames: AVAudioFrameCount = 16_384
+
+    private let input: AVAudioFile
+    private let converter: AVAudioConverter
+    private let inBuffer: AVAudioPCMBuffer
+    private let outBuffer: AVAudioPCMBuffer
+    private var finished = false
+
+    init(_ url: URL) throws {
+        let input = try AVAudioFile(forReading: url)
+        guard let target = AVAudioFormat(commonFormat: .pcmFormatInt16,
+                                         sampleRate: WavWriter.sampleRate,
+                                         channels: 1,
+                                         interleaved: true),
+              let converter = AVAudioConverter(from: input.processingFormat, to: target),
+              let inBuffer = AVAudioPCMBuffer(pcmFormat: input.processingFormat, frameCapacity: Self.blockFrames),
+              let outBuffer = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: Self.blockFrames) else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        self.input = input
+        self.converter = converter
+        self.inBuffer = inBuffer
+        self.outBuffer = outBuffer
+    }
+
+    /// The next block of samples, or nil once the file is done. A damaged file
+    /// throws rather than quietly ending early.
+    func next() throws -> [Int16]? {
         while !finished {
             var error: NSError?
+            var readError: Error?
+            let input = self.input
+            let inBuffer = self.inBuffer
             let status = converter.convert(to: outBuffer, error: &error) { _, outStatus in
                 // AVAudioFile throws when asked to read past the end, so check first:
                 // only an error *before* the end means a damaged file.
@@ -127,9 +157,8 @@ enum AudioFiles {
                     return nil
                 }
                 do {
-                    try input.read(into: inBuffer, frameCount: readSize)
+                    try input.read(into: inBuffer, frameCount: Self.blockFrames)
                 } catch {
-                    // A corrupt file must fail, not quietly become a shorter transcript.
                     readError = error
                     outStatus.pointee = .endOfStream
                     return nil
@@ -142,16 +171,13 @@ enum AudioFiles {
                 return inBuffer
             }
             if let error { throw error }
-            if outBuffer.frameLength > 0, let channel = outBuffer.int16ChannelData {
-                let count = Int(outBuffer.frameLength) * 2
-                try handle.write(contentsOf: Data(bytes: channel[0], count: count))
-                bytesWritten += count
-            }
+            // A corrupt file must fail, not quietly become a shorter transcript.
+            if let readError { throw readError }
             if status == .endOfStream || status == .error { finished = true }
+            if outBuffer.frameLength > 0, let channel = outBuffer.int16ChannelData {
+                return Array(UnsafeBufferPointer(start: channel[0], count: Int(outBuffer.frameLength)))
+            }
         }
-        if let readError { throw readError }
-
-        try handle.seek(toOffset: 0)
-        try handle.write(contentsOf: WavWriter.header(dataBytes: UInt32(clamping: bytesWritten)))
+        return nil
     }
 }

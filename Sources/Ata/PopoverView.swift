@@ -3,13 +3,19 @@ import SwiftUI
 
 struct MenuBarLabel: View {
     @EnvironmentObject var store: AppStore
+    @AppStorage(Pref.menuIconSymbol) private var symbol = MenuIcon.Symbol.dot.rawValue
+    @AppStorage(Pref.menuIconTint) private var tint = MenuIcon.Tint.monochrome.rawValue
+    @AppStorage(Pref.menuIconTimer) private var timer = true
+    @AppStorage(Pref.menuIconPulse) private var pulse = false
+    @AppStorage(Pref.menuIconProgress) private var progress = true
 
     var body: some View {
         switch store.phase {
         case .recording, .stopping:
             HStack(spacing: 4) {
-                Image(systemName: "record.circle.fill")
-                Text(store.elapsedText).monospacedDigit()
+                RecordingMenuIcon(style: MenuIcon.Style(symbol: symbol, tint: tint, timer: timer, pulse: pulse),
+                                  date: store.now)
+                if timer { Text(store.elapsedText).monospacedDigit() }
             }
         case .starting:
             Image(systemName: "record.circle")
@@ -17,7 +23,7 @@ struct MenuBarLabel: View {
             if store.transcribingID != nil {
                 HStack(spacing: 4) {
                     Image(systemName: "text.bubble")
-                    Text("\(Int(store.transcribeProgress * 100))%").monospacedDigit()
+                    if progress { Text("\(Int(store.transcribeProgress * 100))%").monospacedDigit() }
                 }
             } else if store.detectedApp != nil {
                 Image(systemName: "waveform.circle.fill")
@@ -365,41 +371,27 @@ struct MeetingRow: View {
         } else if meeting.status == .failed && meeting.hasAudio {
             Button("Try again") { store.retry(meeting) }
                 .controlSize(.small)
-        } else if meeting.status == .done && hover {
+        } else if meeting.status != .recording && hover {
             Image(systemName: "arrow.up.forward.square").foregroundStyle(.secondary)
         }
     }
 
     @ViewBuilder
     private var menu: some View {
+        if meeting.status != .recording {
+            Button("Open meeting") { open() }
+            if meeting.hasAudio || meeting.hasMergedAudio {
+                Button("Play") { WindowManager.shared.showMeeting(meeting.id, play: true) }
+            }
+        }
         if meeting.status == .done {
-            Button("Open transcript") { open() }
+            Button("Open transcript") {
+                if let transcript = meeting.existingTranscriptURL { NSWorkspace.shared.open(transcript) }
+            }
             Button("Copy text") { copy() }
         }
         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([meeting.dir]) }
-        if meeting.hasAudio && meeting.status != .transcribing && meeting.status != .recording {
-            Button("Transcribe again") { store.retry(meeting) }
-            Menu("Transcribe again with") {
-                Section("On this Mac") {
-                    ForEach(LocalModel.all) { model in
-                        Button(model.isInstalled ? model.title : L("%@ (not downloaded)", model.title)) {
-                            store.retry(meeting, with: TranscribeOverride(engine: Engine.local.rawValue,
-                                                                          model: model.id))
-                        }
-                        .disabled(!model.isInstalled)
-                    }
-                }
-                Section("OpenAI") {
-                    ForEach(Pref.openAIModels, id: \.self) { model in
-                        Button(model) {
-                            store.retry(meeting, with: TranscribeOverride(engine: Engine.openAI.rawValue,
-                                                                          model: model))
-                        }
-                        .disabled(!Keychain.has(Keychain.openAIKey))
-                    }
-                }
-            }
-        }
+        TranscribeAgainMenu(meeting: meeting)
         if FileManager.default.fileExists(atPath: meeting.versionsDir.path) {
             Button("Show earlier versions") { NSWorkspace.shared.open(meeting.versionsDir) }
         }
@@ -409,10 +401,10 @@ struct MeetingRow: View {
     }
 
     private func open() {
-        if meeting.status == .done, let transcript = meeting.existingTranscriptURL {
-            NSWorkspace.shared.open(transcript)
-        } else {
+        if meeting.status == .recording {
             NSWorkspace.shared.activateFileViewerSelecting([meeting.dir])
+        } else {
+            WindowManager.shared.showMeeting(meeting.id)
         }
     }
 

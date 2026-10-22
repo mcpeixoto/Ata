@@ -31,6 +31,7 @@ final class AppStore: ObservableObject {
     private var bootstrapped = false
     private var pendingAutoStop = false
     private var lastSystemSoundAt = Date()
+    private var mergeTasks: [String: Task<Void, Never>] = [:]
 
     private init() {}
 
@@ -51,6 +52,8 @@ final class AppStore: ObservableObject {
         recoverInterrupted()
         pruneOldAudio()
         pump()
+        MeetingSharing.cleanUp()
+        backfillMergedAudio()
         Updater.shared.checkInBackground()
         // Ata often runs for weeks as a login item: retention and update checks
         // can't only happen at launch.
@@ -105,6 +108,7 @@ final class AppStore: ObservableObject {
             for url in [m.micAudioURL, m.systemAudioURL].compactMap({ $0 }) {
                 try? FileManager.default.removeItem(at: url)
             }
+            try? FileManager.default.removeItem(at: m.mergedAudioURL)
         }
     }
 
@@ -216,6 +220,8 @@ final class AppStore: ObservableObject {
             phase = .idle
             Notifier.shared.clear("recording")
             reload()
+            // Ready to listen to in seconds, long before the transcript is.
+            if m.hasAudio { saveMergedAudio(of: m) }
             pump()
         }
     }
@@ -380,14 +386,54 @@ final class AppStore: ObservableObject {
     /// After a successful transcript: keep the audio (the default) and compress
     /// it, or delete it if the user asked for that.
     private func handleAudio(of m: Meeting) async {
+        // The tracks are about to be compressed or deleted: let the MP3 finish
+        // reading them first, or write it now if it was never started.
+        await saveMergedAudio(of: m)?.value
         guard Pref.d.bool(forKey: Pref.keepAudio) else {
             try? FileManager.default.removeItem(at: m.micURL)
             try? FileManager.default.removeItem(at: m.systemURL)
+            try? FileManager.default.removeItem(at: m.mergedAudioURL)
             return
         }
         guard Pref.d.bool(forKey: Pref.compressAudio) else { return }
         for wav in [m.micURL, m.systemURL] where Paths.fileSize(wav) > 44 {
             await AudioFiles.compressToM4A(wav)
+        }
+    }
+
+    /// Writes meeting.mp3 in the background, when the settings ask for one and
+    /// it isn't there yet. Returns the running job so callers can wait for it;
+    /// asking twice for the same meeting gives back the same job.
+    @discardableResult
+    func saveMergedAudio(of m: Meeting) -> Task<Void, Never>? {
+        if let running = mergeTasks[m.id] { return running }
+        // A meeting still recording would give an MP3 cut off wherever it was when asked.
+        guard Pref.d.bool(forKey: Pref.keepAudio), Pref.d.bool(forKey: Pref.saveMP3),
+              m.status != .recording, m.hasAudio, !m.hasMergedAudio else { return nil }
+        let task = Task {
+            let job = m
+            do {
+                try await Task.detached(priority: .utility) { try MergedAudio.write(job) }.value
+            } catch {
+                // The tracks are untouched, so nothing is lost: the next attempt starts over.
+                NSLog("Ata: could not write meeting.mp3 for \(job.id): \(error.localizedDescription)")
+            }
+            self.mergeTasks[job.id] = nil
+        }
+        mergeTasks[m.id] = task
+        return task
+    }
+
+    /// Gives every meeting recorded before Ata 2.4 its meeting.mp3, newest
+    /// first and one at a time, so an upgrade never decodes the whole history at once.
+    func backfillMergedAudio() {
+        guard Pref.d.bool(forKey: Pref.keepAudio), Pref.d.bool(forKey: Pref.saveMP3) else { return }
+        let pending = MergedAudio.missing(in: Library.loadAll())
+        guard !pending.isEmpty else { return }
+        Task {
+            for m in pending {
+                await saveMergedAudio(of: m)?.value
+            }
         }
     }
 

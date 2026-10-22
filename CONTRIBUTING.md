@@ -68,7 +68,11 @@ CI also attaches a fresh set to every pull request as a downloadable artifact.
 | `LocalEngine.swift`, `OpenAIEngine.swift` | the two transcription backends |
 | `Updater.swift` | finds, verifies and installs new releases |
 | `Diarization.swift`, `Voices.swift`, `People*.swift` | who spoke when, the voice library, the People tab |
+| `MergedAudio.swift`, `AudioFiles.swift` | `meeting.mp3`, compression, decoding, splitting for upload |
+| `MeetingView.swift`, `MeetingModel.swift` | a meeting's own window: player, notes, transcript, its voices |
+| `MenuIcon.swift` | the menu bar icon while recording, as set in Settings → Menu bar |
 | `PopoverView.swift`, `SettingsView.swift`, `OnboardingView.swift` | the UI |
+| `Sources/CLame/` | the LAME MP3 encoder, vendored unchanged; see its README |
 
 ## House rules
 
@@ -79,9 +83,10 @@ CI also attaches a fresh set to every pull request as a downloadable artifact.
   `Resources/pt.lproj/Localizable.strings`. The English text is the key.
 - **The local engine stays local.** Nothing in the local path may make a network call. Anything
   that sends data off the Mac has to be opt-in and say so in the UI.
-- **No new dependencies** without talking about it in an issue first. Ata has exactly one —
-  [FluidAudio](https://github.com/FluidInference/FluidAudio), for on-device speaker recognition,
-  which nothing in the SDK can do — and keeping it that way is a feature.
+- **No new dependencies** without talking about it in an issue first. Ata has two, each for
+  something the SDK can't do: [FluidAudio](https://github.com/FluidInference/FluidAudio), for
+  on-device speaker recognition, and [LAME](https://lame.sourceforge.io), vendored in
+  `Sources/CLame`, because macOS has no MP3 encoder. Keeping the list that short is a feature.
 - **Match the code around you** — naming, comment density, the way errors are surfaced.
 
 ## Adding a string

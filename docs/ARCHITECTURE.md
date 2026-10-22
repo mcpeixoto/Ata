@@ -1,7 +1,8 @@
 # How Ata works
 
 Ata is a SwiftUI menu bar app (`LSUIElement`) built as a plain Swift package: no Xcode project,
-and one dependency, FluidAudio, for on-device speaker recognition. This page walks through a meeting from the first sound to the
+and two dependencies: FluidAudio, for on-device speaker recognition, and LAME, vendored in
+`Sources/CLame`, to write MP3. This page walks through a meeting from the first sound to the
 finished `transcript.md`.
 
 ```mermaid
@@ -101,10 +102,32 @@ that point, so a failed summary costs nothing.
 
 ## 5. Afterwards — audio handling
 
+As soon as a recording stops, `MergedAudio` mixes the two tracks into `meeting.mp3` (mono,
+16 kHz, 48 kbps, encoded by LAME) in the background, so the meeting can be heard before it is
+transcribed. The MP3 is written to a `.partial` file and moved into place only when complete, and
+it never replaces the tracks: transcribing again and voice recognition need them apart.
+
 On success, the audio is kept and compressed to AAC in an m4a container (about ten times smaller),
-or deleted, depending on Settings. On failure it is **always** kept, and the meeting shows
+or deleted, depending on Settings. `handleAudio` waits for the MP3 first, so the tracks are never
+compressed out from under it. On failure the audio is **always** kept, and the meeting shows
 **Try again**. Re-transcribing a compressed meeting decodes the m4a back into the WAV shape
-whisper.cpp expects.
+whisper.cpp expects (`PCM16Reader`, shared with the MP3 mix).
+
+## 5¼. The meeting window — `MeetingView`, `MeetingModel`
+
+Clicking a meeting opens `WindowManager.showMeeting`, one window per meeting. `MeetingModel` reads
+the folder (`meeting.json`, `transcript.json`, `speakers.json`, `notes.md`) and reads it again
+whenever the history or a voice's name changes. `MeetingPlayer` plays `meeting.mp3`, or both
+tracks laid over each other in an `AVMutableComposition` when there's no MP3 yet. **Write notes**
+summarizes an already-transcribed meeting through `Summarizer`, stores the summary in
+`transcript.json`, re-renders `transcript.md`, and adds the cost to the latest transcription.
+Naming a voice there goes through `PeopleModel.rename`, like the People tab.
+
+Sharing hands the share sheet copies named after the meeting (`MeetingSharing`), in a temporary
+folder emptied at the next launch — a share extension may still be reading after the window
+closes. A meeting without `meeting.mp3` is mixed straight into the share copy. At launch,
+`backfillMergedAudio` gives every older meeting that still has its tracks a `meeting.mp3`, one at
+a time.
 
 ## 5½. Who said what — `Diarization`, `Voices`, `PeopleModel`
 
@@ -150,6 +173,7 @@ copy fails, the original is put back.
 | login keychain, service `ai.interactive.ata` | the OpenAI API key |
 | `~/Library/Application Support/Ata/voices/` | voice fingerprints and samples (override with `ATA_SUPPORT_DIR`) |
 | `~/Library/Application Support/FluidAudio/` | the speaker-recognition models |
+| `<meeting>/meeting.mp3`, `<meeting>/notes.md` | the mixed meeting audio, and your own notes |
 | `UserDefaults` (`ai.interactive.ata`) | settings |
 
 ## Building and shipping
