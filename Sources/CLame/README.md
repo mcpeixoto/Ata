@@ -10,8 +10,9 @@ encoder, so the encoder part of [LAME](https://lame.sourceforge.io) is built in 
   (two files include it unconditionally; nothing from it is called) and `include/lame.h`.
 - Left out: `mpglib_interface.c` and the `mpglib/` decoder (AVFoundation decodes), the x86
   SSE code in `vector/`, and the `lame` command-line frontend.
-- Written for Ata: `config.h` (what `./configure` would generate for arm64 macOS) and
-  `include/module.modulemap`.
+- Written for Ata: `config.h` (what `./configure` would generate for arm64 macOS, plus three
+  `#pragma clang diagnostic ignored` lines for warnings upstream code trips on a modern clang)
+  and `include/module.modulemap`.
 
 LAME is licensed under the GNU LGPL, version 2 or later — see `COPYING`. Ata itself is MIT;
 because Ata's full source is public, anyone can rebuild it against a modified LAME, which is

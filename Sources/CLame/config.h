@@ -31,6 +31,13 @@ typedef double ieee754_float64_t;
 #undef HAVE_MPGLIB
 #undef DECODE_ON_THE_FLY
 
+/* Upstream LAME 3.100 trips these on a modern clang; the code is taken
+ * unchanged, so silence them here rather than patch it. Every LAME source
+ * includes this file first, so the pragmas cover the whole file. */
+#pragma clang diagnostic ignored "-Wshift-negative-value"
+#pragma clang diagnostic ignored "-Wabsolute-value"
+#pragma clang diagnostic ignored "-Wtautological-pointer-compare"
+
 #define PACKAGE "lame"
 #define VERSION "3.100"
 
