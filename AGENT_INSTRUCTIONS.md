@@ -267,8 +267,16 @@ where it sits in the login keychain (no export, no keychain password — the use
 it), notarizes with the App Store Connect key in `~/.appstoreconnect/private_keys/`, staples,
 and publishes `Ata-<version>.dmg`, the `.zip` the in-app updater reads, and `SHA256SUMS.txt`.
 The issuer ID is read from `~/.appstoreconnect/issuer_id` (copied from
-`polaris/ios/scripts/asc-setup.py`); it is deliberately not in this public repo. An agent may
-run this script — it exports nothing.
+`polaris/ios/scripts/asc-setup.py`); it is deliberately not in this public repo. It exports
+nothing.
+
+**The agent runs the release itself; never hand it back to the user.** The maintainer said so
+after 2.4.0, when the tag and `release-local.sh` were left for them to run. Once the PR has
+merged, push the tag and run `./scripts/release-local.sh vX.Y.Z` yourself, then do the Live check.
+A cloud/Linux session can do neither: its proxy cuts off tag pushes and refuses tag writes
+through the API, and the signing keys are only in the Mac's keychain. From one, find a session
+on the Mac (`ListAgents`, or a Remote Control session) and send it the tag + release commands.
+Only when no Mac session is reachable, say so and give the exact commands.
 
 `.github/workflows/release.yml` also runs on every tag, but only publishes if the five signing
 secrets exist; without them it posts a notice and stops green. Setting them needs
