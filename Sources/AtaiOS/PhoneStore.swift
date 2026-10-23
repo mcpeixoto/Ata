@@ -348,7 +348,7 @@ final class PhoneStore: ObservableObject {
         }
         guard Pref.d.bool(forKey: Pref.compressAudio) else { return }
         for wav in [m.micURL, m.systemURL] where Paths.fileSize(wav) > 44 {
-            await AudioFiles.compressToM4A(wav)
+            _ = await AudioFiles.compressToM4A(wav)
         }
     }
 

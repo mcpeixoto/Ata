@@ -647,18 +647,21 @@ private struct PeopleTab: View {
         }
     }
 
+    private static var recogniseLine: String {
+        #if os(iOS)
+        return L("Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay on this iPhone.")
+        #else
+        return L("Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay on this Mac.")
+        #endif
+    }
+
     private var empty: some View {
         VStack(spacing: 10) {
             Image(systemName: "person.wave.2.fill").font(.system(size: 26)).foregroundStyle(Theme.brand)
             if !recognise {
                 Text("Know who said what").font(.system(size: 13, weight: .semibold))
-                #if os(iOS)
-                Text("Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay on this iPhone.")
+                Text(Self.recogniseLine)
                     .font(.system(size: 11)).foregroundStyle(.secondary)
-                #else
-                Text("Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay on this Mac.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
-                #endif
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                 if Diarization.isSupported {
