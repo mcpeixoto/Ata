@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.7.0
 
 - **Keep meetings in iCloud.** A new switch in **Settings → iCloud**, on the Mac and the iPhone,
   puts your meetings and voices in iCloud Drive, so a meeting recorded on one shows up on the
