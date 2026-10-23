@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.5.0
+
+- **Follow the meeting word by word.** While a meeting plays, the word being said is highlighted
+  in the transcript, the words still to come are dimmed, and the view scrolls along. Click any
+  word, or a timestamp, to jump the audio there. Meetings transcribed earlier work too, with
+  estimated word times.
+- **See who spoke when.** The player's bar becomes a waveform: the others above the line, you
+  below, each in their colour. Click or drag to jump; hover to see the time. Your lane comes from
+  the microphone with the others taken out, so only your voice shows there.
+- **Summaries on this Mac.** With Apple Intelligence (macOS 26), the summary and **Write notes**
+  are written by Apple's on-device model: free, and nothing leaves the Mac. Long meetings are
+  summarized in parts and then combined. Older Macs, or languages Apple's model doesn't write
+  yet, keep using OpenAI. Choose the engine in **Settings → Transcription**.
+- **Voices you don't want.**
+  - **Don't ask about this voice** stops Ata asking for a name.
+  - **Leave out of transcripts** drops a voice's lines from every transcript, past ones
+    included, for a TV in the background, a meeting bot, or someone who asked not to be
+    transcribed. The recording itself is untouched, and both can be undone from **Hidden
+    voices** in the People tab.
+- OpenAI's whisper-1 now returns word times too.
+
 ## 2.4.2
 
 - **Fixed: switching between Portuguese and English in the same call.** Ata picked one language

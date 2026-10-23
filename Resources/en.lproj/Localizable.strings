@@ -331,3 +331,15 @@
 "Not asked about" = "Not asked about";
 "Put back" = "Put back";
 "Ask again" = "Ask again";
+/* 2.5: summaries with Apple's on-device model. */
+"Needs macOS 26 with Apple Intelligence turned on." = "Needs macOS 26 with Apple Intelligence turned on.";
+"Apple Intelligence does not write summaries in this language yet." = "Apple Intelligence does not write summaries in this language yet.";
+"Apple Intelligence is still getting ready." = "Apple Intelligence is still getting ready.";
+"Turn on Apple Intelligence in System Settings to use it." = "Turn on Apple Intelligence in System Settings to use it.";
+"This Mac does not support Apple Intelligence." = "This Mac does not support Apple Intelligence.";
+"Summary engine" = "Summary engine";
+"On this Mac (Apple Intelligence)" = "On this Mac (Apple Intelligence)";
+"Written on this Mac. Nothing leaves it." = "Written on this Mac. Nothing leaves it.";
+"Written on this Mac. If that fails, the transcript text goes to OpenAI." = "Written on this Mac. If that fails, the transcript text goes to OpenAI.";
+"Write notes on this Mac" = "Write notes on this Mac";
+"Could not write notes on this Mac. Try again, or choose OpenAI in Settings." = "Could not write notes on this Mac. Try again, or choose OpenAI in Settings.";

@@ -64,6 +64,8 @@ struct TranscribeOptions {
     var cancelEcho: Bool = true
     var summarize: Bool
     var summaryModel: String
+    /// `Pref.summaryEngine`: "auto", or the engine the user chose.
+    var summaryEngine: String = "auto"
 
     /// The model that will actually run, for records and file names.
     var modelID: String { engine.isLocal ? localModel : openAIModel }
@@ -78,7 +80,8 @@ struct TranscribeOptions {
             recogniseVoices: Pref.d.bool(forKey: Pref.recogniseVoices),
             cancelEcho: Pref.d.bool(forKey: Pref.cancelEcho),
             summarize: Pref.d.bool(forKey: Pref.summarize),
-            summaryModel: Pref.d.string(forKey: Pref.summaryModel) ?? Pref.defaultSummaryModel)
+            summaryModel: Pref.d.string(forKey: Pref.summaryModel) ?? Pref.defaultSummaryModel,
+            summaryEngine: Pref.d.string(forKey: Pref.summaryEngine) ?? "auto")
     }
 
     /// The current settings, with a meeting's one-off engine/model choice on top.

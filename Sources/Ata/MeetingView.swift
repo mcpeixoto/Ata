@@ -329,6 +329,7 @@ private struct NotesTab: View {
     @ObservedObject var model: MeetingModel
     let meeting: Meeting
     @AppStorage(Pref.summaryModel) private var summaryModel = Pref.defaultSummaryModel
+    @AppStorage(Pref.summaryEngine) private var summaryEngine = "auto"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -370,13 +371,25 @@ private struct NotesTab: View {
                 Text("No summary yet. Ata can write one, with the decisions and action items.")
                     .font(.system(size: 12)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                if Keychain.has(Keychain.openAIKey) {
+                switch Summarizer.engine(preference: summaryEngine, appleAvailable: AppleModel.isAvailable,
+                                         hasOpenAIKey: Keychain.has(Keychain.openAIKey)) {
+                case .apple?:
+                    Button("Write notes on this Mac") { Task { await model.writeNotes() } }
+                    Text("Written on this Mac. Nothing leaves it.")
+                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                case .openAI?:
                     Button(L("Write notes with %@", summaryModel)) { Task { await model.writeNotes() } }
                     Text("Sends the transcript text to OpenAI. The audio stays on this Mac.")
                         .font(.system(size: 10)).foregroundStyle(.secondary)
-                } else {
-                    Text("Writing notes needs an OpenAI API key.")
-                        .font(.system(size: 11)).foregroundStyle(.orange)
+                case nil:
+                    if summaryEngine == SummaryEngine.apple.rawValue, let reason = AppleModel.unavailableReason {
+                        Text(reason)
+                            .font(.system(size: 11)).foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text("Writing notes needs an OpenAI API key.")
+                            .font(.system(size: 11)).foregroundStyle(.orange)
+                    }
                     Button("Open Settings") { WindowManager.shared.showSettings() }
                 }
             }
