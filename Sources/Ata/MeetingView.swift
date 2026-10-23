@@ -783,6 +783,11 @@ struct TranscribeAgainMenu: View {
                         }
                         .disabled(!model.isInstalled)
                     }
+                    Button(L("Apple speech recognition")) {
+                        store.retry(meeting, with: TranscribeOverride(engine: Engine.apple.rawValue,
+                                                                      model: AppleSpeechEngine.modelID))
+                    }
+                    .disabled(!AppleSpeechEngine.isAvailable)
                 }
                 Section("OpenAI") {
                     ForEach(Pref.openAIModels, id: \.self) { model in
