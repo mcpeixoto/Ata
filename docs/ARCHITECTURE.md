@@ -152,6 +152,27 @@ summarizes an already-transcribed meeting through `Summarizer`, stores the summa
 `transcript.json`, re-renders `transcript.md`, and adds the cost to the latest transcription.
 Naming a voice there goes through `PeopleModel.rename`, like the People tab.
 
+**Following along (2.5).**
+- `transcript.json` keeps word times: from whisper-cli's tokens, or OpenAI whisper-1's word
+  timestamps. Older lines get estimates from `WordTiming`.
+- Every word in the Transcript tab is an `ata-seek://` link that plays from there.
+- `PlaybackCursor` maps the 20 Hz playhead to `(line, word)` by binary search, and publishes
+  only when the word changes, so only that line redraws.
+- `Waveform` stores 50 ms levels per lane in `waveform.bin`. It's computed during transcription
+  from the echo-cancelled mic copy, or the first time an older meeting is opened.
+
+**Voices left out** (`Voice.excluded`) are filtered in `Transcriber.render` and in the meeting
+window through `Speakers.leftOut`. `transcript.json` and the audio keep everything, so putting
+a voice back restores its lines.
+
+**Summaries** (`Summarizer`) go to Apple's on-device model (`AppleSummarizer`, FoundationModels,
+macOS 26) when it's available and writes the app's language, and to OpenAI otherwise.
+- The on-device model has a ~4k-token window, so transcripts are summarized in ~6,000-character
+  chunks (`SummaryChunks`) and the partial notes merged.
+- The output is a guided `MeetingSummary` that `SummaryMarkdown` renders.
+- FoundationModels is weak-linked, so Ata still launches on macOS 14 and 15. CI checks the load
+  command.
+
 Sharing hands the share sheet copies named after the meeting (`MeetingSharing`), in a temporary
 folder emptied at the next launch — a share extension may still be reading after the window
 closes. A meeting without `meeting.mp3` is mixed straight into the share copy. At launch,

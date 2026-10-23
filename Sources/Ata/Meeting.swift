@@ -51,6 +51,9 @@ struct Meeting: Codable, Identifiable, Equatable {
     var mergedAudioURL: URL { dir.appendingPathComponent("meeting.mp3") }
     var hasMergedAudio: Bool { Paths.fileSize(mergedAudioURL) > 0 }
 
+    /// How loud you and the others were over time, for the player; see `Waveform`.
+    var waveformURL: URL { dir.appendingPathComponent("waveform.bin") }
+
     /// Your own notes, typed in the meeting window.
     var notesURL: URL { dir.appendingPathComponent("notes.md") }
 

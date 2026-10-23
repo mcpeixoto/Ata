@@ -1,7 +1,16 @@
 import Foundation
 
+/// Who writes the summary. `Pref.summaryEngine` also allows "auto", which is
+/// not an engine but a way of picking one; see `Summarizer.engine`.
+enum SummaryEngine: String {
+    /// Apple's on-device model. Nothing leaves the Mac.
+    case apple
+    /// OpenAI's chat API. The transcript text is uploaded.
+    case openAI = "openai"
+}
+
 /// Optional second pass: turns a finished transcript into a short summary with
-/// decisions and action items, using OpenAI's chat API.
+/// decisions and action items, with Apple's on-device model or OpenAI's chat API.
 ///
 /// Available with either transcription engine — you can keep the audio local and
 /// still send the text for a summary — and a failure here never fails the
@@ -34,10 +43,39 @@ enum Summarizer {
         return text
     }
 
+    /// The engine for a summary, or nil when none can write one. "auto" prefers
+    /// this Mac, then OpenAI; a named engine is never swapped for the other.
+    static func engine(preference: String, appleAvailable: Bool, hasOpenAIKey: Bool) -> SummaryEngine? {
+        switch SummaryEngine(rawValue: preference) {
+        case .apple?: return appleAvailable ? .apple : nil
+        case .openAI?: return hasOpenAIKey ? .openAI : nil
+        case nil: return appleAvailable ? .apple : (hasOpenAIKey ? .openAI : nil)
+        }
+    }
+
     static func summarize(markdown: String, options: TranscribeOptions) async -> Result? {
+        let transcript = String(markdown.prefix(maxCharacters))
+        let hasKey = Keychain.has(Keychain.openAIKey)
+        switch engine(preference: options.summaryEngine, appleAvailable: AppleModel.isAvailable, hasOpenAIKey: hasKey) {
+        case .apple?:
+            if let text = await AppleModel.summarize(markdown: transcript, myName: options.myName) {
+                return Result(text: text, costUSD: 0)
+            }
+            // Only "auto" may send the text elsewhere: choosing this Mac is a
+            // promise that nothing leaves it.
+            guard SummaryEngine(rawValue: options.summaryEngine) == nil, hasKey else { return nil }
+            NSLog("Ata: no summary from this Mac, asking OpenAI")
+            return await summarizeWithOpenAI(transcript, options: options)
+        case .openAI?:
+            return await summarizeWithOpenAI(transcript, options: options)
+        case nil:
+            return nil
+        }
+    }
+
+    private static func summarizeWithOpenAI(_ transcript: String, options: TranscribeOptions) async -> Result? {
         guard let client = OpenAIClient() else { return nil }
 
-        let transcript = String(markdown.prefix(maxCharacters))
         let system = """
         You summarize meeting transcripts. The transcript was produced by automatic \
         speech recognition from two audio tracks, so it may contain mistakes. \

@@ -64,6 +64,8 @@ struct TranscribeOptions {
     var cancelEcho: Bool = true
     var summarize: Bool
     var summaryModel: String
+    /// `Pref.summaryEngine`: "auto", or the engine the user chose.
+    var summaryEngine: String = "auto"
 
     /// The model that will actually run, for records and file names.
     var modelID: String { engine.isLocal ? localModel : openAIModel }
@@ -78,7 +80,8 @@ struct TranscribeOptions {
             recogniseVoices: Pref.d.bool(forKey: Pref.recogniseVoices),
             cancelEcho: Pref.d.bool(forKey: Pref.cancelEcho),
             summarize: Pref.d.bool(forKey: Pref.summarize),
-            summaryModel: Pref.d.string(forKey: Pref.summaryModel) ?? Pref.defaultSummaryModel)
+            summaryModel: Pref.d.string(forKey: Pref.summaryModel) ?? Pref.defaultSummaryModel,
+            summaryEngine: Pref.d.string(forKey: Pref.summaryEngine) ?? "auto")
     }
 
     /// The current settings, with a meeting's one-off engine/model choice on top.
@@ -101,6 +104,15 @@ struct StoredTranscript: Codable, Equatable {
         var text: String
         /// `Speakers.me`, `Speakers.others`, or a diarized label like "S1".
         var speaker: String
+        /// When each word was said, for following along while the meeting plays.
+        /// Absent in transcripts from before Ata 2.5 and from engines without word times.
+        var words: [Word]? = nil
+    }
+
+    struct Word: Codable, Equatable {
+        var start: Int // ms
+        var end: Int   // ms
+        var text: String
     }
 
     var segments: [Line]
@@ -115,6 +127,14 @@ struct StoredTranscript: Codable, Equatable {
         try e.encode(self).write(to: url, options: .atomic)
     }
 
+    /// Without the lines of these speaker labels: voices left out of transcripts.
+    func excluding(_ labels: Set<String>) -> StoredTranscript {
+        guard !labels.isEmpty else { return self }
+        var t = self
+        t.segments.removeAll { labels.contains($0.speaker) }
+        return t
+    }
+
     static func load(from url: URL) -> StoredTranscript? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         return try? JSONDecoder().decode(StoredTranscript.self, from: data)
@@ -125,6 +145,15 @@ struct StoredTranscript: Codable, Equatable {
 enum Speakers {
     static let me = "me"
     static let others = "others"
+
+    /// The labels in this meeting whose voice the user left out of transcripts.
+    static func leftOut(for meeting: Meeting) -> Set<String> {
+        guard let map = MeetingVoices.load(for: meeting) else { return [] }
+        let library = VoiceLibrary()
+        return Set(map.speakers.compactMap { s in
+            s.voiceID.flatMap { library.voice($0) }?.isExcluded == true ? s.label : nil
+        })
+    }
 
     /// Label → name for one meeting: you, a named voice, "Speaker 2", or "Others".
     static func names(for meeting: Meeting, myName: String) -> (String) -> String {
@@ -266,6 +295,13 @@ enum Transcriber {
                 NSLog("Ata: echo cancellation failed, using the microphone as recorded: \(error.localizedDescription)")
             }
         }
+        // The player's waveform, from the tracks as transcribed: with the echo taken out,
+        // the others don't show up in your lane.
+        let micTrack = prepared.first(where: { $0.speaker == Speakers.me })?.audio
+        let systemTrack = prepared.first(where: { $0.speaker == Speakers.others })?.audio
+        if let waveform = try? Waveform.compute(mic: micTrack, system: systemTrack) {
+            try? waveform.write(to: meeting.waveformURL)
+        }
         let audioSeconds = prepared.reduce(0) { $0 + WavWriter.duration(of: $1.audio) }
 
         // The local engine gets an explicit language per track; see LanguageChoice.
@@ -327,7 +363,12 @@ enum Transcriber {
         }
 
         var stored = StoredTranscript(
-            segments: segments.map { StoredTranscript.Line(start: $0.start, end: $0.end, text: $0.text, speaker: $0.speaker) },
+            segments: segments.map { s in
+                StoredTranscript.Line(start: s.start, end: s.end, text: s.text, speaker: s.speaker,
+                                      words: s.words.isEmpty ? nil : s.words.map {
+                                          StoredTranscript.Word(start: $0.start, end: $0.end, text: $0.text)
+                                      })
+            },
             coarse: coarse, summary: nil, engine: options.engine.rawValue, model: options.modelID)
 
         var cost = options.engine.isLocal ? 0 : Pricing.transcription(model: options.openAIModel,
@@ -503,8 +544,13 @@ enum Transcriber {
         var blocks: [StoredTranscript.Line] = []
         for s in t.segments.sorted(by: { $0.start < $1.start }) {
             if let last = blocks.last, last.speaker == s.speaker, s.start - last.end < 2_500 {
+                // Keep word times through the join; a line without them gets estimates,
+                // so a block is never half clickable.
+                let words = last.words == nil && s.words == nil
+                    ? nil : WordTiming.words(of: last) + WordTiming.words(of: s)
                 blocks[blocks.count - 1] = .init(start: last.start, end: s.end,
-                                                 text: last.text + " " + s.text, speaker: last.speaker)
+                                                 text: last.text + " " + s.text, speaker: last.speaker,
+                                                 words: words)
             } else {
                 blocks.append(s)
             }
@@ -514,7 +560,7 @@ enum Transcriber {
 
     /// Markdown for a stored transcript, with speaker labels turned into names.
     static func render(_ t: StoredTranscript, meeting: Meeting, names: (String) -> String) -> String {
-        let blocks = Transcriber.blocks(t)
+        let blocks = Transcriber.blocks(t.excluding(Speakers.leftOut(for: meeting)))
 
         let df = DateFormatter()
         // The same language as the rest of the transcript, not the system region.
@@ -565,5 +611,37 @@ enum Transcriber {
         return s >= 3600
             ? String(format: "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60)
             : String(format: "%02d:%02d", s / 60, s % 60)
+    }
+}
+
+/// Word times for following a transcript while it plays.
+enum WordTiming {
+    /// Whisper's word times run a little late (see `SpeakerAssignment`), so the
+    /// highlight moves to a word this much before its start.
+    static let leadMs = 150
+
+    /// The line's words: as transcribed, or, for a line without word times
+    /// (transcribed before Ata 2.5, or by a model without them), spread over the
+    /// line in proportion to their length.
+    static func words(of line: StoredTranscript.Line) -> [StoredTranscript.Word] {
+        if let words = line.words, !words.isEmpty { return words }
+        return estimate(line)
+    }
+
+    static func estimate(_ line: StoredTranscript.Line) -> [StoredTranscript.Word] {
+        let texts = line.text.split(whereSeparator: \.isWhitespace).map(String.init)
+        guard !texts.isEmpty else { return [] }
+        let span = max(0, line.end - line.start)
+        // A space's worth for each word, so short words still get some time.
+        let weights = texts.map { Double($0.count + 1) }
+        let total = weights.reduce(0, +)
+        var out: [StoredTranscript.Word] = []
+        var at = Double(line.start)
+        for (text, w) in zip(texts, weights) {
+            let length = Double(span) * w / total
+            out.append(.init(start: Int(at.rounded()), end: Int((at + length).rounded()), text: text))
+            at += length
+        }
+        return out
     }
 }

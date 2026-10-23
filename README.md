@@ -160,10 +160,12 @@ hour) that opens anywhere. Turn either off, or have Ata delete audio after 7, 30
 
 Click a meeting in the menu to open it:
 
-- **Listen** to the whole meeting, with ±15 s skips and 1×–2× speed. Click any line of the
-  transcript to jump to that moment; the line being played is highlighted as you listen.
-- **Notes**: the AI summary, with the decisions and action items. No summary yet? **Write notes**
-  creates one from the transcript text. Below it is space for your own notes, saved as `notes.md`.
+- **Listen** to the whole meeting, with ±15 s skips and 1×–2× speed, on a waveform of who spoke
+  when: the others above, you below. Click any **word** of the transcript to jump to that
+  moment; the word being said is highlighted as you listen.
+- **Notes**: the AI summary, with the decisions and action items, written on your Mac by Apple
+  Intelligence on macOS 26, or by OpenAI. No summary yet? **Write notes** creates one from the
+  transcript text. Below it is space for your own notes, saved as `notes.md`.
 - **Transcript**, searchable.
 - **People**: every voice in this meeting, with a play button and a name field. Name a voice here
   even if Ata has only heard it once, and every transcript uses the name.

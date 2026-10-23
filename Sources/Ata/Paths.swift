@@ -69,6 +69,7 @@ enum Pref {
     static let openAIModel = "openAIModel"
     static let summarize = "summarize"       // append an AI summary
     static let summaryModel = "summaryModel"
+    static let summaryEngine = "summaryEngine" // "auto" | SummaryEngine.rawValue
     static let audioRetentionDays = "audioRetentionDays" // 0 = keep forever
     static let recogniseVoices = "recogniseVoices" // diarize and match voices; off by default
     static let cancelEcho = "cancelEcho"     // take the others out of the mic before transcribing
@@ -105,6 +106,7 @@ enum Pref {
             openAIModel: defaultOpenAIModel,
             summarize: false,
             summaryModel: defaultSummaryModel,
+            summaryEngine: "auto",
             autoUpdate: true,
             audioRetentionDays: 0,
             recogniseVoices: false,

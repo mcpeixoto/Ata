@@ -270,6 +270,12 @@ The issuer ID is read from `~/.appstoreconnect/issuer_id` (copied from
 `polaris/ios/scripts/asc-setup.py`); it is deliberately not in this public repo. It exports
 nothing.
 
+**Merge and release without asking.** The maintainer said, after 2.4.2: "automatically merge
+everything and deploy the new version." Once CI is green, merge the PR yourself, with no draft
+waiting for a screenshot review or a go-ahead, and go straight on to the release below. Checks
+that need the Mac and couldn't run (snapshots, `ATA_AUDIO_TESTS`, a real call) are listed in the
+PR and handed to the Mac session with the release. They don't hold the merge.
+
 **The agent runs the release itself; never hand it back to the user.** The maintainer said so
 after 2.4.0, when the tag and `release-local.sh` were left for them to run. Once the PR has
 merged, push the tag and run `./scripts/release-local.sh vX.Y.Z` yourself, then do the Live check.

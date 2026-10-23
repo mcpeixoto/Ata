@@ -317,3 +317,29 @@
 /* 2.4.1: echo cancellation. */
 "Remove the others' voices from your microphone" = "Tirar a voz dos outros do teu microfone";
 "For calls without headphones: Ata takes what your Mac played out of your microphone before transcribing. The recording itself is not changed." = "Para chamadas sem auscultadores: antes de transcrever, o Ata tira do teu microfone o que o Mac tocou. A gravação não é alterada.";
+
+/* 2.5: following the transcript, the waveform. */
+"You below, the others above. Click to jump." = "Tu em baixo, os outros em cima. Clica para saltar.";
+
+/* 2.5: voices you don't want named or transcribed. */
+"Hidden voices" = "Vozes escondidas";
+"Not asked about, or left out of every transcript." = "Sem pergunta pelo nome, ou deixadas de fora de todas as transcrições.";
+"Don't ask about this voice" = "Não perguntar por esta voz";
+"Leave out of transcripts" = "Deixar de fora das transcrições";
+"Put back in transcripts" = "Voltar a pôr nas transcrições";
+"Left out of transcripts" = "Fora das transcrições";
+"Not asked about" = "Sem pergunta pelo nome";
+"Put back" = "Repor";
+"Ask again" = "Voltar a perguntar";
+/* 2.5: summaries with Apple's on-device model. */
+"Needs macOS 26 with Apple Intelligence turned on." = "Requer o macOS 26 com o Apple Intelligence ativado.";
+"Apple Intelligence does not write summaries in this language yet." = "O Apple Intelligence ainda não escreve resumos nesta língua.";
+"Apple Intelligence is still getting ready." = "O Apple Intelligence ainda está a ser preparado.";
+"Turn on Apple Intelligence in System Settings to use it." = "Ativa o Apple Intelligence nas Definições do Sistema para o usares.";
+"This Mac does not support Apple Intelligence." = "Este Mac não suporta o Apple Intelligence.";
+"Summary engine" = "Motor do resumo";
+"On this Mac (Apple Intelligence)" = "Neste Mac (Apple Intelligence)";
+"Written on this Mac. Nothing leaves it." = "Escrito neste Mac. Nada sai daqui.";
+"Written on this Mac. If that fails, the transcript text goes to OpenAI." = "Escrito neste Mac. Se falhar, o texto da transcrição vai para a OpenAI.";
+"Write notes on this Mac" = "Escrever notas neste Mac";
+"Could not write notes on this Mac. Try again, or choose OpenAI in Settings." = "Não foi possível escrever as notas neste Mac. Tenta de novo, ou escolhe a OpenAI nas Definições.";
