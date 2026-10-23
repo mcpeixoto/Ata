@@ -6,6 +6,13 @@ import XCTest
 /// stretch of a bilingual call keeps its language. CI runs macOS 15, where
 /// the recognizer itself does not exist, so everything here is the pure part.
 final class AppleSpeechTests: XCTestCase {
+    // TranscribeOptions reads the selected whisper model's path, which fixes
+    // Paths.supportDir for the whole run: point it at the temp folders first.
+    override class func setUp() {
+        super.setUp()
+        FilesTests.setUp()
+    }
+
     private typealias Run = AppleSpeech.Run
     private typealias Result = AppleSpeech.Result
 
