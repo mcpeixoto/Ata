@@ -1,0 +1,6 @@
+/* Frases para a Siri e os Atalhos, português. ${applicationName} passa a ser o nome da app. */
+
+"Record with ${applicationName}" = "Gravar com a ${applicationName}";
+"Start recording with ${applicationName}" = "Começar a gravar com a ${applicationName}";
+"Stop recording with ${applicationName}" = "Parar de gravar com a ${applicationName}";
+"Bookmark this moment in ${applicationName}" = "Marcar este momento na ${applicationName}";

@@ -1,4 +1,3 @@
-import AppKit
 import AVFoundation
 import Combine
 import Foundation
@@ -194,6 +193,8 @@ final class MeetingModel: ObservableObject {
     @Published var notes = ""
     @Published private(set) var writingNotes = false
     @Published private(set) var exporting = false
+    /// The save panel is up: a second click must not open another.
+    private var choosingDestination = false
     @Published var message: String?
 
     /// Ready-to-share copies; see `MeetingSharing`.
@@ -471,31 +472,28 @@ final class MeetingModel: ObservableObject {
     }
 
     private func copy(_ text: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        Platform.actions.copy(text)
     }
 
     /// Saves the meeting as one MP3 wherever you choose.
     func exportMP3() {
-        guard let meeting, !exporting else { return }
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.mp3]
-        panel.canCreateDirectories = true
-        panel.nameFieldStringValue = MeetingSharing.name(for: meeting) + ".mp3"
-        guard panel.runModal() == .OK, let destination = panel.url else { return }
-
-        exporting = true
-        message = nil
+        guard let meeting, !exporting, !choosingDestination else { return }
+        choosingDestination = true
         Task {
             let m = meeting
             do {
-                try await Task.detached(priority: .userInitiated) {
-                    try MeetingSharing.audio(of: m, to: destination, link: false)
-                }.value
-                NSWorkspace.shared.activateFileViewerSelecting([destination])
+                _ = try await Platform.actions.saveFile(named: MeetingSharing.name(for: m) + ".mp3",
+                                                        type: .mp3) { [weak self] destination in
+                    self?.exporting = true
+                    self?.message = nil
+                    try await Task.detached(priority: .userInitiated) {
+                        try MeetingSharing.audio(of: m, to: destination, link: false)
+                    }.value
+                }
             } catch {
                 message = L("Could not save the MP3: %@", error.localizedDescription)
             }
+            choosingDestination = false
             exporting = false
         }
     }

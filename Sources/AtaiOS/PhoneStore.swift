@@ -1,0 +1,381 @@
+import AVFoundation
+import SwiftUI
+import UIKit
+import WidgetKit
+
+/// The iPhone's single source of truth: recording, the meeting list and the
+/// transcription queue. The shared views know it as `AppStore`.
+@MainActor
+final class PhoneStore: ObservableObject {
+    static let shared = PhoneStore()
+
+    enum Phase: Equatable { case idle, starting, recording, interrupted, stopping }
+
+    @Published private(set) var phase: Phase = .idle
+    /// Seconds of audio recorded so far.
+    @Published private(set) var elapsed: Double = 0
+    @Published private(set) var level: Float = 0
+    @Published private(set) var meetings: [Meeting] = []
+    @Published private(set) var transcribingID: String?
+    @Published private(set) var transcribeProgress: Double = 0
+    /// Meetings are queued but no engine on this iPhone can transcribe them yet.
+    @Published private(set) var waitingForEngine = false
+    @Published private(set) var warning: String?
+    @Published var lastError: String?
+    @Published var mode: RecordingMode = .inPerson {
+        didSet { Pref.d.set(mode.rawValue, forKey: Pref.recordingMode) }
+    }
+    /// Moments marked during this recording, in ms from its start.
+    @Published private(set) var bookmarks: [Int] = []
+
+    var isRecording: Bool { phase == .recording || phase == .interrupted }
+
+    private let recorder = PhoneRecorder()
+    private let activity = LiveRecordingActivity()
+    private var ticker: Timer?
+    private var job: Task<Void, Never>?
+    private var background: ContinuedWork?
+    /// iOS ended the background work: wait until Ata is in front before trying again.
+    private var queuePaused = false
+    private var mergeTasks: [String: Task<Void, Never>] = [:]
+    private var searchCache: [String: (stamp: Date?, text: String)] = [:]
+    private var bootstrapped = false
+
+    private init() {}
+
+    // MARK: Launch
+
+    func bootstrap() {
+        guard !bootstrapped else { return }
+        bootstrapped = true
+        Pref.registerDefaults()
+        mode = Pref.d.string(forKey: Pref.recordingMode).flatMap(RecordingMode.init(rawValue:)) ?? .inPerson
+        try? FileManager.default.createDirectory(at: Paths.meetingsDir, withIntermediateDirectories: true)
+        // Meetings play through the speaker even with the silent switch on.
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
+
+        recorder.onPhaseChange = { [weak self] phase in self?.recorderChanged(phase) }
+        recorder.onWarning = { [weak self] w in self?.warning = w }
+
+        activity.endLeftovers()
+        recoverInterrupted()
+        MeetingSharing.cleanUp()
+        reload()
+        if Pref.d.bool(forKey: Pref.onboarded) == false || AVAudioApplication.shared.recordPermission != .granted {
+            PhoneNavigation.shared.showOnboarding()
+        }
+        pump()
+    }
+
+    /// Ata came to the front: pick up files changed in the meantime, and the queue.
+    func becameActive() {
+        queuePaused = false
+        reload()
+        pump()
+    }
+
+    /// Recordings cut short by a crash or a dead battery, and transcriptions iOS
+    /// ended, go back into the queue. Nothing is ever deleted here.
+    private func recoverInterrupted() {
+        for m in StagingFolder.recoverLeftovers(except: recorder.folder) {
+            NSLog("Ata: recovered an interrupted recording, \(m.id)")
+        }
+        for var m in Library.loadAll() where m.status == .transcribing {
+            m.status = .pending
+            Library.save(m)
+        }
+    }
+
+    func reload() {
+        meetings = Library.loadAll()
+        updateWidgets()
+    }
+
+    // MARK: Recording
+
+    func toggleRecording() {
+        if isRecording { stopRecording() } else { startRecording(app: nil) }
+    }
+
+    /// The shared notification code asks for this by the Mac's name; the app
+    /// label comes from the mode on iPhone.
+    func startRecording(app: String?) {
+        Task { try? await start() }
+    }
+
+    func startFromIntent() async throws {
+        try await start()
+    }
+
+    private func start() async throws {
+        guard phase == .idle else { return }
+        phase = .starting
+        lastError = nil
+        guard await PhoneRecorder.requestPermission() else {
+            phase = .idle
+            lastError = L("Allow Ata to use the microphone in Settings to record.")
+            PhoneNavigation.shared.showOnboarding()
+            throw PhoneRecorderError.micDenied
+        }
+        do {
+            _ = try recorder.start(mode: mode)
+            bookmarks = []
+            activity.start(mode: mode)
+            startTicker()
+            reload()
+        } catch {
+            phase = .idle
+            lastError = error.localizedDescription
+            throw error
+        }
+    }
+
+    func stopRecording() {
+        guard isRecording else { return }
+        phase = .stopping
+        let finished = recorder.stop()
+        stopTicker()
+        activity.end()
+        if finished == nil {
+            lastError = L("The recording could not be moved into your meetings. It is safe and will be tried again next time Ata opens.")
+        }
+        // Moments marked during the recording are kept only until Meeting can store them.
+        if let finished, !bookmarks.isEmpty {
+            NSLog("Ata: \(bookmarks.count) bookmarks in \(finished.id): \(bookmarks)")
+        }
+        bookmarks = []
+        phase = .idle
+        reload()
+        if let finished, finished.status == .pending { saveMergedAudio(of: finished) }
+        pump()
+    }
+
+    func stopFromIntent() async {
+        stopRecording()
+    }
+
+    func resumeRecording() {
+        recorder.resume()
+    }
+
+    /// Marks this moment of the recording.
+    func addBookmark() {
+        guard isRecording else { return }
+        bookmarks.append(Int(recorder.recordedSeconds * 1000))
+        updateActivity()
+    }
+
+    func bookmarkFromIntent() async {
+        addBookmark()
+    }
+
+    private func recorderChanged(_ phase: RecorderState.Phase) {
+        switch phase {
+        case .recording: self.phase = .recording
+        case .interrupted: self.phase = .interrupted
+        case .idle, .stopped: break // stopRecording sets the phase itself
+        }
+        updateActivity()
+    }
+
+    private func updateActivity() {
+        activity.update(recorded: recorder.recordedSeconds, paused: phase == .interrupted, bookmarks: bookmarks.count)
+    }
+
+    private func startTicker() {
+        ticker?.invalidate()
+        ticker = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            MainActor.assumeIsolated {
+                let store = PhoneStore.shared
+                // Locked or in the background, nothing is drawing these: save the battery.
+                guard UIApplication.shared.applicationState == .active else { return }
+                store.elapsed = store.recorder.recordedSeconds
+                store.level = store.recorder.level
+            }
+        }
+    }
+
+    private func stopTicker() {
+        ticker?.invalidate()
+        ticker = nil
+        elapsed = 0
+        level = 0
+    }
+
+    // MARK: Meetings
+
+    func retry(_ m: Meeting) {
+        retry(m, with: nil)
+    }
+
+    func retry(_ m: Meeting, with override: TranscribeOverride?) {
+        var m = m
+        guard m.hasAudio, m.id != transcribingID else { return }
+        m.status = .pending
+        m.error = nil
+        m.override = override
+        Library.save(m)
+        reload()
+        pump()
+    }
+
+    func delete(_ m: Meeting) {
+        guard m.id != transcribingID else { return }
+        Library.trash(m)
+        if FileManager.default.fileExists(atPath: m.dir.path) {
+            lastError = L("Could not delete this meeting.")
+        } else {
+            PeopleModel.shared.removeMeeting(m.id)
+        }
+        reload()
+    }
+
+    /// Title, date and transcript in one lowercased string, for the search field.
+    /// Transcripts are read once and again only when they change.
+    func searchText(for m: Meeting) -> String {
+        let url = m.existingTranscriptURL
+        let stamp = url.flatMap { (try? FileManager.default.attributesOfItem(atPath: $0.path))?[.modificationDate] as? Date }
+        if let cached = searchCache[m.id], cached.stamp == stamp { return cached.text }
+        let transcript = url.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+        let text = [m.title, m.subtitle, transcript].joined(separator: "\n").lowercased()
+        searchCache[m.id] = (stamp, text)
+        return text
+    }
+
+    // MARK: Transcription queue
+
+    /// Whether this iPhone can run the engine a job asks for. The phone transcribes
+    /// on the device only, and whisper-cli is a Mac program, so until an on-device
+    /// engine is added the queue waits, with the audio kept.
+    static func canRun(_ options: TranscribeOptions) -> Bool {
+        if options.engine == .openAI { return false }
+        if options.engine == .local { return Paths.whisperCLI() != nil }
+        return true
+    }
+
+    /// Transcribes the next pending meeting (oldest first), one at a time, never
+    /// while recording: the microphone and the engine would compete for the phone.
+    private func pump() {
+        guard transcribingID == nil, !isRecording, phase == .idle, !queuePaused else { return }
+        guard var m = Library.loadAll().last(where: { $0.status == .pending }) else {
+            waitingForEngine = false
+            return
+        }
+        let options = TranscribeOptions.current(for: m)
+        guard Self.canRun(options) else {
+            waitingForEngine = true
+            return
+        }
+        waitingForEngine = false
+
+        transcribingID = m.id
+        transcribeProgress = 0
+        m.status = .transcribing
+        m.override = nil
+        Library.save(m)
+        reload()
+        let queued = m
+
+        background = ContinuedWork(title: L("Transcribing"), subtitle: m.title) { [weak self] in
+            self?.queuePaused = true
+            self?.job?.cancel()
+        }
+        job = Task {
+            var m = queued
+            do {
+                let outcome = try await Transcriber.transcribe(m, options: options) { p in
+                    Task { @MainActor in
+                        let store = PhoneStore.shared
+                        guard store.transcribingID == queued.id else { return }
+                        store.transcribeProgress = p
+                        store.background?.report(p)
+                    }
+                }
+                var history = m.transcriptions ?? []
+                if let archived = outcome.archivedPrevious, !history.isEmpty {
+                    history[history.count - 1].archivedAs = archived
+                }
+                history.append(outcome.record)
+                m.transcriptions = history
+                m.status = .done
+                m.error = nil
+                Library.save(m)
+                await handleAudio(of: m)
+                Notifier.shared.transcriptReady(m)
+                background?.finish(success: true)
+            } catch let error where Self.shouldRequeue(error) {
+                // Stopped, not failed: back in the queue with its audio untouched.
+                m.status = .pending
+                Library.save(m)
+                background?.finish(success: false)
+            } catch {
+                m.status = .failed
+                m.error = error.localizedDescription
+                Library.save(m)
+                Notifier.shared.transcriptFailed(m, error: error.localizedDescription)
+                background?.finish(success: false)
+            }
+            background = nil
+            job = nil
+            transcribingID = nil
+            transcribeProgress = 0
+            reload()
+            pump()
+        }
+    }
+
+    /// Cancelled, ended by iOS, or no engine to run: try again later. Anything
+    /// else is a real failure, shown with "Try again" so one bad file doesn't
+    /// block the queue.
+    static func shouldRequeue(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        switch error as? TranscriberError {
+        case .cancelled?, .whisperMissing?, .modelMissing?: return true
+        default: return false
+        }
+    }
+
+    /// After a successful transcript: keep the audio (compressed, by default) or
+    /// delete it if you asked for that. The same rules as on the Mac.
+    private func handleAudio(of m: Meeting) async {
+        await saveMergedAudio(of: m)?.value
+        guard Pref.d.bool(forKey: Pref.keepAudio) else {
+            try? FileManager.default.removeItem(at: m.micURL)
+            try? FileManager.default.removeItem(at: m.systemURL)
+            try? FileManager.default.removeItem(at: m.mergedAudioURL)
+            return
+        }
+        guard Pref.d.bool(forKey: Pref.compressAudio) else { return }
+        for wav in [m.micURL, m.systemURL] where Paths.fileSize(wav) > 44 {
+            await AudioFiles.compressToM4A(wav)
+        }
+    }
+
+    /// Writes meeting.mp3 in the background, once per meeting; see the Mac's AppStore.
+    @discardableResult
+    func saveMergedAudio(of m: Meeting) -> Task<Void, Never>? {
+        if let running = mergeTasks[m.id] { return running }
+        guard Pref.d.bool(forKey: Pref.keepAudio), Pref.d.bool(forKey: Pref.saveMP3),
+              m.status != .recording, m.hasAudio, !m.hasMergedAudio else { return nil }
+        let task = Task {
+            let job = m
+            do {
+                try await Task.detached(priority: .utility) { try MergedAudio.write(job) }.value
+            } catch {
+                NSLog("Ata: could not write meeting.mp3 for \(job.id): \(error.localizedDescription)")
+            }
+            self.mergeTasks[job.id] = nil
+        }
+        mergeTasks[m.id] = task
+        return task
+    }
+
+    // MARK: Widgets
+
+    private func updateWidgets() {
+        let last = meetings.first { $0.status != .recording }
+        let snapshot = WidgetSnapshot(lastTitle: last?.title, lastStartedAt: last?.startedAt,
+                                      recordingSince: isRecording ? Date().addingTimeInterval(-recorder.recordedSeconds) : nil)
+        if snapshot.save() { WidgetCenter.shared.reloadAllTimelines() }
+    }
+}

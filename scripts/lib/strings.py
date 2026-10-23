@@ -1,9 +1,15 @@
-"""Lists the localizable string keys used in Sources/Ata.
+"""Lists the localizable string keys used in the app's sources: the Mac and
+shared code (Sources/Ata), the iPhone app (Sources/AtaiOS), its widgets
+(Sources/AtaWidgets) and the Watch app (Sources/AtaWatch).
 
 A key is the first string literal passed to L(), Text(), Button(), Label(),
 Toggle(), Picker(), Section(), TextField(), SecureField(), LabeledContent(),
-Menu() or .help(). Literals with Swift interpolation are skipped: SwiftUI turns
-those into format keys we do not localize.
+Menu(), Link(), ContentUnavailableView(), IntentDescription(), .help(),
+.navigationTitle(), .displayName(), .description() or
+.configurationDisplayName(), or given as an App Intent's `LocalizedStringResource`
+title or an App Shortcut's `shortTitle:`. Literals with Swift interpolation are
+skipped: SwiftUI turns those into format keys we do not localize, and App
+Shortcut phrases live in Resources/iOS/*.lproj/AppShortcuts.strings.
 
 Usage: python3 -I strings.py <repo root>          print keys, one per line
        python3 -I strings.py <repo root> --check  exit 1 if a key is missing
@@ -20,14 +26,22 @@ check = "--check" in sys.argv
 
 CALL = re.compile(
     r'(?:\bL\(|\bText\(|\bButton\(|\bLabel\(|\bTextField\(|\bSecureField\(|\bToggle\('
-    r'|\bPicker\(|\bSection\(|\bMenu\(|\.help\(|\bLabeledContent\()\s*"((?:[^"\\]|\\.)*)"')
+    r'|\bPicker\(|\bSection\(|\bMenu\(|\.help\(|\bLabeledContent\(|\bLink\(|\bContentUnavailableView\('
+    r'|\bIntentDescription\(|\.navigationTitle\(|\.displayName\(|\.description\(|\.configurationDisplayName\('
+    r'|\bLocalizedStringResource\s*=|\bshortTitle:)\s*"((?:[^"\\]|\\.)*)"')
+
+SOURCES = ["Sources/Ata", "Sources/AtaiOS", "Sources/AtaWidgets", "Sources/AtaWatch"]
 
 # Strings that are deliberately not translated: names, and language names
 # written in their own language.
 KEEP = {"Ata", "OpenAI", "English", "Português", "Español", "Français", "Deutsch", "Italiano"}
 
+paths = []
+for source in SOURCES:
+    paths += sorted(glob.glob(os.path.join(root, source, "**", "*.swift"), recursive=True))
+
 used = []
-for path in sorted(glob.glob(os.path.join(root, "Sources/Ata/*.swift"))):
+for path in paths:
     if path.endswith("Snapshots.swift"):
         continue  # the README banner is English on purpose
     for m in CALL.finditer(open(path, encoding="utf-8").read()):

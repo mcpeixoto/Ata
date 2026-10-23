@@ -238,6 +238,31 @@ copy fails, the original is put back.
 | `<meeting>/meeting.mp3`, `<meeting>/notes.md` | the mixed meeting audio, and your own notes |
 | `UserDefaults` (`ai.interactive.ata`) | settings |
 
+## The iPhone app — one source tree, compiled twice
+
+The iPhone app is an XcodeGen project, `ios/project.yml`; `ios/generate.sh` writes
+`ios/Ata.xcodeproj`, which is not committed. Its app target compiles `Sources/Ata` directly,
+except the files only a Mac can run (the menu bar, the system audio tap, meeting detection, the
+updater, the Mac's windows and settings), plus `Sources/AtaiOS`. There is no shared library
+module: that would have meant making hundreds of declarations `public` and changing every test's
+`@testable import Ata`, while this way `swift test` on the Mac keeps covering the shared code.
+The few shared files that differ by platform use `#if os(macOS)`: `Paths` (the app container's
+Documents and Application Support), `LocalEngine` (whisper-cli is a separate program, which iOS
+can't start, so the engine reports itself missing) and the Mac's `SetupModel`. Clipboard, saving
+a file and showing it in Finder go through `PlatformActions`, with a Mac and an iPhone
+implementation. On iPhone the shared views reach `PhoneStore` and `PhoneNavigation` through the
+names they use on the Mac, `AppStore` and `WindowManager` (`Sources/AtaiOS/SharedBridges.swift`).
+`PhoneRecorder` writes `mic.wav` with the same `WavWriter`, into a staging folder under
+Application Support that moves into Meetings only when the recording stops; interruptions are
+decided by `RecorderState`, a pure state machine with its own tests in `ios/Tests`. The widget
+extension (`Sources/AtaWidgets`) draws the Live Activity, the Control Center control and a home
+screen widget; the intents they call are compiled into both targets. LAME is built as a static
+library from `Sources/CLame`, and FluidAudio comes through `ios/Packages/AtaDependencies`, which
+pins it with no traits, as `Package.swift` does, because an Xcode project can't set package
+traits. CI's `ios` job builds the app and runs the tests on an iPhone simulator, unsigned.
+`scripts/release-ios.sh vX.Y.Z` archives the tagged source and uploads it to TestFlight from the
+maintainer's Mac.
+
 ## Building and shipping
 
 `scripts/build-app.sh` assembles the bundle — binary, `Info.plist`, icon, `.lproj` folders — and

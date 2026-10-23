@@ -74,3 +74,90 @@ jobs:
           name: screenshots
           path: docs/images/*.png
           retention-days: 14
+
+  ios:
+    name: iPhone app
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      # The iPhone app targets iOS 26, which needs Xcode 26.
+      - name: Use the newest Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+          echo "$XCODE"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # The iPhone pins FluidAudio in its own package (Xcode projects can't set
+      # package traits); it must stay the Mac's version.
+      - name: FluidAudio is the same version on Mac and iPhone
+        run: |
+          mac=$(grep -o 'FluidAudio.git", exact: "[^"]*"' Package.swift)
+          phone=$(grep -o 'FluidAudio.git", exact: "[^"]*"' ios/Packages/AtaDependencies/Package.swift)
+          echo "Mac:    $mac"
+          echo "iPhone: $phone"
+          if [ -z "$mac" ] || [ "$mac" != "$phone" ]; then
+            echo "::error::FluidAudio is pinned differently in Package.swift and ios/Packages/AtaDependencies/Package.swift"
+            exit 1
+          fi
+
+      - name: Generate the Xcode project
+        run: ./ios/generate.sh
+
+      # The newest iOS 26 iPhone simulator on the runner, preferring an iPhone 17.
+      - name: Pick a simulator
+        id: sim
+        run: |
+          pick() {
+            xcrun simctl list devices available -j | python3 -I -c '
+          import json, re, sys
+          best = None
+          for runtime, devices in json.load(sys.stdin)["devices"].items():
+              m = re.search(r"iOS-(\d+)-(\d+)", runtime)
+              if not m or int(m.group(1)) < 26:
+                  continue
+              version = (int(m.group(1)), int(m.group(2)))
+              for d in devices:
+                  if d.get("isAvailable", True) and d["name"].startswith("iPhone"):
+                      key = (version, d["name"].startswith("iPhone 17"), d["name"])
+                      if best is None or key > best[0]:
+                          best = (key, d["udid"], d["name"], runtime)
+          if best:
+              print(best[1])
+              print(best[2], best[3], file=sys.stderr)
+          '
+          }
+          UDID=$(pick)
+          if [ -z "$UDID" ]; then
+            echo "No iOS 26 iPhone simulator installed; downloading the iOS platform."
+            xcodebuild -downloadPlatform iOS
+            UDID=$(pick)
+          fi
+          [ -n "$UDID" ] || { echo "::error::No iOS 26 iPhone simulator available"; exit 1; }
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Build and test
+        run: |
+          set -o pipefail
+          xcodebuild -project ios/Ata.xcodeproj -scheme Ata \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath ios/build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            build test
+
+      - name: Verify the app
+        run: |
+          APP=ios/build/DerivedData/Build/Products/Debug-iphonesimulator/Ata.app
+          mac=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
+          phone=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Info.plist")
+          echo "Mac $mac, iPhone $phone"
+          [ "$mac" = "$phone" ] || { echo "::error::The iPhone app is $phone, the Mac $mac"; exit 1; }
+          test -d "$APP/PlugIns/AtaWidgets.appex"
+          test -f "$APP/en.lproj/Localizable.strings"
+          test -f "$APP/pt.lproj/Localizable.strings"
+          test -f "$APP/pt.lproj/InfoPlist.strings"
