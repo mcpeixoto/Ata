@@ -19,7 +19,10 @@ let package = Package(
                 cSettings: [.define("HAVE_CONFIG_H"), .headerSearchPath(".")]),
         .executableTarget(name: "Ata",
                           dependencies: ["CLame", .product(name: "FluidAudio", package: "FluidAudio")],
-                          path: "Sources/Ata"),
+                          path: "Sources/Ata",
+                          // FoundationModels (summaries on this Mac) only exists from macOS 26:
+                          // a weak link lets Ata still launch on 14 and 15. CI checks it stays weak.
+                          linkerSettings: [.unsafeFlags(["-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels"])]),
         .testTarget(name: "AtaTests", dependencies: ["Ata"], path: "Tests/AtaTests"),
     ],
     swiftLanguageModes: [.v5]

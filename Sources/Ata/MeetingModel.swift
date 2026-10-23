@@ -285,7 +285,7 @@ final class MeetingModel: ObservableObject {
         }
     }
 
-    /// Asks OpenAI for a summary of a meeting that was transcribed without one.
+    /// Asks for a summary of a meeting that was transcribed without one.
     func writeNotes() async {
         guard let meeting, !writingNotes,
               let stored = StoredTranscript.load(from: meeting.storedTranscriptURL) else { return }
@@ -293,11 +293,17 @@ final class MeetingModel: ObservableObject {
         message = nil
         defer { writingNotes = false }
 
-        let options = TranscribeOptions.current()
+        var options = TranscribeOptions.current()
+        let onThisMac = Summarizer.engine(preference: options.summaryEngine, appleAvailable: AppleModel.isAvailable,
+                                          hasOpenAIKey: Keychain.has(Keychain.openAIKey)) == .apple
+        // The button said nothing leaves this Mac, so "auto" must not fall back to OpenAI here.
+        if onThisMac { options.summaryEngine = SummaryEngine.apple.rawValue }
         let draft = Transcriber.render(stored, meeting: meeting,
                                        names: Speakers.names(for: meeting, myName: options.myName))
         guard let result = await Summarizer.summarize(markdown: draft, options: options) else {
-            message = L("Could not write notes. Check your OpenAI key in Settings and try again.")
+            message = onThisMac
+                ? L("Could not write notes on this Mac. Try again, or choose OpenAI in Settings.")
+                : L("Could not write notes. Check your OpenAI key in Settings and try again.")
             return
         }
         do {

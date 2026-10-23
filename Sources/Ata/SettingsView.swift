@@ -19,6 +19,7 @@ struct SettingsView: View {
     @AppStorage(Pref.summarize) private var summarize = false
     @AppStorage(Pref.cancelEcho) private var cancelEcho = true
     @AppStorage(Pref.summaryModel) private var summaryModel = Pref.defaultSummaryModel
+    @AppStorage(Pref.summaryEngine) private var summaryEngine = "auto"
     @AppStorage(Pref.autoUpdate) private var autoUpdate = true
     @AppStorage(Pref.audioRetentionDays) private var audioRetentionDays = 0
     @AppStorage(Pref.menuIconSymbol) private var menuIconSymbol = MenuIcon.Symbol.dot.rawValue
@@ -34,6 +35,15 @@ struct SettingsView: View {
 
     private var usesOpenAI: Bool { engine == Engine.openAI.rawValue }
 
+    /// The summary engine the picker shows. Until the user picks one it is
+    /// "auto", shown as what auto would use.
+    private var summaryEngineShown: String {
+        if let chosen = SummaryEngine(rawValue: summaryEngine) { return chosen.rawValue }
+        return AppleModel.isAvailable ? SummaryEngine.apple.rawValue : SummaryEngine.openAI.rawValue
+    }
+
+    private var summaryUsesOpenAI: Bool { summarize && summaryEngineShown == SummaryEngine.openAI.rawValue }
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -41,7 +51,7 @@ struct SettingsView: View {
                 recordingSection
                 menuBarSection
                 transcriptionSection
-                if usesOpenAI || summarize { openAISection }
+                if usesOpenAI || summaryUsesOpenAI { openAISection }
                 audioSection
                 systemSection
                 aboutSection
@@ -148,10 +158,36 @@ struct SettingsView: View {
                 .fixedSize(horizontal: false, vertical: true)
             Toggle("Add an AI summary with decisions and action items", isOn: $summarize)
             if summarize {
-                Text("Sends the finished transcript text to OpenAI, even when the audio is transcribed locally.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                Picker("Summary engine", selection: Binding(
+                    get: { summaryEngineShown }, set: { summaryEngine = $0 })) {
+                    Text("On this Mac (Apple Intelligence)").tag(SummaryEngine.apple.rawValue)
+                    Text("OpenAI").tag(SummaryEngine.openAI.rawValue)
+                }
+                summaryFootnote
             }
+        }
+    }
+
+    @ViewBuilder
+    private var summaryFootnote: some View {
+        if summaryUsesOpenAI {
+            Text("Sends the finished transcript text to OpenAI, even when the audio is transcribed locally.")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        // Why this Mac can't write it, unless the user chose OpenAI anyway.
+        if summaryEngine != SummaryEngine.openAI.rawValue, let reason = AppleModel.unavailableReason {
+            Text(reason)
+                .font(.system(size: 11))
+                .foregroundStyle(summaryEngineShown == SummaryEngine.apple.rawValue ? Color.orange : Color.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        } else if !summaryUsesOpenAI {
+            // "auto" with a key falls back to OpenAI when this Mac can't write the summary.
+            Text(summaryEngine == SummaryEngine.apple.rawValue || !setup.hasOpenAIKey
+                 ? L("Written on this Mac. Nothing leaves it.")
+                 : L("Written on this Mac. If that fails, the transcript text goes to OpenAI."))
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -198,7 +234,7 @@ struct SettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            if summarize {
+            if summaryUsesOpenAI {
                 Picker("Summary model", selection: $summaryModel) {
                     ForEach(Pref.summaryModels, id: \.self) { Text($0).tag($0) }
                 }
