@@ -34,6 +34,19 @@ struct SettingsView: View {
     var height: CGFloat = 660
 
     private var usesOpenAI: Bool { engine == Engine.openAI.rawValue }
+    private var usesApple: Bool { engine == Engine.apple.rawValue }
+
+    private var engineFootnote: String {
+        if usesOpenAI {
+            return L("Recorded audio is uploaded to OpenAI for transcription. Everything else stays on your Mac.")
+        }
+        if usesApple {
+            return AppleSpeechEngine.isAvailable
+                ? L("Free, on this Mac, nothing leaves it. Needs macOS 26.")
+                : L("Apple's speech recognition needs macOS 26. Choose another engine.")
+        }
+        return L("Nothing leaves your Mac. Runs on the GPU.")
+    }
 
     /// The summary engine the picker shows. Until the user picks one it is
     /// "auto", shown as what auto would use.
@@ -130,15 +143,18 @@ struct SettingsView: View {
                 get: { engine },
                 set: { engine = $0; setup.setEngine(Engine(rawValue: $0) ?? .local) })) {
                 Text("On this Mac (whisper.cpp)").tag(Engine.local.rawValue)
+                Text(AppleSpeechEngine.isAvailable ? L("On this Mac (Apple)") : L("On this Mac (Apple) — needs macOS 26"))
+                    .tag(Engine.apple.rawValue)
+                    .disabled(!AppleSpeechEngine.isAvailable)
                 Text("OpenAI API").tag(Engine.openAI.rawValue)
             }
-            Text(usesOpenAI
-                 ? L("Recorded audio is uploaded to OpenAI for transcription. Everything else stays on your Mac.")
-                 : L("Nothing leaves your Mac. Runs on the GPU."))
+            Text(engineFootnote)
                 .font(.system(size: 11))
-                .foregroundStyle(usesOpenAI ? .orange : .secondary)
+                .foregroundStyle(usesOpenAI || (usesApple && !AppleSpeechEngine.isAvailable) ? .orange : .secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            if !usesOpenAI {
+            if usesApple {
+                AppleSpeechRows(language: language)
+            } else if !usesOpenAI {
                 LocalModelRows()
             }
 
@@ -382,6 +398,45 @@ struct LocalModelRows: View {
         if let error = setup.downloadError {
             Text(error).font(.system(size: 11)).foregroundStyle(.red)
         }
+    }
+}
+
+/// Apple's speech model for each language Ata may transcribe: there, to
+/// download, or not offered. macOS downloads it and shares it between apps.
+struct AppleSpeechRows: View {
+    let language: String
+    @StateObject private var models = AppleSpeechModels()
+
+    var body: some View {
+        ForEach(models.rows) { row in
+            LabeledContent {
+                switch row.state {
+                case .checking:
+                    ProgressView().controlSize(.small)
+                case .installed:
+                    Label("Downloaded", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                case .missing:
+                    Button("Download speech model") { models.download(row.code) }
+                case .downloading(let p):
+                    HStack(spacing: 6) {
+                        ProgressView(value: p).frame(width: 90)
+                        Text("\(Int(p * 100))%").font(.system(size: 10)).monospacedDigit()
+                    }
+                case .unsupported:
+                    Text("Not available yet").font(.system(size: 11)).foregroundStyle(.orange)
+                case .failed(let message):
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(message).font(.system(size: 10)).foregroundStyle(.red)
+                            .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                        Button("Try again") { models.download(row.code) }.controlSize(.small)
+                    }
+                }
+            } label: {
+                Text(L("Speech model: %@", row.name)).font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+        }
+        .onAppear { models.refresh(language: language) }
+        .onChange(of: language) { _, new in models.refresh(language: new) }
     }
 }
 

@@ -43,8 +43,15 @@ enum Engine: String, CaseIterable {
     case local
     /// OpenAI's transcription API. Audio is uploaded.
     case openAI = "openai"
+    /// Apple's on-device speech recognition (macOS 26, iOS 26). Nothing leaves the device.
+    case apple
 
-    var isLocal: Bool { self == .local }
+    /// Runs on this device: nothing is uploaded and nothing is paid for.
+    var isLocal: Bool { self != .openAI }
+
+    /// Only whisper.cpp has to be installed before it can transcribe; Apple's
+    /// engine downloads its own language model when it first needs it.
+    var needsWhisper: Bool { self == .local }
 
     static var current: Engine {
         Engine(rawValue: Pref.d.string(forKey: Pref.engine) ?? Engine.local.rawValue) ?? .local
@@ -68,7 +75,18 @@ struct TranscribeOptions {
     var summaryEngine: String = "auto"
 
     /// The model that will actually run, for records and file names.
-    var modelID: String { engine.isLocal ? localModel : openAIModel }
+    var modelID: String {
+        switch engine {
+        case .local: return localModel
+        case .openAI: return openAIModel
+        case .apple: return AppleSpeechEngine.modelID
+        }
+    }
+
+    /// What transcribing this many seconds costs, in US dollars: nothing on this device.
+    func transcriptionCost(seconds: Double) -> Double {
+        engine.isLocal ? 0 : Pricing.transcription(model: openAIModel, seconds: seconds)
+    }
 
     static func current() -> TranscribeOptions {
         TranscribeOptions(
@@ -89,7 +107,11 @@ struct TranscribeOptions {
         var o = current()
         guard let override = meeting.override, let engine = Engine(rawValue: override.engine) else { return o }
         o.engine = engine
-        if engine.isLocal { o.localModel = override.model } else { o.openAIModel = override.model }
+        switch engine {
+        case .local: o.localModel = override.model
+        case .openAI: o.openAIModel = override.model
+        case .apple: break // one model, chosen by language
+        }
         return o
     }
 }
@@ -306,7 +328,7 @@ enum Transcriber {
 
         // The local engine gets an explicit language per track; see LanguageChoice.
         var languages = Array(repeating: options.language, count: prepared.count)
-        if options.engine.isLocal, options.language == "auto", let model = LocalModel.find(options.localModel) {
+        if options.engine == .local, options.language == "auto", let model = LocalModel.find(options.localModel) {
             var detections: [(code: String, p: Double)?] = []
             for track in prepared { detections.append(await LocalEngine.detectLanguage(audio: track.audio, model: model)) }
             languages = LanguageChoice.pick(detections, plausible: LanguageChoice.plausible)
@@ -342,6 +364,11 @@ enum Transcriber {
                                                                model: options.openAIModel, progress: step)
                 segments += result.segments
                 coarse = coarse || result.coarse
+            case .apple:
+                segments += try await AppleSpeechEngine.transcribe(audio: track.audio, speaker: track.speaker,
+                                                                   language: options.language,
+                                                                   plausible: LanguageChoice.plausible,
+                                                                   progress: step)
             }
         }
 
@@ -371,8 +398,7 @@ enum Transcriber {
             },
             coarse: coarse, summary: nil, engine: options.engine.rawValue, model: options.modelID)
 
-        var cost = options.engine.isLocal ? 0 : Pricing.transcription(model: options.openAIModel,
-                                                                       seconds: audioSeconds)
+        var cost = options.transcriptionCost(seconds: audioSeconds)
         if options.summarize, !segments.isEmpty {
             let draft = render(stored, meeting: meeting, names: Speakers.names(for: meeting, myName: options.myName))
             if let summary = await Summarizer.summarize(markdown: draft, options: options) {
@@ -592,9 +618,11 @@ enum Transcriber {
                 : "**[\(timestamp(b.start))] \(names(b.speaker)):** \(b.text)\n\n"
         }
         md += "---\n"
-        md += t.engine == Engine.local.rawValue
-            ? "_" + L("Transcribed locally by Ata (%@).", t.model) + "_\n"
-            : "_" + L("Transcribed by Ata with OpenAI (%@).", t.model) + "_\n"
+        switch t.engine {
+        case Engine.local.rawValue: md += "_" + L("Transcribed locally by Ata (%@).", t.model) + "_\n"
+        case Engine.apple.rawValue: md += "_" + L("Transcribed locally by Ata (%@).", L("Apple speech recognition")) + "_\n"
+        default: md += "_" + L("Transcribed by Ata with OpenAI (%@).", t.model) + "_\n"
+        }
         return md
     }
 

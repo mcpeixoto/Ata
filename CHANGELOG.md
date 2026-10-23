@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **Transcribe with Apple's speech recognition.** On macOS 26, **Settings → Transcription** has a
+  third engine, **On this Mac (Apple)**: free, nothing leaves the Mac, and no whisper.cpp to
+  install. macOS downloads the speech model for each language the first time, or when you click
+  **Download speech model**. Every word keeps its time, so following along, the speaker split and
+  echo removal work as with whisper.cpp.
+- **Portuguese and English in one call, with Apple's engine too.** With the language on
+  **Automatic**, Ata transcribes the track in each of your languages and keeps, for every stretch
+  between pauses, the one it was spoken in.
+- A language Apple's recognizer doesn't offer yet fails with a clear message and keeps the audio,
+  so you can transcribe it again with whisper.cpp.
+
 ## 2.5.0
 
 - **Follow the meeting word by word.** While a meeting plays, the word being said is highlighted

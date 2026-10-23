@@ -166,6 +166,17 @@
 "OpenAI API" = "OpenAI API";
 "Recorded audio is uploaded to OpenAI for transcription. Everything else stays on your Mac." = "Recorded audio is uploaded to OpenAI for transcription. Everything else stays on your Mac.";
 "Nothing leaves your Mac. Runs on the GPU." = "Nothing leaves your Mac. Runs on the GPU.";
+"On this Mac (Apple)" = "On this Mac (Apple)";
+"On this Mac (Apple) — needs macOS 26" = "On this Mac (Apple) — needs macOS 26";
+"Free, on this Mac, nothing leaves it. Needs macOS 26." = "Free, on this Mac, nothing leaves it. Needs macOS 26.";
+"Apple's speech recognition needs macOS 26. Choose another engine." = "Apple's speech recognition needs macOS 26. Choose another engine.";
+"Download speech model" = "Download speech model";
+"Not available yet" = "Not available yet";
+"Speech model: %@" = "Speech model: %@";
+"Apple speech recognition" = "Apple speech recognition";
+"Apple's on-device speech recognition needs macOS 26. Choose whisper.cpp in Settings → Transcription." = "Apple's on-device speech recognition needs macOS 26. Choose whisper.cpp in Settings → Transcription.";
+"Apple's on-device speech doesn't support %@ yet — choose whisper.cpp in Settings → Transcription." = "Apple's on-device speech doesn't support %@ yet — choose whisper.cpp in Settings → Transcription.";
+"Apple's speech model could not be downloaded: %@" = "Apple's speech model could not be downloaded: %@";
 "Your name in the transcript" = "Your name in the transcript";
 "Language" = "Language";
 "Automatic" = "Automatic";

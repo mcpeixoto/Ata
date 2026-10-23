@@ -19,7 +19,8 @@ struct TranscriptionRecord: Codable, Equatable, Identifiable {
     var archivedAs: String?
 
     var id: String { "\(finishedAt.timeIntervalSince1970)-\(model)" }
-    var isLocal: Bool { engine == Engine.local.rawValue }
+    /// On this device, whichever engine: whisper.cpp or Apple's speech recognition.
+    var isLocal: Bool { Engine(rawValue: engine)?.isLocal ?? false }
 }
 
 /// OpenAI list prices, used to estimate what a transcription cost.

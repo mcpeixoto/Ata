@@ -332,6 +332,8 @@ final class AppStore: ObservableObject {
                 }
                 return // the default model is still downloading: stays queued
             }
+        case .apple:
+            break // nothing to install first: the engine downloads its language model itself
         case .openAI:
             guard Keychain.has(Keychain.openAIKey) else {
                 lastError = L("No OpenAI API key. Add one in Settings → Transcription.")
