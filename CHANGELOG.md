@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **Conversations in the room.** With voice recognition on, a meeting recorded on the microphone
+  alone, with nothing coming through the speakers, now tells the people in the room apart. Ata
+  finds you by the voice it learned from your calls; until it knows your voice, whoever spoke
+  most is you. Everyone else gets a voice to name, as on a call.
+- **Voices stored one file per voice.** Your voice library moves from one file to a file per
+  voice, so a change to one voice never touches the others, ready for syncing between devices.
+  The move happens once, by itself, and the old file is kept.
+
 ## 2.5.0
 
 - **Follow the meeting word by word.** While a meeting plays, the word being said is highlighted
