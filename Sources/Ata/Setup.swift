@@ -1,3 +1,5 @@
+import Foundation
+#if os(macOS)
 import AppKit
 import AVFoundation
 import CoreGraphics
@@ -5,6 +7,10 @@ import ServiceManagement
 import UserNotifications
 
 /// Checks and fixes everything the app needs in order to work, from inside the app itself.
+///
+/// The Mac's checklist: system audio, Homebrew, whisper.cpp, launch at login.
+/// The iPhone asks for what it needs in its own onboarding; only `Downloader`
+/// below is shared.
 @MainActor
 final class SetupModel: ObservableObject {
     @Published private(set) var mic = false
@@ -37,7 +43,8 @@ final class SetupModel: ObservableObject {
     /// Everything needed to record and transcribe with the selected engine.
     var ready: Bool {
         guard mic && !systemAudioMissing else { return false }
-        return usesOpenAI ? hasOpenAIKey : (whisper && model)
+        if usesOpenAI { return hasOpenAIKey }
+        return Engine.current.needsWhisper ? (whisper && model) : true
     }
 
     /// Whether the local engine is installed, regardless of which engine is selected.
@@ -49,7 +56,7 @@ final class SetupModel: ObservableObject {
         if systemAudioMissing { m.append(L("system audio")) }
         if usesOpenAI {
             if !hasOpenAIKey { m.append(L("OpenAI API key")) }
-        } else {
+        } else if Engine.current.needsWhisper {
             if !whisper { m.append(L("transcription engine")) }
             if !model { m.append(L("model")) }
         }
@@ -288,6 +295,7 @@ final class SetupModel: ObservableObject {
         d.start(url)
     }
 }
+#endif
 
 /// Download with progress, into a temporary file that is only moved into place at the end.
 final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {

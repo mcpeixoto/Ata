@@ -43,8 +43,15 @@ enum Engine: String, CaseIterable {
     case local
     /// OpenAI's transcription API. Audio is uploaded.
     case openAI = "openai"
+    /// Apple's on-device speech recognition (macOS 26, iOS 26). Nothing leaves the device.
+    case apple
 
-    var isLocal: Bool { self == .local }
+    /// Runs on this device: nothing is uploaded and nothing is paid for.
+    var isLocal: Bool { self != .openAI }
+
+    /// Only whisper.cpp has to be installed before it can transcribe; Apple's
+    /// engine downloads its own language model when it first needs it.
+    var needsWhisper: Bool { self == .local }
 
     static var current: Engine {
         Engine(rawValue: Pref.d.string(forKey: Pref.engine) ?? Engine.local.rawValue) ?? .local
@@ -68,7 +75,18 @@ struct TranscribeOptions {
     var summaryEngine: String = "auto"
 
     /// The model that will actually run, for records and file names.
-    var modelID: String { engine.isLocal ? localModel : openAIModel }
+    var modelID: String {
+        switch engine {
+        case .local: return localModel
+        case .openAI: return openAIModel
+        case .apple: return AppleSpeechEngine.modelID
+        }
+    }
+
+    /// What transcribing this many seconds costs, in US dollars: nothing on this device.
+    func transcriptionCost(seconds: Double) -> Double {
+        engine.isLocal ? 0 : Pricing.transcription(model: openAIModel, seconds: seconds)
+    }
 
     static func current() -> TranscribeOptions {
         TranscribeOptions(
@@ -89,7 +107,11 @@ struct TranscribeOptions {
         var o = current()
         guard let override = meeting.override, let engine = Engine(rawValue: override.engine) else { return o }
         o.engine = engine
-        if engine.isLocal { o.localModel = override.model } else { o.openAIModel = override.model }
+        switch engine {
+        case .local: o.localModel = override.model
+        case .openAI: o.openAIModel = override.model
+        case .apple: break // one model, chosen by language
+        }
         return o
     }
 }
@@ -306,7 +328,7 @@ enum Transcriber {
 
         // The local engine gets an explicit language per track; see LanguageChoice.
         var languages = Array(repeating: options.language, count: prepared.count)
-        if options.engine.isLocal, options.language == "auto", let model = LocalModel.find(options.localModel) {
+        if options.engine == .local, options.language == "auto", let model = LocalModel.find(options.localModel) {
             var detections: [(code: String, p: Double)?] = []
             for track in prepared { detections.append(await LocalEngine.detectLanguage(audio: track.audio, model: model)) }
             languages = LanguageChoice.pick(detections, plausible: LanguageChoice.plausible)
@@ -342,6 +364,11 @@ enum Transcriber {
                                                                model: options.openAIModel, progress: step)
                 segments += result.segments
                 coarse = coarse || result.coarse
+            case .apple:
+                segments += try await AppleSpeechEngine.transcribe(audio: track.audio, speaker: track.speaker,
+                                                                   language: options.language,
+                                                                   plausible: LanguageChoice.plausible,
+                                                                   progress: step)
             }
         }
 
@@ -371,8 +398,7 @@ enum Transcriber {
             },
             coarse: coarse, summary: nil, engine: options.engine.rawValue, model: options.modelID)
 
-        var cost = options.engine.isLocal ? 0 : Pricing.transcription(model: options.openAIModel,
-                                                                       seconds: audioSeconds)
+        var cost = options.transcriptionCost(seconds: audioSeconds)
         if options.summarize, !segments.isEmpty {
             let draft = render(stored, meeting: meeting, names: Speakers.names(for: meeting, myName: options.myName))
             if let summary = await Summarizer.summarize(markdown: draft, options: options) {
@@ -404,11 +430,26 @@ enum Transcriber {
 
     // MARK: - Voices
 
-    /// Splits the "others" lines by speaker and matches each speaker against the
-    /// voice library. Anything going wrong here leaves the lines as "others":
-    /// a transcript is never lost to voice recognition.
+    /// Splits the lines by speaker and matches each speaker against the voice
+    /// library: the "others" lines of a call, or, for a meeting in the room with
+    /// no system track to speak of, the microphone's. Anything going wrong here
+    /// leaves the lines as they were: a transcript is never lost to voice recognition.
     private static func recogniseSpeakers(_ segments: [Segment], meeting: Meeting, diarizer: Diarizer,
                                           system: URL?, mic: URL?) async -> [Segment] {
+        // The waveform was just drawn from these same tracks; read only if it wasn't.
+        let systemLevels: [UInt8]? = system.map { url in
+            Waveform.read(from: meeting.waveformURL)?.others ?? ((try? Waveform.levels(url)) ?? [])
+        }
+        switch SpeakerRoute.choose(systemLevels: systemLevels, hasMic: mic != nil) {
+        case .call:
+            break
+        case .inPerson:
+            guard let mic else { return segments }
+            return await recogniseInPerson(segments, meeting: meeting, diarizer: diarizer, mic: mic)
+        case .nobody:
+            return segments
+        }
+
         var speakers: [MeetingSpeaker] = []
         var turns: [SpeakerTurn] = []
         var relabelled = segments
@@ -436,6 +477,8 @@ enum Transcriber {
                 return segments
             }
         }
+        // Learned as your voice (`Voice.isMe`), which is how a later meeting in the
+        // room knows which of its speakers is you.
         if let mic, let e = try? await diarizer.embed(mic) {
             speakers.append(MeetingSpeaker(label: Speakers.me, embedding: e, seconds: 0, voiceID: nil))
         }
@@ -444,19 +487,69 @@ enum Transcriber {
         let found = speakers
         let assigned = await MainActor.run { PeopleModel.shared.assign(found, meetingID: meeting.id) }
         try? MeetingVoices(speakers: assigned, turns: turns).save(for: meeting)
+        if let system { await cutSamples(for: assigned, turns: turns, from: system) }
+        return relabelled
+    }
 
-        // A few seconds of each new voice, so the user can hear who it is.
-        if let system {
-            for speaker in assigned where speaker.label != Speakers.me {
-                guard let id = speaker.voiceID else { continue }
-                let hasSample = await MainActor.run { PeopleModel.shared.voices.first { $0.id == id }?.sample != nil }
-                if hasSample { continue }
-                if let file = await VoiceSamples.extract(label: speaker.label, turns: turns, from: system, voice: id) {
-                    await MainActor.run { PeopleModel.shared.setSample(id, file: file) }
-                }
+    /// One microphone, several people: the microphone is diarized, the speaker
+    /// who is you keeps your lines (see `InPerson.me`), and everyone else is
+    /// matched and named like the others on a call.
+    private static func recogniseInPerson(_ segments: [Segment], meeting: Meeting, diarizer: Diarizer,
+                                          mic: URL) async -> [Segment] {
+        let found: (turns: [SpeakerTurn], embeddings: [String: [Float]])
+        do {
+            found = try await diarizer.diarize(mic)
+        } catch {
+            NSLog("Ata: diarization of the microphone failed: \(error.localizedDescription)")
+            return segments
+        }
+        let clusters = InPerson.clusters(found.turns, embeddings: found.embeddings)
+        let fingerprints = await MainActor.run { PeopleModel.shared.myFingerprints() }
+        guard let me = InPerson.me(among: clusters, fingerprints: fingerprints) else { return segments }
+
+        let rename = InPerson.labels(found.turns, me: me.label)
+        var turns = found.turns.map { SpeakerTurn(start: $0.start, end: $0.end, label: rename[$0.label] ?? $0.label) }
+        var speakers: [MeetingSpeaker] = []
+        for c in clusters {
+            guard let e = c.embedding, let label = rename[c.label] else { continue }
+            if label == Speakers.me && !me.recognised { continue }
+            speakers.append(MeetingSpeaker(label: label, embedding: e, seconds: c.seconds, voiceID: nil))
+        }
+
+        var assigned: [MeetingSpeaker] = []
+        if !speakers.isEmpty {
+            let toAssign = speakers
+            assigned = await MainActor.run { PeopleModel.shared.assign(toAssign, meetingID: meeting.id) }
+            let myVoices = await MainActor.run { Set(PeopleModel.shared.voices.filter(\.isMe).map(\.id)) }
+            let alsoMe = InPerson.alsoMe(assigned, myVoices: myVoices)
+            if !alsoMe.isEmpty {
+                turns = turns.map { alsoMe.contains($0.label) ? SpeakerTurn(start: $0.start, end: $0.end, label: Speakers.me) : $0 }
+                assigned.removeAll { alsoMe.contains($0.label) }
             }
         }
+
+        // The same word-level split as the system track of a call.
+        let relabelled = segments.flatMap { s -> [Segment] in
+            guard s.speaker == Speakers.me else { return [s] }
+            return SpeakerAssignment.split(s, turns: turns)
+        }
+        if !assigned.isEmpty {
+            try? MeetingVoices(speakers: assigned, turns: turns).save(for: meeting)
+            await cutSamples(for: assigned, turns: turns, from: mic)
+        }
         return relabelled
+    }
+
+    /// A few seconds of each new voice, so the user can hear who it is.
+    private static func cutSamples(for assigned: [MeetingSpeaker], turns: [SpeakerTurn], from audio: URL) async {
+        for speaker in assigned where speaker.label != Speakers.me {
+            guard let id = speaker.voiceID else { continue }
+            let hasSample = await MainActor.run { PeopleModel.shared.voices.first { $0.id == id }?.sample != nil }
+            if hasSample { continue }
+            if let file = await VoiceSamples.extract(label: speaker.label, turns: turns, from: audio, voice: id) {
+                await MainActor.run { PeopleModel.shared.setSample(id, file: file) }
+            }
+        }
     }
 
     // MARK: - Versions
@@ -581,6 +674,7 @@ enum Transcriber {
         if let summary = t.summary {
             md += "## " + L("Summary") + "\n\n" + summary + "\n\n"
         }
+        md += moments(meeting.bookmarks ?? [], in: blocks, coarse: t.coarse, names: names)
         md += "---\n\n"
 
         if blocks.isEmpty {
@@ -592,10 +686,47 @@ enum Transcriber {
                 : "**[\(timestamp(b.start))] \(names(b.speaker)):** \(b.text)\n\n"
         }
         md += "---\n"
-        md += t.engine == Engine.local.rawValue
-            ? "_" + L("Transcribed locally by Ata (%@).", t.model) + "_\n"
-            : "_" + L("Transcribed by Ata with OpenAI (%@).", t.model) + "_\n"
+        switch t.engine {
+        case Engine.local.rawValue: md += "_" + L("Transcribed locally by Ata (%@).", t.model) + "_\n"
+        case Engine.apple.rawValue: md += "_" + L("Transcribed locally by Ata (%@).", L("Apple speech recognition")) + "_\n"
+        default: md += "_" + L("Transcribed by Ata with OpenAI (%@).", t.model) + "_\n"
+        }
         return md
+    }
+
+    /// "Moments you marked": each bookmark's time, what was being said then,
+    /// and its note. Empty when nothing was marked. A transcript without line
+    /// times can't say what was said when, so it lists the times alone.
+    static func moments(_ bookmarks: [Bookmark], in blocks: [StoredTranscript.Line], coarse: Bool,
+                        names: (String) -> String) -> String {
+        guard !bookmarks.isEmpty else { return "" }
+        let starts = blocks.map(\.start), ends = blocks.map(\.end)
+        var md = "## " + L("Moments you marked") + "\n\n"
+        for b in bookmarks.sorted(by: { $0.ms < $1.ms }) {
+            var item = "- **[\(timestamp(b.ms))]"
+            if !coarse, let i = Bookmark.nearest(to: b.ms, starts: starts, ends: ends) {
+                item += " \(names(blocks[i].speaker)):** " + excerpt(of: blocks[i], around: b.ms)
+            } else {
+                item += "**"
+            }
+            if let note = b.note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
+                item += " — _\(note)_"
+            }
+            md += item + "\n"
+        }
+        return md + "\n"
+    }
+
+    /// A long block cut down to the words around `ms`: about ten seconds
+    /// before the mark and a few after.
+    static func excerpt(of block: StoredTranscript.Line, around ms: Int) -> String {
+        guard block.text.count > 200 else { return block.text }
+        let words = WordTiming.words(of: block)
+        var picked = words.filter { $0.start >= ms - 10_000 && $0.start <= ms + 4_000 }
+        if picked.isEmpty { picked = Array(words.prefix(30)) }
+        guard let first = picked.first, let last = picked.last else { return block.text }
+        let text = picked.map(\.text).joined(separator: " ")
+        return (first == words.first ? "" : "…") + text + (last == words.last ? "" : "…")
     }
 
     /// Writes transcript.md again from transcript.json — after a voice is named,

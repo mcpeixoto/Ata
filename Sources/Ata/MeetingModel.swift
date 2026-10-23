@@ -1,4 +1,3 @@
-import AppKit
 import AVFoundation
 import Combine
 import Foundation
@@ -154,6 +153,17 @@ final class MeetingModel: ObservableObject {
         let words: [StoredTranscript.Word]
     }
 
+    /// A moment marked while recording, with the line being said then.
+    struct Moment: Identifiable, Equatable {
+        let bookmark: Bookmark
+        let line: Line?
+        var id: UUID { bookmark.id }
+
+        /// Where "play" starts: the start of the line it points at, so the
+        /// words that prompted the mark are heard whole.
+        var playFromMs: Int { min(line?.start ?? bookmark.ms, bookmark.ms) }
+    }
+
     /// A voice heard in this meeting, other than yours.
     struct Speaker: Identifiable, Equatable {
         let label: String
@@ -177,10 +187,14 @@ final class MeetingModel: ObservableObject {
     @Published private(set) var hasStoredTranscript = false
     @Published private(set) var speakers: [Speaker] = []
     @Published private(set) var participants: [String] = []
+    /// What was marked while recording, in time order.
+    @Published private(set) var moments: [Moment] = []
 
     @Published var notes = ""
     @Published private(set) var writingNotes = false
     @Published private(set) var exporting = false
+    /// The save panel is up: a second click must not open another.
+    private var choosingDestination = false
     @Published var message: String?
 
     /// Ready-to-share copies; see `MeetingSharing`.
@@ -270,6 +284,7 @@ final class MeetingModel: ObservableObject {
         var people = [myName]
         for line in lines where !people.contains(line.name) { people.append(line.name) }
         participants = people
+        moments = Self.moments(m.bookmarks ?? [], in: lines)
 
         if waveform == nil { waveform = Waveform.read(from: m.waveformURL) }
         guard !Snapshots.rendering else { return }
@@ -333,6 +348,18 @@ final class MeetingModel: ObservableObject {
         return parts.joined(separator: "\n\n")
     }
 
+    nonisolated static func moments(_ bookmarks: [Bookmark], in lines: [Line]) -> [Moment] {
+        let starts = lines.map(\.start), ends = lines.map(\.end)
+        return bookmarks.sorted { $0.ms < $1.ms }.map { b in
+            Moment(bookmark: b, line: Bookmark.nearest(to: b.ms, starts: starts, ends: ends).map { lines[$0] })
+        }
+    }
+
+    /// Plays from a marked moment.
+    func play(_ moment: Moment) {
+        play(fromMs: moment.playFromMs)
+    }
+
     /// "S12" → 12, so speakers list in the order they first spoke.
     private static func number(_ label: String) -> Int {
         Int(label.drop { !$0.isNumber }) ?? 0
@@ -383,9 +410,13 @@ final class MeetingModel: ObservableObject {
         let draft = Transcriber.render(stored, meeting: meeting,
                                        names: Speakers.names(for: meeting, myName: options.myName))
         guard let result = await Summarizer.summarize(markdown: draft, options: options) else {
+            #if os(iOS)
+            message = L("Could not write notes on this iPhone. Try again.")
+            #else
             message = onThisMac
                 ? L("Could not write notes on this Mac. Try again, or choose OpenAI in Settings.")
                 : L("Could not write notes. Check your OpenAI key in Settings and try again.")
+            #endif
             return
         }
         do {
@@ -445,31 +476,28 @@ final class MeetingModel: ObservableObject {
     }
 
     private func copy(_ text: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        Platform.actions.copy(text)
     }
 
     /// Saves the meeting as one MP3 wherever you choose.
     func exportMP3() {
-        guard let meeting, !exporting else { return }
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.mp3]
-        panel.canCreateDirectories = true
-        panel.nameFieldStringValue = MeetingSharing.name(for: meeting) + ".mp3"
-        guard panel.runModal() == .OK, let destination = panel.url else { return }
-
-        exporting = true
-        message = nil
+        guard let meeting, !exporting, !choosingDestination else { return }
+        choosingDestination = true
         Task {
             let m = meeting
             do {
-                try await Task.detached(priority: .userInitiated) {
-                    try MeetingSharing.audio(of: m, to: destination, link: false)
-                }.value
-                NSWorkspace.shared.activateFileViewerSelecting([destination])
+                _ = try await Platform.actions.saveFile(named: MeetingSharing.name(for: m) + ".mp3",
+                                                        type: .mp3) { [weak self] destination in
+                    self?.exporting = true
+                    self?.message = nil
+                    try await Task.detached(priority: .userInitiated) {
+                        try MeetingSharing.audio(of: m, to: destination, link: false)
+                    }.value
+                }
             } catch {
                 message = L("Could not save the MP3: %@", error.localizedDescription)
             }
+            choosingDestination = false
             exporting = false
         }
     }

@@ -222,6 +222,19 @@ swift test --disable-keychain
 ./scripts/build-app.sh
 ```
 
+The iPhone app (needs `brew install xcodegen`; the Xcode project is generated, never committed):
+
+```bash
+./ios/generate.sh
+xcodebuild -project ios/Ata.xcodeproj -scheme Ata \
+  -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO build test
+```
+
+It compiles most of `Sources/Ata` again for iOS, so a change to a shared file can break the
+phone without touching the Mac build. CI runs both. Mac-only files are listed under `excludes`
+in `ios/project.yml`; wording that names the Mac goes behind `#if os(iOS)` with an iPhone
+sentence in both tables.
+
 **Always pass `--disable-keychain`** to `swift build`/`swift test`: without it SwiftPM can hang
 silently on a hidden keychain prompt while fetching FluidAudio. Package.swift is tools 6.2
 (Xcode 26) for `traits: []`, which keeps FluidAudio's unused 87 MB TTS library out.

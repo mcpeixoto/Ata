@@ -1,4 +1,4 @@
-import AppKit
+import Foundation
 import UserNotifications
 
 /// Actionable notifications: "Record" when a meeting is detected, "Stop" while recording,
@@ -98,15 +98,17 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sen
                     store.startRecording(app: app)
                 case (ID.recording, ID.stop):
                     store.stopRecording()
+                #if os(macOS)
                 case (ID.update, ID.install), (ID.update, UNNotificationDefaultActionIdentifier):
                     Updater.shared.installUpdate()
+                #endif
                 case (ID.ready, _):
                     guard action != UNNotificationDismissActionIdentifier else { break }
                     if let meetingID {
                         WindowManager.shared.showMeeting(meetingID)
                     } else if let path {
                         // Delivered by Ata 2.3 or earlier, before notifications named the meeting.
-                        NSWorkspace.shared.open(URL(fileURLWithPath: path))
+                        Platform.actions.open(URL(fileURLWithPath: path))
                     }
                 default:
                     break

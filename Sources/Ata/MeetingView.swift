@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 /// One meeting in its own window: listen to it, read the notes and the
@@ -34,7 +33,12 @@ struct MeetingView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        #if os(macOS)
         .frame(minWidth: 520, maxWidth: .infinity, minHeight: 520, maxHeight: .infinity)
+        #else
+        // A phone screen is narrower than the Mac window's minimum.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        #endif
         .frame(height: height)
         .onReceive(store.$meetings) { _ in model.reload() }
         .onReceive(people.$voices.dropFirst()) { _ in model.reload() }
@@ -48,7 +52,8 @@ struct MeetingView: View {
                       hasAudio: meeting.hasAudio || meeting.hasMergedAudio,
                       fallbackDuration: meeting.duration ?? 0,
                       sharedAudio: model.sharedAudio,
-                      waveform: model.waveform)
+                      waveform: model.waveform,
+                      marks: model.moments.map(\.bookmark.ms))
             if let message = model.message {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
@@ -122,18 +127,18 @@ struct MeetingView: View {
 
                 toolbarButton("square.and.arrow.down", help: L("Save as MP3…")) { model.exportMP3() }
                     .disabled(!(meeting.hasAudio || meeting.hasMergedAudio) || model.exporting)
-                toolbarButton("folder", help: L("Show in Finder")) {
-                    NSWorkspace.shared.activateFileViewerSelecting([meeting.dir])
+                toolbarButton("folder", help: Self.revealTitle) {
+                    Platform.actions.reveal(meeting.dir)
                 }
 
                 Menu {
                     Button("Open transcript in your editor") {
-                        if let url = meeting.existingTranscriptURL { NSWorkspace.shared.open(url) }
+                        if let url = meeting.existingTranscriptURL { Platform.actions.open(url) }
                     }
                     .disabled(meeting.existingTranscriptURL == nil)
                     TranscribeAgainMenu(meeting: meeting)
                     if FileManager.default.fileExists(atPath: meeting.versionsDir.path) {
-                        Button("Show earlier versions") { NSWorkspace.shared.open(meeting.versionsDir) }
+                        Button("Show earlier versions") { Platform.actions.open(meeting.versionsDir) }
                     }
                     Divider()
                     Button("Delete…", role: .destructive) { confirmDelete = true }
@@ -181,6 +186,14 @@ struct MeetingView: View {
         .help(L("Share"))
         .disabled(model.sharedAudio == nil && !model.preparingAudio && model.sharedTranscript == nil
                   && model.notesText.isEmpty)
+    }
+
+    private static var revealTitle: String {
+        #if os(iOS)
+        return L("Show in Files")
+        #else
+        return L("Show in Finder")
+        #endif
     }
 
     private func toolbarButton(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {
@@ -238,6 +251,8 @@ private struct PlayerBar: View {
     let sharedAudio: URL?
     /// You and the others over time; nil while it is being computed.
     let waveform: Waveform?
+    /// Moments marked while recording, in ms.
+    var marks: [Int] = []
 
     private var duration: Double { player.duration > 0 ? player.duration : fallbackDuration }
 
@@ -259,7 +274,8 @@ private struct PlayerBar: View {
                     skipButton("goforward.15", by: 15)
 
                     VStack(spacing: 2) {
-                        WaveformView(waveform: waveform, duration: duration, time: min(player.time, duration)) {
+                        WaveformView(waveform: waveform, duration: duration, time: min(player.time, duration),
+                                     marks: marks) {
                             player.seek(to: $0)
                         }
                         .disabled(!player.loaded)
@@ -337,6 +353,16 @@ private struct NotesTab: View {
                 heading(L("Summary"))
                 summary
             }
+            if !model.moments.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    heading(L("Moments you marked"))
+                    ForEach(model.moments) { moment in
+                        MomentRow(moment: moment, playable: meeting.hasAudio || meeting.hasMergedAudio) {
+                            model.play(moment)
+                        }
+                    }
+                }
+            }
             VStack(alignment: .leading, spacing: 8) {
                 heading(L("Your notes"))
                 TextEditor(text: $model.notes)
@@ -374,13 +400,24 @@ private struct NotesTab: View {
                 switch Summarizer.engine(preference: summaryEngine, appleAvailable: AppleModel.isAvailable,
                                          hasOpenAIKey: Keychain.has(Keychain.openAIKey)) {
                 case .apple?:
+                    #if os(iOS)
+                    Button("Write notes on this iPhone") { Task { await model.writeNotes() } }
+                    Text("Written on this iPhone. Nothing leaves it.")
+                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                    #else
                     Button("Write notes on this Mac") { Task { await model.writeNotes() } }
                     Text("Written on this Mac. Nothing leaves it.")
                         .font(.system(size: 10)).foregroundStyle(.secondary)
+                    #endif
                 case .openAI?:
                     Button(L("Write notes with %@", summaryModel)) { Task { await model.writeNotes() } }
+                    #if os(iOS)
+                    Text("Sends the transcript text to OpenAI. The audio stays on this iPhone.")
+                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                    #else
                     Text("Sends the transcript text to OpenAI. The audio stays on this Mac.")
                         .font(.system(size: 10)).foregroundStyle(.secondary)
+                    #endif
                 case nil:
                     if summaryEngine == SummaryEngine.apple.rawValue, let reason = AppleModel.unavailableReason {
                         Text(reason)
@@ -400,6 +437,57 @@ private struct NotesTab: View {
                 .font(.system(size: 12)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+/// One marked moment: its time, what was being said, and its note. Clicking plays from there.
+private struct MomentRow: View {
+    let moment: MeetingModel.Moment
+    let playable: Bool
+    let play: () -> Void
+    @State private var hover = false
+
+    var body: some View {
+        Button(action: play) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: "bookmark.fill").font(.system(size: 10)).foregroundStyle(.orange)
+                Text(verbatim: Transcriber.timestamp(moment.bookmark.ms))
+                    .font(.system(size: 11, weight: .semibold)).monospacedDigit().foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    if let line = moment.line {
+                        Text(Self.said(line))
+                            .font(.system(size: 12))
+                            .lineLimit(2)
+                    } else if moment.bookmark.note == nil {
+                        Text("The transcript will show what was said here.")
+                            .font(.system(size: 12)).foregroundStyle(.secondary)
+                    }
+                    if let note = moment.bookmark.note {
+                        Text(verbatim: note).font(.system(size: 11)).italic().foregroundStyle(.secondary)
+                    }
+                }
+                Spacer(minLength: 0)
+                if playable && hover {
+                    Image(systemName: "play.fill").font(.system(size: 10)).foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary.opacity(hover && playable ? 0.06 : 0)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!playable)
+        .onHover { hover = $0 }
+        .help(playable ? L("Play from here") : "")
+    }
+
+    /// "Name: what they said", the name in bold.
+    private static func said(_ line: MeetingModel.Line) -> AttributedString {
+        var name = AttributedString(line.name + ": ")
+        name.inlinePresentationIntent = .stronglyEmphasized
+        return name + AttributedString(line.text)
     }
 }
 
@@ -559,12 +647,20 @@ private struct PeopleTab: View {
         }
     }
 
+    private static var recogniseLine: String {
+        #if os(iOS)
+        return L("Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay on this iPhone.")
+        #else
+        return L("Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay on this Mac.")
+        #endif
+    }
+
     private var empty: some View {
         VStack(spacing: 10) {
             Image(systemName: "person.wave.2.fill").font(.system(size: 26)).foregroundStyle(Theme.brand)
             if !recognise {
                 Text("Know who said what").font(.system(size: 13, weight: .semibold))
-                Text("Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay on this Mac.")
+                Text(Self.recogniseLine)
                     .font(.system(size: 11)).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -709,6 +805,9 @@ struct TranscribeAgainMenu: View {
     var body: some View {
         if meeting.hasAudio && meeting.status != .transcribing && meeting.status != .recording {
             Button("Transcribe again") { store.retry(meeting) }
+            #if os(iOS)
+            // The phone has one engine: Apple's, on the device.
+            #else
             Menu("Transcribe again with") {
                 Section("On this Mac") {
                     ForEach(LocalModel.all) { model in
@@ -718,6 +817,11 @@ struct TranscribeAgainMenu: View {
                         }
                         .disabled(!model.isInstalled)
                     }
+                    Button(L("Apple speech recognition")) {
+                        store.retry(meeting, with: TranscribeOverride(engine: Engine.apple.rawValue,
+                                                                      model: AppleSpeechEngine.modelID))
+                    }
+                    .disabled(!AppleSpeechEngine.isAvailable)
                 }
                 Section("OpenAI") {
                     ForEach(Pref.openAIModels, id: \.self) { model in
@@ -729,6 +833,7 @@ struct TranscribeAgainMenu: View {
                     }
                 }
             }
+            #endif
         }
     }
 }
@@ -739,6 +844,8 @@ struct WaveformView: View {
     let waveform: Waveform?
     let duration: Double
     let time: Double
+    /// Moments marked while recording, in ms: drawn as flags over the lanes.
+    var marks: [Int] = []
     let seek: (Double) -> Void
     @State private var hover: CGFloat?
 
@@ -773,6 +880,24 @@ struct WaveformView: View {
                 if let hover {
                     context.fill(Path(CGRect(x: hover, y: 0, width: 1, height: size.height)),
                                  with: .color(Color.primary.opacity(0.3)))
+                }
+            }
+            .overlay {
+                if duration > 0, !marks.isEmpty {
+                    Canvas { context, size in
+                        for ms in marks {
+                            let x = min(max(0, size.width * CGFloat(Double(ms) / 1000 / duration)), size.width - 1)
+                            context.fill(Path(CGRect(x: x - 0.5, y: 0, width: 1, height: size.height)),
+                                         with: .color(Color.orange.opacity(0.7)))
+                            var flag = Path()
+                            flag.move(to: CGPoint(x: x - 3.5, y: 0))
+                            flag.addLine(to: CGPoint(x: x + 3.5, y: 0))
+                            flag.addLine(to: CGPoint(x: x, y: 5))
+                            flag.closeSubpath()
+                            context.fill(flag, with: .color(.orange))
+                        }
+                    }
+                    .allowsHitTesting(false)
                 }
             }
             .overlay(alignment: .topLeading) {

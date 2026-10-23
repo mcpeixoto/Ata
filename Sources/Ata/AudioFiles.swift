@@ -77,6 +77,27 @@ enum AudioFiles {
     /// Speech at 16 kHz mono shrinks roughly tenfold, which is what makes keeping
     /// every recording by default practical.
     @discardableResult
+    /// Runs an m4a export into `out`; nil when it worked. The phone uses the
+    /// async API, since the callback one is deprecated from iOS 18; the Mac keeps
+    /// the callback one, because the async API needs macOS 15 and Ata runs on 14.
+    static func runExport(_ session: AVAssetExportSession, to out: URL) async -> Error? {
+        #if os(iOS)
+        do {
+            try await session.export(to: out, as: .m4a)
+            return nil
+        } catch {
+            return error
+        }
+        #else
+        session.outputURL = out
+        session.outputFileType = .m4a
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            session.exportAsynchronously { cont.resume() }
+        }
+        return session.status == .completed ? nil : (session.error ?? CocoaError(.fileWriteUnknown))
+        #endif
+    }
+
     static func compressToM4A(_ wav: URL) async -> URL? {
         guard Paths.fileSize(wav) > 44 else { return nil }
         let out = wav.deletingPathExtension().appendingPathExtension("m4a")
@@ -86,14 +107,9 @@ enum AudioFiles {
         guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetAppleM4A) else {
             return nil
         }
-        session.outputURL = out
-        session.outputFileType = .m4a
-
-        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-            session.exportAsynchronously { cont.resume() }
-        }
-        guard session.status == .completed, Paths.fileSize(out) > 0 else {
-            if let error = session.error { NSLog("Ata: m4a export failed: \(error.localizedDescription)") }
+        let failure = await runExport(session, to: out)
+        guard failure == nil, Paths.fileSize(out) > 0 else {
+            if let failure { NSLog("Ata: m4a export failed: \(failure.localizedDescription)") }
             try? FileManager.default.removeItem(at: out)
             return nil
         }

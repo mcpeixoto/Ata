@@ -28,6 +28,9 @@ struct Voice: Codable, Equatable, Identifiable {
     /// The user left this voice out of transcripts (a TV, a bot, someone who asked):
     /// its lines are dropped whenever a transcript is drawn, past ones included.
     var excluded: Bool? = nil
+    /// The embedding model the centroid came from (`Diarization.embeddingModel`). Nil for
+    /// voices learned before Ata 2.6, all of them by `Diarization.untaggedEmbeddingModel`.
+    var model: String? = nil
 
     var meetings: Int { meetingIDs.count }
 
@@ -47,6 +50,12 @@ struct MeetingSpeaker: Codable, Equatable {
 }
 
 /// The local library of known voices, and the rules for matching against it.
+///
+/// Stored as one `<id>.json` per voice, beside that voice's sample, so two devices
+/// editing different voices never write the same file, and a rename or merge
+/// touches only the voices it changes. Before Ata 2.6 the whole library was one
+/// `voices.json`; it is read once, written out per voice, and kept as
+/// `voices.json.migrated`.
 final class VoiceLibrary {
     /// Cosine similarity at or above which an embedding is taken to be a known
     /// voice. Measured with FluidAudio's WeSpeaker embeddings: the same voice
@@ -62,14 +71,44 @@ final class VoiceLibrary {
     /// An unnamed voice is worth asking about once it has turned up in this many meetings.
     static let askAfterMeetings = 2
 
-    let file: URL
-    private(set) var voices: [Voice] = []
-    /// The file exists but couldn't be read. Saving would replace every voice
-    /// with whatever little is in memory, so `save` refuses.
-    private(set) var loadFailed = false
+    /// The embedding model new fingerprints come from. Only voices from the same
+    /// model are compared: a fingerprint from another model is just other numbers.
+    static var model = Diarization.embeddingModel
 
-    init(file: URL = Paths.voicesDir.appendingPathComponent("voices.json")) {
+    static let legacyFileName = "voices.json"
+
+    /// The library as one file, as Ata kept it before 2.6. Only ever read, to migrate.
+    let file: URL
+    /// Where each voice's `<id>.json` and sample live.
+    let directory: URL
+    private(set) var voices: [Voice] = []
+    /// `voices.json` exists but couldn't be read. Building a new library on top
+    /// would hide every voice in it for good, so `save` refuses; voices that have
+    /// files of their own still load.
+    private(set) var loadFailed = false
+    /// Voice files that exist but couldn't be read: damaged, half-synced, or from
+    /// a newer Ata. They are never written over or removed.
+    private(set) var unreadable: [URL] = []
+    /// Each voice as it was last read or written, so `save` writes only what changed
+    /// and removes only files this library itself knew about.
+    private var onDisk: [UUID: Voice] = [:]
+    /// `voices.json` was read in; it is put aside once every voice in it has its own file.
+    private var migrating = false
+
+    /// The library in `directory`: Ata's voices folder unless a test says otherwise.
+    init(directory: URL = Paths.voicesDir) {
+        self.directory = directory
+        self.file = directory.appendingPathComponent(VoiceLibrary.legacyFileName)
+        load()
+    }
+
+    /// The library that grew out of `file`, a `voices.json` from before 2.6. Its
+    /// voices go in the folder it sits in; a file by any other name gets a folder
+    /// of its own name beside it, so two such libraries never share one.
+    init(file: URL) {
         self.file = file
+        self.directory = file.lastPathComponent == VoiceLibrary.legacyFileName
+            ? file.deletingLastPathComponent() : file.deletingPathExtension()
         load()
     }
 
@@ -82,9 +121,7 @@ final class VoiceLibrary {
         return f
     }()
 
-    private func load() {
-        guard FileManager.default.fileExists(atPath: file.path) else { voices = []; return }
-        guard let data = try? Data(contentsOf: file) else { voices = []; loadFailed = true; return }
+    private static func decoder() -> JSONDecoder {
         let d = JSONDecoder()
         d.dateDecodingStrategy = .custom { decoder in
             let text = try decoder.singleValueContainer().decode(String.self)
@@ -94,28 +131,132 @@ final class VoiceLibrary {
             }
             return date
         }
-        if let decoded = try? d.decode([Voice].self, from: data) {
-            voices = decoded
-        } else {
-            voices = []
-            loadFailed = true
-        }
+        return d
     }
 
-    func save() throws {
-        guard !loadFailed else {
-            throw CocoaError(.fileReadCorruptFile, userInfo: [NSFilePathErrorKey: file.path])
-        }
-        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+    private static func encoder() -> JSONEncoder {
         let e = JSONEncoder()
         e.dateEncodingStrategy = .custom { date, encoder in
             var c = encoder.singleValueContainer()
             try c.encode(Self.dates.string(from: date))
         }
         e.outputFormatting = [.prettyPrinted, .sortedKeys]
-        // No file-protection class: a transcription finishing while the screen is
-        // locked must still be able to read the library back.
-        try e.encode(voices).write(to: file, options: .atomic)
+        return e
+    }
+
+    /// `<UUID>.json` is a voice. Samples, `voices.json` and anything else in the folder are not.
+    static func voiceID(fileName name: String) -> UUID? {
+        guard name.hasSuffix(".json"), !name.hasPrefix(".") else { return nil }
+        return UUID(uuidString: String(name.dropLast(5)))
+    }
+
+    func url(for id: UUID) -> URL {
+        directory.appendingPathComponent("\(id.uuidString).json")
+    }
+
+    private func load() {
+        let fm = FileManager.default
+        let decoder = Self.decoder()
+        var found: [Voice] = []
+        for name in (try? fm.contentsOfDirectory(atPath: directory.path)) ?? [] {
+            guard Self.voiceID(fileName: name) != nil else { continue }
+            let url = directory.appendingPathComponent(name)
+            if let data = try? Data(contentsOf: url), let voice = try? decoder.decode(Voice.self, from: data) {
+                found.append(voice)
+                onDisk[voice.id] = voice
+            } else {
+                unreadable.append(url)
+            }
+        }
+
+        // A library from before 2.6, or one an older Ata wrote since: every voice in
+        // it without a file of its own yet joins, then the file is put aside. A
+        // migration cut short is finished the same way the next time.
+        if fm.fileExists(atPath: file.path) {
+            if let data = try? Data(contentsOf: file), let legacy = try? decoder.decode([Voice].self, from: data) {
+                let taken = Set(found.map(\.id))
+                    .union(unreadable.compactMap { Self.voiceID(fileName: $0.lastPathComponent) })
+                found += legacy.filter { !taken.contains($0.id) }
+                migrating = true
+            } else {
+                loadFailed = true
+            }
+        }
+        voices = found.sorted { a, b in
+            if a.firstSeen != b.firstSeen { return a.firstSeen < b.firstSeen }
+            if (a.number ?? 0) != (b.number ?? 0) { return (a.number ?? 0) < (b.number ?? 0) }
+            return a.id.uuidString < b.id.uuidString
+        }
+        if migrating {
+            do {
+                try save()
+            } catch {
+                NSLog("Ata: could not store the voice library one file per voice: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Writes each voice that changed since it was read, atomically, and removes
+    /// the files (and samples) of voices that are gone. Voices this library never
+    /// read — another device's, say — are left alone.
+    func save() throws {
+        guard !loadFailed else {
+            throw CocoaError(.fileReadCorruptFile, userInfo: [NSFilePathErrorKey: file.path])
+        }
+        let fm = FileManager.default
+        try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        let blocked = Set(unreadable.map(\.lastPathComponent))
+        let encoder = Self.encoder()
+        var failure: Error?
+
+        for voice in voices where onDisk[voice.id] != voice {
+            let target = url(for: voice.id)
+            if blocked.contains(target.lastPathComponent) { continue }
+            do {
+                // No file-protection class: a transcription finishing while the screen is
+                // locked must still be able to read the library back.
+                try encoder.encode(voice).write(to: target, options: .atomic)
+                onDisk[voice.id] = voice
+            } catch {
+                failure = failure ?? error
+            }
+        }
+
+        let current = Set(voices.map(\.id))
+        let samplesInUse = Set(voices.compactMap(\.sample))
+        for (id, gone) in onDisk where !current.contains(id) {
+            let target = url(for: id)
+            do {
+                if fm.fileExists(atPath: target.path) { try fm.removeItem(at: target) }
+                onDisk[id] = nil
+            } catch {
+                failure = failure ?? error
+                continue
+            }
+            // A merged voice may have handed its sample on to the voice it joined.
+            if let sample = gone.sample, !samplesInUse.contains(sample) {
+                try? fm.removeItem(at: directory.appendingPathComponent(sample))
+            }
+        }
+        if let failure { throw failure }
+
+        if migrating {
+            try putLegacyFileAside()
+            migrating = false
+        }
+    }
+
+    /// `voices.json` becomes `voices.json.migrated`: kept, never deleted.
+    private func putLegacyFileAside() throws {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: file.path) else { return }  // another library got there first
+        var aside = file.appendingPathExtension("migrated")
+        var n = 2
+        while fm.fileExists(atPath: aside.path) {
+            aside = file.appendingPathExtension("migrated-\(n)")
+            n += 1
+        }
+        try fm.moveItem(at: file, to: aside)
     }
 
     // MARK: - Matching
@@ -131,6 +272,7 @@ final class VoiceLibrary {
         var candidates: [(speaker: Int, voice: Int, similarity: Float)] = []
         for (s, speaker) in speakers.enumerated() where !speaker.embedding.isEmpty {
             let scores = voices.enumerated()
+                .filter { Self.isCurrent($0.element) }
                 .map { (v: $0.offset, sim: Self.cosine(speaker.embedding, $0.element.centroid)) }
                 .sorted { $0.sim > $1.sim }
             guard let best = scores.first, best.sim >= Self.matchThreshold else { continue }
@@ -151,7 +293,7 @@ final class VoiceLibrary {
             let next = (voices.compactMap(\.number).max() ?? 0) + 1
             let voice = Voice(id: UUID(), name: nil, centroid: Self.normalised(speaker.embedding), observations: 1,
                               meetingIDs: [meetingID], sample: nil, firstSeen: date, lastSeen: date,
-                              isMe: speaker.label == "me", number: next)
+                              isMe: speaker.label == "me", number: next, model: Self.model)
             voices.append(voice)
             result[s].voiceID = voice.id
         }
@@ -168,8 +310,23 @@ final class VoiceLibrary {
         v.observations += 1
         if !v.meetingIDs.contains(meetingID) { v.meetingIDs.append(meetingID) }
         v.lastSeen = max(v.lastSeen, date)
+        v.model = Self.model
         if speaker.label == "me" { v.isMe = true }
         voices[i] = v
+    }
+
+    /// The model a voice's fingerprint came from; untagged ones are from before 2.6.
+    static func embeddingModel(of voice: Voice) -> String {
+        voice.model ?? Diarization.untaggedEmbeddingModel
+    }
+
+    /// Whether a voice can be compared with fingerprints made now.
+    static func isCurrent(_ voice: Voice) -> Bool { embeddingModel(of: voice) == model }
+
+    /// Your own voice, as learned from the microphone of calls: what an in-person
+    /// meeting looks for among the people in the room.
+    var myFingerprints: [[Float]] {
+        voices.filter { $0.isMe && Self.isCurrent($0) }.map(\.centroid)
     }
 
     // MARK: - Editing
@@ -193,12 +350,21 @@ final class VoiceLibrary {
               let s = voices.firstIndex(where: { $0.id == source }),
               let t = voices.firstIndex(where: { $0.id == target }) else { return }
         let a = voices[s], b = voices[t]
-        let total = Float(a.observations + b.observations)
         var merged = b
-        merged.centroid = Self.normalised(zip(a.centroid, b.centroid).map {
-            ($0 * Float(a.observations) + $1 * Float(b.observations)) / total
-        })
-        merged.observations = a.observations + b.observations
+        if Self.embeddingModel(of: a) == Self.embeddingModel(of: b) {
+            let total = Float(a.observations + b.observations)
+            merged.centroid = Self.normalised(zip(a.centroid, b.centroid).map {
+                ($0 * Float(a.observations) + $1 * Float(b.observations)) / total
+            })
+            merged.observations = a.observations + b.observations
+            merged.model = b.model ?? a.model
+        } else {
+            // Fingerprints from two models can't be averaged: keep the one still compared.
+            let kept = Self.isCurrent(a) ? a : b
+            merged.centroid = kept.centroid
+            merged.observations = kept.observations
+            merged.model = kept.model
+        }
         merged.meetingIDs = Array(Set(a.meetingIDs + b.meetingIDs)).sorted()
         merged.name = b.name ?? a.name
         merged.sample = b.sample ?? a.sample
@@ -270,7 +436,8 @@ final class VoiceLibrary {
     }
 }
 
-/// A stretch of time in which one speaker of the system track was talking.
+/// A stretch of time in which one speaker of a diarized track was talking: the
+/// system track of a call, or the microphone of a meeting in the room.
 struct SpeakerTurn: Codable, Equatable {
     var start: Int // ms
     var end: Int   // ms
@@ -278,7 +445,7 @@ struct SpeakerTurn: Codable, Equatable {
 }
 
 enum SpeakerAssignment {
-    /// The speaker label for a transcript segment of the system track: the
+    /// The speaker label for a transcript segment of a diarized track: the
     /// turn it overlaps most, or the nearest turn within a second when it
     /// overlaps none (Whisper's and the diarizer's boundaries rarely agree
     /// exactly). Nil when no speaker was talking anywhere near.
@@ -296,7 +463,7 @@ enum SpeakerAssignment {
         return nil
     }
 
-    /// Splits a system-track segment wherever the speaker changes, using word
+    /// Splits a segment of a diarized track wherever the speaker changes, using word
     /// timings, and labels each piece. Without word timings the whole segment
     /// goes to whoever spoke most during it.
     static func split(_ s: Segment, turns: [SpeakerTurn]) -> [Segment] {
@@ -371,7 +538,8 @@ enum SpeakerAssignment {
 }
 
 /// speakers.json in a meeting folder: the diarized speakers of the system
-/// track, when they spoke, and which voice each one was matched to.
+/// track (or, in person, the microphone), when they spoke, and which voice
+/// each one was matched to.
 struct MeetingVoices: Codable, Equatable {
     var speakers: [MeetingSpeaker]
     var turns: [SpeakerTurn]
@@ -385,5 +553,106 @@ struct MeetingVoices: Codable, Equatable {
         let e = JSONEncoder()
         e.outputFormatting = [.prettyPrinted, .sortedKeys]
         try e.encode(self).write(to: meeting.speakersURL, options: .atomic)
+    }
+}
+
+/// Which track tells the speakers apart.
+enum SpeakerRoute: Equatable {
+    /// A call: the system track is diarized, and the microphone is you.
+    case call
+    /// Everyone in one room on one microphone: the microphone is diarized, and
+    /// you are found among its speakers.
+    case inPerson
+    /// Nothing to tell anyone apart in.
+    case nobody
+
+    /// A system track with less sound than this is not a call. A Mac records one
+    /// in every meeting, silent while nothing plays, and a notification chime or
+    /// two must not turn a conversation in the room into a call.
+    static let minimumSystemSeconds = 3.0
+
+    /// Louder than −50 dBFS counts as sound; a process tap is digital silence
+    /// while nothing plays.
+    static let audibleLevel = Waveform.level(rms: pow(10, -50.0 / 20))
+
+    /// `systemLevels` is the system track's waveform lane (`Waveform.levels`), nil
+    /// when there was no system track worth transcribing.
+    static func choose(systemLevels: [UInt8]?, hasMic: Bool) -> SpeakerRoute {
+        if let systemLevels, audibleSeconds(systemLevels) >= minimumSystemSeconds { return .call }
+        return hasMic ? .inPerson : .nobody
+    }
+
+    static func audibleSeconds(_ levels: [UInt8]) -> Double {
+        Double(levels.filter { $0 >= audibleLevel }.count) * Double(Waveform.bucketMs) / 1000
+    }
+}
+
+/// Telling people apart on one microphone, and finding you among them.
+enum InPerson {
+    /// One speaker the diarizer found on the microphone.
+    struct Cluster: Equatable {
+        var label: String
+        /// Nil for a speaker with too little speech to fingerprint.
+        var embedding: [Float]?
+        var seconds: Double
+    }
+
+    /// Which cluster is you, and how Ata knows.
+    struct Me: Equatable {
+        var label: String
+        /// Matched to your fingerprint. Otherwise it is a guess, and a guess is
+        /// never learned as your voice: one wrong guess would make someone else "you".
+        var recognised: Bool
+    }
+
+    static func clusters(_ turns: [SpeakerTurn], embeddings: [String: [Float]]) -> [Cluster] {
+        Dictionary(grouping: turns, by: \.label)
+            .map { entry in
+                Cluster(label: entry.key, embedding: embeddings[entry.key],
+                        seconds: entry.value.reduce(0.0) { $0 + Double($1.end - $1.start) / 1000 })
+            }
+            .sorted { $0.label < $1.label }
+    }
+
+    /// You are the cluster that matches your fingerprint by the library's own
+    /// rule: at least `VoiceLibrary.matchThreshold`, and `requiredLead` ahead of
+    /// the next cluster. With no fingerprint yet, or no clear match, you are
+    /// whoever spoke most, since the microphone recording is usually yours and
+    /// nearest to you. Nil only when nobody spoke.
+    static func me(among clusters: [Cluster], fingerprints: [[Float]]) -> Me? {
+        if !fingerprints.isEmpty {
+            let scores = clusters.compactMap { c -> (label: String, similarity: Float)? in
+                guard let e = c.embedding, !e.isEmpty else { return nil }
+                return (c.label, fingerprints.map { VoiceLibrary.cosine(e, $0) }.max() ?? 0)
+            }.sorted { $0.similarity > $1.similarity }
+            if let best = scores.first, best.similarity >= VoiceLibrary.matchThreshold,
+               scores.count < 2 || best.similarity - scores[1].similarity >= VoiceLibrary.requiredLead {
+                return Me(label: best.label, recognised: true)
+            }
+        }
+        let most = clusters.max { a, b in a.seconds < b.seconds || (a.seconds == b.seconds && a.label > b.label) }
+        return most.map { Me(label: $0.label, recognised: false) }
+    }
+
+    /// Diarizer label → transcript label: `Speakers.me` for you, and S1, S2… for
+    /// everyone else in order of first appearance, as on the system track.
+    static func labels(_ turns: [SpeakerTurn], me: String?) -> [String: String] {
+        var out: [String: String] = [:]
+        if let me { out[me] = Speakers.me }
+        var n = 0
+        for t in turns.sorted(by: { $0.start < $1.start }) where out[t.label] == nil {
+            n += 1
+            out[t.label] = "S\(n)"
+        }
+        return out
+    }
+
+    /// Labels the library matched to your own voice after all: the diarizer
+    /// sometimes hears one person as two.
+    static func alsoMe(_ assigned: [MeetingSpeaker], myVoices: Set<UUID>) -> Set<String> {
+        Set(assigned.compactMap { s -> String? in
+            guard s.label != Speakers.me, let id = s.voiceID, myVoices.contains(id) else { return nil }
+            return s.label
+        })
     }
 }

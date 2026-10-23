@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct MenuBarLabel: View {
     @EnvironmentObject var store: AppStore
@@ -40,6 +41,7 @@ struct PopoverView: View {
 
     enum Tab: Hashable { case record, insights, people }
     @State private var tab: Tab
+    @State private var dropping = false
 
     init(tab: Tab = .record) {
         _tab = State(initialValue: tab)
@@ -74,6 +76,42 @@ struct PopoverView: View {
         .padding(14)
         .frame(width: 350)
         .onAppear { setup.refresh(); store.reload() }
+        // Audio files dropped on the menu become meetings.
+        .dropDestination(for: URL.self) { urls, _ in
+            MainActor.assumeIsolated {
+                store.importAudio(urls)
+                return urls.contains(where: AudioImport.accepts)
+            }
+        } isTargeted: { targeted in
+            MainActor.assumeIsolated { dropping = targeted }
+        }
+        .overlay {
+            if dropping {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(.regularMaterial))
+                    .overlay {
+                        Label("Drop audio to transcribe it", systemImage: "square.and.arrow.down")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .padding(6)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    /// Picks audio files to import, from the footer.
+    private func chooseAudio() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = AudioImport.types
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.message = L("Choose recordings to transcribe. The files stay where they are.")
+        panel.prompt = L("Import")
+        NSApp.activate()
+        guard panel.runModal() == .OK else { return }
+        store.importAudio(panel.urls)
     }
 
     // MARK: Header
@@ -101,6 +139,7 @@ struct PopoverView: View {
         case .recording: return L("Recording") + (store.currentApp.map { " · \($0)" } ?? "")
         case .stopping: return L("Wrapping up…")
         case .idle:
+            if store.importing > 0 { return L("Importing audio…") }
             if store.transcribingID != nil {
                 return Engine.current.isLocal ? L("Transcribing on this Mac…") : L("Transcribing with OpenAI…")
             }
@@ -205,6 +244,8 @@ struct PopoverView: View {
             GhostButton(title: L("Folder"), systemImage: "folder") {
                 NSWorkspace.shared.open(Paths.meetingsDir)
             }
+            GhostButton(title: L("Import audio…"), systemImage: "square.and.arrow.down") { chooseAudio() }
+                .help(L("Transcribe audio recorded elsewhere. You can also drop files here."))
             Spacer()
             Link(destination: CoffeeButton.donateURL) {
                 Image(systemName: "cup.and.saucer.fill").font(.system(size: 11))
@@ -269,6 +310,27 @@ private struct RecordingContent: View {
                 .buttonStyle(.plain)
                 .keyboardShortcut("s", modifiers: .command)
                 .disabled(store.phase == .stopping)
+
+                Button {
+                    store.addBookmark()
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: store.bookmarkCount > 0 ? "bookmark.fill" : "bookmark")
+                        if store.bookmarkCount > 0 {
+                            Text(verbatim: "\(store.bookmarkCount)").monospacedDigit()
+                        }
+                    }
+                    .font(.system(size: 12, weight: .medium))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(0.06)))
+                    .foregroundStyle(store.bookmarkCount > 0 ? Color.orange : Color.secondary)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut("b", modifiers: .command)
+                .disabled(store.phase == .stopping)
+                .help(L("Mark this moment (⌘B)"))
 
                 Button {
                     if confirmDiscard {

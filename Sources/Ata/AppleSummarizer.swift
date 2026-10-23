@@ -1,7 +1,7 @@
 import Foundation
 #if canImport(FoundationModels)
 // Weak, so Ata (and its test bundle) still load on macOS 14 and 15, which have no
-// FoundationModels; everything that touches it is behind @available(macOS 26.0, *).
+// FoundationModels; everything that touches it is behind @available(macOS 26.0, iOS 26.0, *).
 @_weakLinked import FoundationModels
 #endif
 
@@ -11,7 +11,7 @@ import Foundation
 enum AppleModel {
     static var isAvailable: Bool {
         #if canImport(FoundationModels)
-        if #available(macOS 26.0, *) { return AppleSummarizer.unavailableReason == nil }
+        if #available(macOS 26.0, iOS 26.0, *) { return AppleSummarizer.unavailableReason == nil }
         #endif
         return false
     }
@@ -19,16 +19,20 @@ enum AppleModel {
     /// Why the model can't be used right now, for a footnote in Settings; nil when it can.
     static var unavailableReason: String? {
         #if canImport(FoundationModels)
-        if #available(macOS 26.0, *) { return AppleSummarizer.unavailableReason }
+        if #available(macOS 26.0, iOS 26.0, *) { return AppleSummarizer.unavailableReason }
         #endif
+        #if os(iOS)
+        return L("Needs Apple Intelligence turned on in Settings.")
+        #else
         return L("Needs macOS 26 with Apple Intelligence turned on.")
+        #endif
     }
 
     /// The summary as Markdown, or nil when the model is unavailable, does not
     /// write the app's language, or fails, so the caller can fall back.
     static func summarize(markdown: String, myName: String) async -> String? {
         #if canImport(FoundationModels)
-        if #available(macOS 26.0, *) {
+        if #available(macOS 26.0, iOS 26.0, *) {
             return await AppleSummarizer.summarize(markdown: markdown, myName: myName)
         }
         #endif
@@ -119,7 +123,7 @@ enum SummaryChunks {
 #if canImport(FoundationModels)
 /// What the model fills in. Ata writes the Markdown itself from this, so the
 /// shape never depends on the model following formatting instructions.
-@available(macOS 26.0, *)
+@available(macOS 26.0, iOS 26.0, *)
 @Generable
 struct MeetingSummary {
     @Guide(description: "Two or three sentences on what the meeting was about and where it ended up.")
@@ -132,7 +136,7 @@ struct MeetingSummary {
     var openQuestions: [String]
 }
 
-@available(macOS 26.0, *)
+@available(macOS 26.0, iOS 26.0, *)
 enum AppleSummarizer {
     static var unavailableReason: String? {
         let model = SystemLanguageModel.default

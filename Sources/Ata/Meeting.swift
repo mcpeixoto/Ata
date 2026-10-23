@@ -18,8 +18,18 @@ struct Meeting: Codable, Identifiable, Equatable {
     /// Engine and model for the next run, when the user picked "Transcribe
     /// again with…". Cleared once that run starts.
     var override: TranscribeOverride? = nil
+    /// The device that recorded or imported it. Absent in meetings from before
+    /// Ata 2.6, which were all made on the Mac that has them: nil means this device.
+    var origin: DeviceRef? = nil
+    /// Which device is transcribing it, so two devices sharing the folder never
+    /// both do. Cleared when the run ends.
+    var claim: Claim? = nil
+    /// Moments marked while recording.
+    var bookmarks: [Bookmark]? = nil
 
-    var dir: URL { Paths.meetingsDir.appendingPathComponent(id, isDirectory: true) }
+    /// In the meetings folder, or in this device's staging folder while it is
+    /// being recorded (and, if moving it failed, until the next launch moves it).
+    var dir: URL { Library.folder(for: id) }
     var metaURL: URL { dir.appendingPathComponent("meeting.json") }
 
     /// Where a new transcript is written. Recordings from Ata 2.0 used a
@@ -101,15 +111,122 @@ struct Meeting: Codable, Identifiable, Equatable {
         return f
     }()
 
-    static func new(app: String?) throws -> Meeting {
+    /// A new meeting folder, made by this device. `staged` puts it in the
+    /// staging folder, for a recording or an import still being written.
+    static func new(app: String?, at date: Date = Date(), staged: Bool = false) throws -> Meeting {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd HH.mm.ss"
-        let now = Date()
-        var m = Meeting(id: f.string(from: now), startedAt: now, endedAt: nil, duration: nil,
+        var name = f.string(from: date)
+        if let app { name += " \(app)" }
+        let id = Library.unusedID(name)
+        var m = Meeting(id: id, startedAt: date, endedAt: nil, duration: nil,
                         app: app, status: .recording, error: nil)
-        if let app { m.id += " \(app)" }
-        try FileManager.default.createDirectory(at: m.dir, withIntermediateDirectories: true)
+        m.origin = Device.current
+        let parent = staged ? Device.stagingDir : Paths.meetingsDir
+        try FileManager.default.createDirectory(at: parent.appendingPathComponent(id, isDirectory: true),
+                                                withIntermediateDirectories: true)
         return m
+    }
+
+    // MARK: Devices
+
+    /// Made on this device, or before Ata knew about devices.
+    var isMine: Bool { belongs(to: Device.current) }
+
+    func belongs(to device: DeviceRef) -> Bool {
+        origin == nil || origin?.id == device.id
+    }
+
+    /// Whether `device` may transcribe it now: nobody has it, `device` already
+    /// has it, or whoever had it stopped renewing the claim while it still
+    /// waited. A device that is transcribing renews its claim every few minutes.
+    func canClaim(now: Date = Date(), by device: DeviceRef = Device.current) -> Bool {
+        guard let claim, claim.device.id != device.id else { return true }
+        return (status == .pending || status == .transcribing)
+            && now.timeIntervalSince(claim.at) > Claim.timeout
+    }
+
+    /// Waiting for a transcript that `device` may make now. A meeting another
+    /// device left mid-transcription counts once its claim has gone stale.
+    func awaitsTranscript(now: Date = Date(), by device: DeviceRef = Device.current) -> Bool {
+        switch status {
+        case .pending:
+            return canClaim(now: now, by: device)
+        case .transcribing:
+            guard let claim, claim.device.id != device.id else { return false }
+            return canClaim(now: now, by: device)
+        default:
+            return false
+        }
+    }
+
+    /// What a meeting left behind by a crash, power loss or force quit becomes
+    /// on the next launch, or nil to leave it alone. Only this device's own
+    /// work is picked up: another device's "recording" may be recording right
+    /// now, and its "transcribing" may be running right now.
+    func recovered(by device: DeviceRef = Device.current) -> Meeting? {
+        var m = self
+        switch status {
+        case .recording:
+            guard belongs(to: device) else { return nil }
+            let d1 = WavWriter.repairHeader(m.micURL)
+            let d2 = WavWriter.repairHeader(m.systemURL)
+            m.duration = max(d1, d2)
+            m.endedAt = m.endedAt ?? m.startedAt.addingTimeInterval(max(d1, d2))
+            m.status = m.hasAudio ? .pending : .failed
+            if !m.hasAudio { m.error = L("Empty recording") }
+            return m
+        case .transcribing:
+            let mine = claim.map { $0.device.id == device.id } ?? belongs(to: device)
+            guard mine else { return nil }
+            // The claim stays: the job is this device's to finish.
+            m.status = .pending
+            return m
+        default:
+            return nil
+        }
+    }
+}
+
+/// A device saying it is transcribing a meeting, and since when.
+struct Claim: Codable, Equatable {
+    var device: DeviceRef
+    var at: Date
+
+    /// After this long without being renewed, another device may take over.
+    static let timeout: TimeInterval = 30 * 60
+}
+
+/// A moment marked while recording, in milliseconds from the start.
+struct Bookmark: Codable, Equatable, Identifiable {
+    var id: UUID
+    var ms: Int
+    var note: String?
+
+    init(id: UUID = UUID(), ms: Int, note: String? = nil) {
+        self.id = id
+        self.ms = ms
+        self.note = note
+    }
+
+    /// The line a mark points at, from lines sorted by start: the one being
+    /// said at that moment, otherwise the closest one. A mark usually comes
+    /// just after the words that prompted it, so the line before wins a near tie.
+    static func nearest(to ms: Int, starts: [Int], ends: [Int]) -> Int? {
+        guard !starts.isEmpty, starts.count == ends.count else { return nil }
+        if let during = starts.indices.last(where: { starts[$0] <= ms && ms <= ends[$0] }) { return during }
+        let before = starts.indices.last(where: { ends[$0] < ms })
+        let after = starts.indices.first(where: { starts[$0] > ms })
+        switch (before, after) {
+        case let (b?, a?):
+            return ms - ends[b] <= starts[a] - ms + 3_000 ? b : a
+        case let (b?, nil):
+            return b
+        case let (nil, a?):
+            return a
+        case (nil, nil):
+            return nil
+        }
     }
 }
 
@@ -143,27 +260,190 @@ enum Library {
         }
     }
 
+    /// Every meeting: the meetings folder, plus whatever is still in staging
+    /// (the recording in progress, or one that could not be moved yet).
     static func loadAll() -> [Meeting] {
         let fm = FileManager.default
         try? fm.createDirectory(at: Paths.meetingsDir, withIntermediateDirectories: true)
-        guard let dirs = try? fm.contentsOfDirectory(at: Paths.meetingsDir, includingPropertiesForKeys: nil,
-                                                      options: [.skipsHiddenFiles]) else { return [] }
-        return dirs.compactMap { dir in
-            guard let data = try? Data(contentsOf: dir.appendingPathComponent("meeting.json")),
-                  var m = try? decoder.decode(Meeting.self, from: data) else { return nil }
-            m.id = dir.lastPathComponent // the folder may have been renamed
-            return m
-        }
-        .sorted { $0.startedAt > $1.startedAt }
+        let staged = stagedIDs()
+        let dirs = (try? fm.contentsOfDirectory(at: Paths.meetingsDir, includingPropertiesForKeys: nil,
+                                                options: [.skipsHiddenFiles])) ?? []
+        // A folder in both places is a move that didn't finish: the staged one is in use.
+        let ids = staged + dirs.map(\.lastPathComponent).filter { !staged.contains($0) }
+        return ids.compactMap { load($0) }.sorted { $0.startedAt > $1.startedAt }
     }
 
     /// One meeting, read fresh from its folder.
     static func load(_ id: String) -> Meeting? {
-        let dir = Paths.meetingsDir.appendingPathComponent(id, isDirectory: true)
+        let dir = folder(for: id)
         guard let data = try? Data(contentsOf: dir.appendingPathComponent("meeting.json")),
               var m = try? decoder.decode(Meeting.self, from: data) else { return nil }
-        m.id = id
+        m.id = id // the folder may have been renamed
         return m
+    }
+
+    // MARK: Staging
+
+    /// Where the meeting `id` lives: in staging while that folder exists, in
+    /// the meetings folder otherwise. Only looks; creates nothing.
+    static func folder(for id: String) -> URL {
+        let staged = Device.stagingDir.appendingPathComponent(id, isDirectory: true)
+        if FileManager.default.fileExists(atPath: staged.path) { return staged }
+        return Paths.meetingsDir.appendingPathComponent(id, isDirectory: true)
+    }
+
+    /// Meeting folders waiting in this device's staging folder.
+    static func stagedIDs() -> [String] {
+        let fm = FileManager.default
+        let dirs = (try? fm.contentsOfDirectory(at: Device.stagingDir, includingPropertiesForKeys: [.isDirectoryKey],
+                                                options: [.skipsHiddenFiles])) ?? []
+        return dirs
+            .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true }
+            .map(\.lastPathComponent)
+            .sorted()
+    }
+
+    /// `name`, or `name 2`, `name 3`… when a meeting by that name exists in
+    /// either folder, so a new meeting never writes into another one's folder.
+    static func unusedID(_ name: String) -> String {
+        let fm = FileManager.default
+        func taken(_ id: String) -> Bool {
+            fm.fileExists(atPath: Device.stagingDir.appendingPathComponent(id).path)
+                || fm.fileExists(atPath: Paths.meetingsDir.appendingPathComponent(id).path)
+        }
+        var id = name
+        var n = 2
+        while taken(id) {
+            id = "\(name) \(n)"
+            n += 1
+        }
+        return id
+    }
+
+    /// Moves a meeting that has stopped recording out of staging and into the
+    /// meetings folder, and returns it as it is now. If the move fails the
+    /// meeting stays in staging, where it is still listed and transcribed, and
+    /// the next launch tries again.
+    @discardableResult
+    static func publish(_ m: Meeting) -> Meeting {
+        let staged = Device.stagingDir.appendingPathComponent(m.id, isDirectory: true)
+        guard FileManager.default.fileExists(atPath: staged.path) else { return m }
+        do {
+            let moved = try moveFolder(staged, into: Paths.meetingsDir)
+            var m = m
+            m.id = moved.lastPathComponent
+            return m
+        } catch {
+            NSLog("Ata: could not move \(m.id) into the meetings folder, kept for the next launch: \(error)")
+            return m
+        }
+    }
+
+    /// After a crash: finishes what a recording left in staging (its WAV
+    /// headers, its status), then moves it into the meetings folder.
+    static func recoverStaged() {
+        let fm = FileManager.default
+        for id in stagedIDs() {
+            let dir = Device.stagingDir.appendingPathComponent(id, isDirectory: true)
+            var m: Meeting
+            if let saved = load(id) {
+                m = saved
+            } else {
+                // Ata stopped between making the folder and writing meeting.json.
+                let contents = (try? fm.contentsOfDirectory(atPath: dir.path)) ?? []
+                if contents.isEmpty {
+                    try? fm.removeItem(at: dir)
+                    continue
+                }
+                let made = (try? dir.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date()
+                m = Meeting(id: id, startedAt: made, endedAt: nil, duration: nil, app: nil,
+                            status: .recording, error: nil)
+                m.origin = Device.current
+            }
+            // Whatever its meeting.json says, a folder in this device's staging is this device's.
+            if let fixed = m.recovered(by: m.origin ?? Device.current) {
+                m = fixed
+                save(m)
+            }
+            // Never move a folder something may still be writing.
+            guard m.status != .recording else { continue }
+            publish(m)
+        }
+    }
+
+    /// Moves `source` into `parent` and returns where it ended up: a rename
+    /// when it can be, otherwise a copy that is checked before the original is
+    /// removed. Nothing is deleted that isn't proven to exist in the other
+    /// place, so a failure at any step leaves `source` whole.
+    static func moveFolder(_ source: URL, into parent: URL) throws -> URL {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: source.path) else {
+            throw CocoaError(.fileNoSuchFile, userInfo: [NSFilePathErrorKey: source.path])
+        }
+        try fm.createDirectory(at: parent, withIntermediateDirectories: true)
+        let name = source.lastPathComponent
+        var target = parent.appendingPathComponent(name, isDirectory: true)
+        if fm.fileExists(atPath: target.path) {
+            // An earlier move copied everything but didn't get to remove the original.
+            if covers(target, source) {
+                try fm.removeItem(at: source)
+                return target
+            }
+            target = unusedFolder(name, in: parent)
+        }
+        do {
+            try fm.moveItem(at: source, to: target)
+            return target
+        } catch {
+            if !fm.fileExists(atPath: source.path), fm.fileExists(atPath: target.path) { return target }
+            if fm.fileExists(atPath: target.path) {
+                if covers(target, source) {
+                    try? fm.removeItem(at: source)
+                    return target
+                }
+                // Half a copy from the failed move: leave it, and copy in full beside it.
+                target = unusedFolder(name, in: parent)
+            }
+        }
+        // Hidden, so a copy that isn't finished is never listed.
+        let partial = parent.appendingPathComponent(".\(target.lastPathComponent).partial", isDirectory: true)
+        try? fm.removeItem(at: partial) // an earlier attempt's copy; the original is still in staging
+        do {
+            try fm.copyItem(at: source, to: partial)
+            guard covers(partial, source) else { throw CocoaError(.fileWriteUnknown) }
+            try fm.moveItem(at: partial, to: target)
+        } catch {
+            try? fm.removeItem(at: partial)
+            throw error
+        }
+        try? fm.removeItem(at: source)
+        return target
+    }
+
+    /// Every file under `original` is also in `copy`, at the same place and with the same size.
+    static func covers(_ copy: URL, _ original: URL) -> Bool {
+        let fm = FileManager.default
+        guard let paths = fm.subpaths(atPath: original.path) else { return false }
+        for relative in paths {
+            let file = original.appendingPathComponent(relative)
+            var isDirectory: ObjCBool = false
+            guard fm.fileExists(atPath: file.path, isDirectory: &isDirectory), !isDirectory.boolValue else { continue }
+            let other = copy.appendingPathComponent(relative)
+            guard fm.fileExists(atPath: other.path), Paths.fileSize(other) == Paths.fileSize(file) else {
+                return false
+            }
+        }
+        return true
+    }
+
+    private static func unusedFolder(_ name: String, in parent: URL) -> URL {
+        var n = 2
+        var url = parent.appendingPathComponent("\(name) \(n)", isDirectory: true)
+        while FileManager.default.fileExists(atPath: url.path) {
+            n += 1
+            url = parent.appendingPathComponent("\(name) \(n)", isDirectory: true)
+        }
+        return url
     }
 
     static func trash(_ m: Meeting) {

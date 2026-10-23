@@ -16,6 +16,18 @@ enum Diarization {
     }
 
     static var current: Diarizer? { isSupported ? FluidDiarizer() : nil }
+
+    /// Stored with every voice fingerprint: the embedding model of the offline
+    /// pipeline (`speaker-diarization-coreml`, "Embedding") as pinned in Package.swift.
+    /// Fingerprints from different models can't be compared, so voices from another
+    /// model are never matched. Change it when a FluidAudio update changes the
+    /// embedding model, and measure `VoiceLibrary.matchThreshold` again then; a
+    /// version bump that keeps the model needs no change.
+    static let embeddingModel = "fluidaudio-0.17.7-offline-embedding"
+
+    /// What made a fingerprint saved without a tag: every voice learned before
+    /// Ata 2.6. Keep this one as it is when `embeddingModel` changes.
+    static let untaggedEmbeddingModel = "fluidaudio-0.17.7-offline-embedding"
 }
 
 /// A fresh diarizer per meeting: FluidAudio's manager is not Sendable, and
@@ -44,8 +56,9 @@ struct FluidDiarizer: Diarizer {
         return (turns, embeddings)
     }
 
-    /// Your microphone track is one speaker by construction, so the same
-    /// pipeline's per-speaker embedding of its main speaker is your voice.
+    /// On a call your microphone track is one speaker by construction, so the
+    /// same pipeline's per-speaker embedding of its main speaker is your voice.
+    /// In person it isn't, and the microphone is diarized instead; see `InPerson`.
     func embed(_ wav: URL) async throws -> [Float]? {
         let found = try await diarize(wav)
         let main = Dictionary(grouping: found.turns, by: \.label)

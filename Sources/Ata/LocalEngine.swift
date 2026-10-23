@@ -1,9 +1,15 @@
 import Foundation
 
 /// Transcribes with whisper.cpp on the Mac's own GPU (Metal). Nothing leaves the machine.
+///
+/// whisper.cpp runs as a separate program (whisper-cli), which only a Mac can
+/// start. On iPhone `Paths.whisperCLI()` is nil, so every entry point here
+/// reports the engine as missing instead.
 enum LocalEngine {
+    #if os(macOS)
     /// Current whisper process, so it can be terminated when the app quits.
     nonisolated(unsafe) static var currentProcess: Process?
+    #endif
 
     private static var threads: Int { max(4, ProcessInfo.processInfo.activeProcessorCount - 2) }
 
@@ -169,6 +175,13 @@ enum LocalEngine {
         var text: String { lock.lock(); defer { lock.unlock() }; return String(decoding: data, as: UTF8.self) }
     }
 
+    #if !os(macOS)
+    @discardableResult
+    private static func runProcess(_ exe: URL, _ args: [String],
+                                   progress: @escaping @Sendable (Double) -> Void) async throws -> String {
+        throw TranscriberError.whisperMissing
+    }
+    #else
     @discardableResult
     private static func runProcess(_ exe: URL, _ args: [String],
                                    progress: @escaping @Sendable (Double) -> Void) async throws -> String {
@@ -217,6 +230,7 @@ enum LocalEngine {
             }
         }
     }
+    #endif
 
     /// Turns Whisper's tokens into words: a token starting with a space starts a
     /// word, any other continues the previous one (sub-word pieces and

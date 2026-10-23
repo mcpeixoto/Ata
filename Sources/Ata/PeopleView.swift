@@ -6,6 +6,22 @@ struct PeopleView: View {
     @AppStorage(Pref.recogniseVoices) private var enabled = false
     @State private var confirmForgetAll = false
 
+    private static func learnedLine(_ count: Int) -> String {
+        #if os(iOS)
+        return L("%d voices learned, all on this iPhone.", count)
+        #else
+        return L("%d voices learned, all on this Mac.", count)
+        #endif
+    }
+
+    private static var privacyLine: String {
+        #if os(iOS)
+        return L("Voice fingerprints stay on this iPhone. Turning this on downloads 21 MB of models once.")
+        #else
+        return L("Voice fingerprints stay on this Mac, even when OpenAI transcribes. Turning this on downloads 21 MB of models once.")
+        #endif
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if !enabled {
@@ -29,7 +45,7 @@ struct PeopleView: View {
                     }
                 }
                 HStack {
-                    Text(L("%d voices learned, all on this Mac.", people.voices.count))
+                    Text(Self.learnedLine(people.voices.count))
                         .font(.system(size: 10)).foregroundStyle(.secondary)
                     Spacer()
                     Button(confirmForgetAll ? L("Delete all?") : L("Forget all")) {
@@ -57,7 +73,7 @@ struct PeopleView: View {
                 .font(.system(size: 11)).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Voice fingerprints stay on this Mac, even when OpenAI transcribes. Turning this on downloads 21 MB of models once.")
+            Text(Self.privacyLine)
                 .font(.system(size: 10)).foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)

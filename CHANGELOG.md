@@ -1,5 +1,42 @@
 # Changelog
 
+## 2.6.0
+
+- **Transcribe with Apple's speech recognition.** On macOS 26, **Settings → Transcription** has a
+  third engine, **On this Mac (Apple)**: free, nothing leaves the Mac, and no whisper.cpp to
+  install. macOS downloads the speech model for each language the first time, or when you click
+  **Download speech model**. Every word keeps its time, so following along, the speaker split and
+  echo removal work as with whisper.cpp.
+- **Portuguese and English in one call, with Apple's engine too.** With the language on
+  **Automatic**, Ata transcribes the track in each of your languages and keeps, for every stretch
+  between pauses, the one it was spoken in.
+- A language Apple's recognizer doesn't offer yet fails with a clear message and keeps the audio,
+  so you can transcribe it again with whisper.cpp.
+- **Conversations in the room.** With voice recognition on, a meeting recorded on the microphone
+  alone, with nothing coming through the speakers, now tells the people in the room apart. Ata
+  finds you by the voice it learned from your calls; until it knows your voice, whoever spoke
+  most is you. Everyone else gets a voice to name, as on a call.
+- **Voices stored one file per voice.** Your voice library moves from one file to a file per
+  voice, so a change to one voice never touches the others, ready for syncing between devices.
+  The move happens once, by itself, and the old file is kept.
+- **Mark a moment.** While recording, press the bookmark button in the menu, or ⌘B, to mark
+  what was just said. Marks show as flags on the meeting's waveform and as a list in the Notes
+  tab, where clicking one plays from there. The transcript gets a **Moments you marked**
+  section with the time and the words being said.
+- **Import audio.** Choose **Import audio…** in the menu, or drop audio files on it, to
+  transcribe a voice memo or any recording made elsewhere. Each file becomes a meeting, named
+  after the file and dated when it was made, and goes through the same queue. The file itself
+  is only read, never moved or changed.
+- **Ready for more than one device.** Each meeting now records which device made it, and a
+  device says when it's transcribing one, so two devices sharing the meetings folder never
+  transcribe the same meeting twice or touch each other's audio. A recording is written
+  outside the meetings folder and moved in whole when it stops, so a synced folder never holds a
+  half-written file. If the move fails, the meeting stays listed and the move is tried again at
+  the next launch.
+- **Ata for iPhone is in development**, built from the same code as the Mac app: recording with
+  the screen locked, starting from the Action button, Control Center, Siri or a widget, and the
+  recording on the lock screen with Stop and Bookmark. Not released yet.
+
 ## 2.5.0
 
 - **Follow the meeting word by word.** While a meeting plays, the word being said is highlighted

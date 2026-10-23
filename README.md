@@ -242,6 +242,19 @@ says so wherever you choose it.
 > **Always tell people you're recording.** The law differs by country — and it's the decent thing
 > to do either way.
 
+## Ata for iPhone (in development)
+
+An iPhone version is being built in this repository, on the same code as the Mac app. It records
+conversations in person or a call on a speaker, with the screen locked, for hours; starts from the
+Action button, Control Center, Siri or a widget; and shows the recording on the lock screen with
+Stop and Bookmark buttons. The meeting screen, People and Insights are the Mac's own. Transcription
+will run on the iPhone itself, and meetings will sync with the Mac through iCloud Drive. It goes to
+TestFlight first; it isn't on the App Store.
+
+To build it you need Xcode 26 and [XcodeGen](https://github.com/yonaskolb/XcodeGen):
+`./ios/generate.sh`, then open `ios/Ata.xcodeproj`. To run it on your own iPhone, copy
+`ios/Local.xcconfig.example` to `ios/Local.xcconfig` and put your team ID in it.
+
 ## Roadmap
 
 Ideas with an issue attached are up for grabs — see

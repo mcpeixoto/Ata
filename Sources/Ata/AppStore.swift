@@ -1,6 +1,7 @@
 import AppKit
 import AVFoundation
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Central app state: recording, meeting detection, the transcription queue and the history.
 @MainActor
@@ -19,6 +20,10 @@ final class AppStore: ObservableObject {
     @Published private(set) var meetings: [Meeting] = []
     @Published private(set) var transcribingID: String?
     @Published private(set) var transcribeProgress: Double = 0
+    /// Moments marked in the recording in progress.
+    @Published private(set) var bookmarkCount = 0
+    /// Audio files still being decoded into meetings.
+    @Published private(set) var importing = 0
     @Published var lastError: String?
 
     let setup = SetupModel()
@@ -65,24 +70,13 @@ final class AppStore: ObservableObject {
         }
     }
 
-    /// Interrupted recordings (crash, power loss, force quit) go back into the queue.
+    /// Interrupted recordings (crash, power loss, force quit) go back into the
+    /// queue: first whatever was left in staging, then this device's meetings
+    /// in the meetings folder. Another device's are left as they are.
     private func recoverInterrupted() {
-        for var m in Library.loadAll() {
-            switch m.status {
-            case .recording:
-                let d1 = WavWriter.repairHeader(m.micURL)
-                let d2 = WavWriter.repairHeader(m.systemURL)
-                m.duration = max(d1, d2)
-                m.endedAt = m.endedAt ?? m.startedAt.addingTimeInterval(max(d1, d2))
-                m.status = m.hasAudio ? .pending : .failed
-                if !m.hasAudio { m.error = L("Empty recording") }
-                Library.save(m)
-            case .transcribing:
-                m.status = .pending
-                Library.save(m)
-            default:
-                break
-            }
+        Library.recoverStaged()
+        for m in Library.loadAll() {
+            if let fixed = m.recovered() { Library.save(fixed) }
         }
         reload()
     }
@@ -99,12 +93,13 @@ final class AppStore: ObservableObject {
     }
 
     /// Deletes audio from meetings older than the retention window, keeping the
-    /// transcripts. Runs at launch; 0 means keep audio forever.
+    /// transcripts. Runs at launch; 0 means keep audio forever. Only this
+    /// device's meetings: another device's audio follows that device's setting.
     func pruneOldAudio() {
         let days = Pref.d.integer(forKey: Pref.audioRetentionDays)
         guard days > 0 else { return }
         let cutoff = Date().addingTimeInterval(-Double(days) * 86_400)
-        for m in Library.loadAll() where m.status == .done && m.startedAt < cutoff {
+        for m in Library.loadAll() where m.isMine && m.status == .done && m.startedAt < cutoff {
             for url in [m.micAudioURL, m.systemAudioURL].compactMap({ $0 }) {
                 try? FileManager.default.removeItem(at: url)
             }
@@ -177,8 +172,11 @@ final class AppStore: ObservableObject {
 
         Task {
             do {
-                let m = try Meeting.new(app: app)
+                // Written in staging and moved into the meetings folder when it stops,
+                // so a synced folder never holds a half-written WAV.
+                let m = try Meeting.new(app: app, staged: true)
                 Library.save(m)
+                bookmarkCount = 0
                 current = m
                 try await recorder.start(in: m.dir)
                 startedAt = Date()
@@ -214,9 +212,11 @@ final class AppStore: ObservableObject {
             m.status = m.hasAudio ? .pending : .failed
             if !m.hasAudio { m.error = L("Empty recording") }
             Library.save(m)
+            m = Library.publish(m)
             current = nil
             startedAt = nil
             autoStarted = false
+            bookmarkCount = 0
             phase = .idle
             Notifier.shared.clear("recording")
             reload()
@@ -238,6 +238,7 @@ final class AppStore: ObservableObject {
             current = nil
             startedAt = nil
             autoStarted = false
+            bookmarkCount = 0
             phase = .idle
             Notifier.shared.clear("recording")
             reload()
@@ -252,8 +253,23 @@ final class AppStore: ObservableObject {
             m.duration = duration
             m.status = .pending
             Library.save(m)
+            Library.publish(m)
         }
         LocalEngine.currentProcess?.terminate()
+    }
+
+    /// Marks this moment of the recording in progress. The time comes from the
+    /// audio written so far, so the mark lands where it was heard.
+    func addBookmark(note: String? = nil) {
+        guard phase == .recording, var m = current else { return }
+        let seconds = max(recorder.mic?.duration ?? 0, recorder.sys?.duration ?? 0)
+        let ms = Int(((seconds > 0 ? seconds : elapsed) * 1000).rounded())
+        let text = note?.trimmingCharacters(in: .whitespacesAndNewlines)
+        m.bookmarks = (m.bookmarks ?? []) + [Bookmark(ms: ms, note: text?.isEmpty == false ? text : nil)]
+        current = m
+        bookmarkCount = m.bookmarks?.count ?? 0
+        // Saved now, so a crash mid-meeting keeps the marks too.
+        Library.save(m)
     }
 
     private func startTicker() {
@@ -281,6 +297,32 @@ final class AppStore: ObservableObject {
         systemLevel = 0
     }
 
+    // MARK: - Import
+
+    /// Audio recorded elsewhere (a voice memo, a recorder, a file someone sent)
+    /// becomes a meeting and goes through the same queue. The files themselves
+    /// are only read, never moved or changed.
+    func importAudio(_ urls: [URL]) {
+        let files = urls.filter(AudioImport.accepts)
+        guard !files.isEmpty else {
+            if !urls.isEmpty { lastError = L("Ata can only import audio files.") }
+            return
+        }
+        importing += files.count
+        Task {
+            for url in files {
+                do {
+                    try await Task.detached(priority: .userInitiated) { _ = try AudioImport.meeting(from: url) }.value
+                } catch {
+                    lastError = L("Could not import %@: %@", url.lastPathComponent, error.localizedDescription)
+                }
+                importing -= 1
+                reload()
+            }
+            pump()
+        }
+    }
+
     // MARK: - Transcription queue
 
     func retry(_ m: Meeting) {
@@ -291,7 +333,8 @@ final class AppStore: ObservableObject {
     /// than the current settings. The transcript it replaces is kept in versions/.
     func retry(_ m: Meeting, with override: TranscribeOverride?) {
         var m = m
-        guard m.hasAudio, m.id != transcribingID, m.id != current?.id else { return }
+        // Not while another device is transcribing it: its run would overwrite this one.
+        guard m.hasAudio, m.id != transcribingID, m.id != current?.id, m.canClaim() else { return }
         m.status = .pending
         m.error = nil
         m.override = override
@@ -308,9 +351,13 @@ final class AppStore: ObservableObject {
     }
 
     /// Transcribes the next pending meeting (oldest first), one at a time.
+    /// With the folder shared, a meeting another device has claimed is
+    /// skipped, and so is another device's whose audio hasn't arrived yet.
     private func pump() {
         guard transcribingID == nil else { return }
-        guard var m = Library.loadAll().last(where: { $0.status == .pending }) else { return }
+        let now = Date()
+        guard var m = Library.loadAll().last(where: { $0.awaitsTranscript(now: now) && ($0.isMine || $0.hasAudio) })
+        else { return }
 
         let options = TranscribeOptions.current(for: m)
         switch options.engine {
@@ -332,6 +379,8 @@ final class AppStore: ObservableObject {
                 }
                 return // the default model is still downloading: stays queued
             }
+        case .apple:
+            break // nothing to install first: the engine downloads its language model itself
         case .openAI:
             guard Keychain.has(Keychain.openAIKey) else {
                 lastError = L("No OpenAI API key. Add one in Settings → Transcription.")
@@ -343,12 +392,14 @@ final class AppStore: ObservableObject {
         transcribeProgress = 0
         m.status = .transcribing
         m.override = nil
+        m.claim = Claim(device: Device.current, at: Date())
         Library.save(m)
         reload()
         let job = m
 
         Task {
             var m = job
+            let heartbeat = renewClaim(of: job.id)
             do {
                 let outcome = try await Transcriber.transcribe(m, options: options) { p in
                     Task { @MainActor in
@@ -363,19 +414,23 @@ final class AppStore: ObservableObject {
                 m.transcriptions = history
                 m.status = .done
                 m.error = nil
+                m.claim = nil
                 Library.save(m)
                 await self.handleAudio(of: m)
                 Notifier.shared.transcriptReady(m)
             } catch TranscriberError.cancelled {
-                // Stopped because Ata is quitting: back in the queue for the next launch.
+                // Stopped because Ata is quitting: back in the queue for the next launch,
+                // still claimed, so another device only takes it if this one stays away.
                 m.status = .pending
                 Library.save(m)
             } catch {
                 m.status = .failed
                 m.error = error.localizedDescription
+                m.claim = nil
                 Library.save(m)
                 Notifier.shared.transcriptFailed(m, error: error.localizedDescription)
             }
+            heartbeat.cancel()
             transcribingID = nil
             transcribeProgress = 0
             reload()
@@ -383,9 +438,25 @@ final class AppStore: ObservableObject {
         }
     }
 
+    /// Renews this device's claim on the meeting being transcribed every few
+    /// minutes, so a long run is never taken for an abandoned one.
+    private func renewClaim(of id: String) -> Task<Void, Never> {
+        Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 5 * 60 * 1_000_000_000)
+                guard !Task.isCancelled, transcribingID == id,
+                      var fresh = Library.load(id), fresh.status == .transcribing else { return }
+                fresh.claim = Claim(device: Device.current, at: Date())
+                Library.save(fresh)
+            }
+        }
+    }
+
     /// After a successful transcript: keep the audio (the default) and compress
-    /// it, or delete it if the user asked for that.
+    /// it, or delete it if the user asked for that. Only for this device's
+    /// meetings; another device's audio follows that device's settings.
     private func handleAudio(of m: Meeting) async {
+        guard m.isMine else { return }
         // The tracks are about to be compressed or deleted: let the MP3 finish
         // reading them first, or write it now if it was never started.
         await saveMergedAudio(of: m)?.value
@@ -408,8 +479,9 @@ final class AppStore: ObservableObject {
     func saveMergedAudio(of m: Meeting) -> Task<Void, Never>? {
         if let running = mergeTasks[m.id] { return running }
         // A meeting still recording would give an MP3 cut off wherever it was when asked.
+        // Another device's meeting is left to that device, which may be writing its own.
         guard Pref.d.bool(forKey: Pref.keepAudio), Pref.d.bool(forKey: Pref.saveMP3),
-              m.status != .recording, m.hasAudio, !m.hasMergedAudio else { return nil }
+              m.isMine, m.status != .recording, m.hasAudio, !m.hasMergedAudio else { return nil }
         let task = Task {
             let job = m
             do {
@@ -473,6 +545,60 @@ extension AppStore {
         warning = nil
         lastError = nil
         meetings = Library.loadAll()
+    }
+}
+
+/// Turns an audio file into a meeting: decoded into the 16 kHz mono track
+/// the engines read, in a new folder of its own.
+enum AudioImport {
+    enum Failure: LocalizedError {
+        case noAudio
+
+        var errorDescription: String? {
+            switch self {
+            case .noAudio: return L("There is no audio in this file.")
+            }
+        }
+    }
+
+    /// Anything the system can decode as audio.
+    static let types: [UTType] = [.audio]
+
+    static func accepts(_ url: URL) -> Bool {
+        guard url.isFileURL, let type = UTType(filenameExtension: url.pathExtension) else { return false }
+        return types.contains { type.conforms(to: $0) }
+    }
+
+    /// A new pending meeting made from `source`, named after the file and dated
+    /// when it was made. Decoded in staging, like a recording, then moved into
+    /// the meetings folder. A failure removes only the copy being written.
+    static func meeting(from source: URL) throws -> Meeting {
+        let values = try? source.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey])
+        // A copied file can be newer than the recording; the earliest date is the closest.
+        let date = [values?.creationDate, values?.contentModificationDate].compactMap { $0 }.min() ?? Date()
+        var m = try Meeting.new(app: label(for: source), at: date, staged: true)
+        do {
+            try AudioFiles.decodeToWAV(source, to: m.micURL)
+            guard WavWriter.duration(of: m.micURL) > 0 else { throw Failure.noAudio }
+        } catch {
+            try? FileManager.default.removeItem(at: m.dir)
+            throw error
+        }
+        let duration = WavWriter.duration(of: m.micURL)
+        m.duration = duration
+        m.endedAt = date.addingTimeInterval(duration)
+        m.status = .pending
+        Library.save(m)
+        return Library.publish(m)
+    }
+
+    /// The file's name, made safe for a folder name.
+    static func label(for source: URL) -> String {
+        let name = source.deletingPathExtension().lastPathComponent
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ".")))
+        return name.isEmpty ? L("Imported") : String(name.prefix(60))
     }
 }
 
