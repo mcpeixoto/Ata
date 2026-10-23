@@ -23,6 +23,11 @@ struct PeopleView: View {
                         ForEach(people.named) { VoiceRow(voice: $0, asking: false) }
                     }
                 }
+                if !people.hidden.isEmpty {
+                    section(L("Hidden voices"), footnote: L("Not asked about, or left out of every transcript.")) {
+                        ForEach(people.hidden) { HiddenVoiceRow(voice: $0) }
+                    }
+                }
                 HStack {
                     Text(L("%d voices learned, all on this Mac.", people.voices.count))
                         .font(.system(size: 10)).foregroundStyle(.secondary)
@@ -141,6 +146,13 @@ private struct VoiceRow: View {
             Spacer(minLength: 4)
             if (asking || editing) && !name.trimmingCharacters(in: .whitespaces).isEmpty {
                 Button(L("Save")) { save() }.controlSize(.small)
+            } else if asking {
+                Button { people.dismiss(voice) } label: {
+                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help(L("Don't ask about this voice"))
             }
         }
         .padding(.horizontal, 4)
@@ -158,6 +170,10 @@ private struct VoiceRow: View {
                     Button(other.name ?? "") { people.merge(voice, into: other) }
                 }
             }
+            if voice.name == nil {
+                Button(L("Don't ask about this voice")) { people.dismiss(voice) }
+            }
+            Button(L("Leave out of transcripts")) { people.setExcluded(voice, true) }
             Divider()
             Button(L("Forget this voice"), role: .destructive) { people.forget(voice) }
         }
@@ -169,5 +185,47 @@ private struct VoiceRow: View {
         people.rename(voice, to: trimmed)
         name = ""
         editing = false
+    }
+}
+
+/// A voice that is not asked about or is left out of transcripts, with the way back.
+private struct HiddenVoiceRow: View {
+    @StateObject private var people = PeopleModel.shared
+    let voice: Voice
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button { people.togglePlay(voice) } label: {
+                Image(systemName: people.playing == voice.id ? "stop.fill" : "play.fill")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 22, height: 22)
+                    .background(Circle().fill(voice.sample == nil ? AnyShapeStyle(Color.gray.opacity(0.4))
+                                                                   : AnyShapeStyle(Color.secondary)))
+            }
+            .buttonStyle(.plain)
+            .disabled(voice.sample == nil)
+            .help(L("Play a sample"))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(voice.displayName).font(.system(size: 12, weight: .medium)).lineLimit(1)
+                Text(voice.isExcluded ? L("Left out of transcripts") : L("Not asked about"))
+                    .font(.system(size: 10)).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 4)
+            Button(voice.isExcluded ? L("Put back") : L("Ask again")) {
+                if voice.isExcluded { people.setExcluded(voice, false) } else { people.dismiss(voice, false) }
+            }
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 3)
+        .contextMenu {
+            if !voice.isExcluded {
+                Button(L("Leave out of transcripts")) { people.setExcluded(voice, true) }
+            }
+            Divider()
+            Button(L("Forget this voice"), role: .destructive) { people.forget(voice) }
+        }
     }
 }

@@ -320,3 +320,14 @@
 
 /* 2.5: following the transcript, the waveform. */
 "You below, the others above. Click to jump." = "You below, the others above. Click to jump.";
+
+/* 2.5: voices you don't want named or transcribed. */
+"Hidden voices" = "Hidden voices";
+"Not asked about, or left out of every transcript." = "Not asked about, or left out of every transcript.";
+"Don't ask about this voice" = "Don't ask about this voice";
+"Leave out of transcripts" = "Leave out of transcripts";
+"Put back in transcripts" = "Put back in transcripts";
+"Left out of transcripts" = "Left out of transcripts";
+"Not asked about" = "Not asked about";
+"Put back" = "Put back";
+"Ask again" = "Ask again";

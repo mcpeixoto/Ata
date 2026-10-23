@@ -645,13 +645,32 @@ private struct SpeakerRow: View {
                     .fixedSize()
                     .help(L("Same person as"))
                 }
+                Menu {
+                    if voice.name == nil {
+                        Button(voice.isDismissed ? L("Ask again") : L("Don't ask about this voice")) {
+                            model.dismiss(speaker, !voice.isDismissed)
+                        }
+                    }
+                    Button(voice.isExcluded ? L("Put back in transcripts") : L("Leave out of transcripts")) {
+                        model.exclude(speaker, !voice.isExcluded)
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .menuStyle(.button)
+                .buttonStyle(.borderless)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help(L("More"))
             }
         }
         .padding(.horizontal, 4)
         .padding(.vertical, 3)
+        .opacity(speaker.voice?.isExcluded == true ? 0.55 : 1)
     }
 
     private var detail: String {
+        if speaker.voice?.isExcluded == true { return L("Left out of transcripts") }
         let minutes = Int((speaker.seconds / 60).rounded())
         let talked = minutes < 1 ? L("<1 min") : L("%d min", minutes)
         guard let voice = speaker.voice, voice.meetings > 1 else { return L("Talked for %@", talked) }

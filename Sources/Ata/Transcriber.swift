@@ -124,6 +124,14 @@ struct StoredTranscript: Codable, Equatable {
         try e.encode(self).write(to: url, options: .atomic)
     }
 
+    /// Without the lines of these speaker labels: voices left out of transcripts.
+    func excluding(_ labels: Set<String>) -> StoredTranscript {
+        guard !labels.isEmpty else { return self }
+        var t = self
+        t.segments.removeAll { labels.contains($0.speaker) }
+        return t
+    }
+
     static func load(from url: URL) -> StoredTranscript? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         return try? JSONDecoder().decode(StoredTranscript.self, from: data)
@@ -134,6 +142,15 @@ struct StoredTranscript: Codable, Equatable {
 enum Speakers {
     static let me = "me"
     static let others = "others"
+
+    /// The labels in this meeting whose voice the user left out of transcripts.
+    static func leftOut(for meeting: Meeting) -> Set<String> {
+        guard let map = MeetingVoices.load(for: meeting) else { return [] }
+        let library = VoiceLibrary()
+        return Set(map.speakers.compactMap { s in
+            s.voiceID.flatMap { library.voice($0) }?.isExcluded == true ? s.label : nil
+        })
+    }
 
     /// Label → name for one meeting: you, a named voice, "Speaker 2", or "Others".
     static func names(for meeting: Meeting, myName: String) -> (String) -> String {
@@ -540,7 +557,7 @@ enum Transcriber {
 
     /// Markdown for a stored transcript, with speaker labels turned into names.
     static func render(_ t: StoredTranscript, meeting: Meeting, names: (String) -> String) -> String {
-        let blocks = Transcriber.blocks(t)
+        let blocks = Transcriber.blocks(t.excluding(Speakers.leftOut(for: meeting)))
 
         let df = DateFormatter()
         // The same language as the rest of the transcript, not the system region.

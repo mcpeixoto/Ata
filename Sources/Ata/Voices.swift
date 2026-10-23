@@ -23,11 +23,18 @@ struct Voice: Codable, Equatable, Identifiable {
     /// Stable "Voice 3" number, given when the voice is first heard, so an
     /// unnamed voice reads the same in every transcript and in the People tab.
     var number: Int? = nil
+    /// The user said not to ask for a name: the voice stays unnamed and out of "Who's this?".
+    var dismissed: Bool? = nil
+    /// The user left this voice out of transcripts (a TV, a bot, someone who asked):
+    /// its lines are dropped whenever a transcript is drawn, past ones included.
+    var excluded: Bool? = nil
 
     var meetings: Int { meetingIDs.count }
 
     /// The name, or "Voice 3" until it has one.
     var displayName: String { name ?? L("Voice %d", number ?? 0) }
+    var isDismissed: Bool { dismissed == true }
+    var isExcluded: Bool { excluded == true }
 }
 
 /// One speaker found in one meeting, before or after matching.
@@ -220,13 +227,26 @@ final class VoiceLibrary {
         voices.removeAll { $0.id == id }
     }
 
+    /// Never ask for this voice's name (or ask again, with `false`).
+    func setDismissed(_ id: UUID, _ on: Bool) {
+        guard let i = voices.firstIndex(where: { $0.id == id }) else { return }
+        voices[i].dismissed = on ? true : nil
+    }
+
+    /// Leave this voice's lines out of every transcript (or put them back).
+    func setExcluded(_ id: UUID, _ on: Bool) {
+        guard let i = voices.firstIndex(where: { $0.id == id }) else { return }
+        voices[i].excluded = on ? true : nil
+    }
+
     func forgetAll() {
         voices = []
     }
 
     /// Unnamed voices heard often enough to be worth naming, most frequent first.
     var worthAsking: [Voice] {
-        voices.filter { $0.name == nil && !$0.isMe && $0.meetings >= Self.askAfterMeetings }
+        voices.filter { $0.name == nil && !$0.isMe && !$0.isDismissed && !$0.isExcluded
+            && $0.meetings >= Self.askAfterMeetings }
             .sorted { $0.meetings > $1.meetings }
     }
 

@@ -320,3 +320,14 @@
 
 /* 2.5: following the transcript, the waveform. */
 "You below, the others above. Click to jump." = "Tu em baixo, os outros em cima. Clica para saltar.";
+
+/* 2.5: voices you don't want named or transcribed. */
+"Hidden voices" = "Vozes escondidas";
+"Not asked about, or left out of every transcript." = "Sem pergunta pelo nome, ou deixadas de fora de todas as transcrições.";
+"Don't ask about this voice" = "Não perguntar por esta voz";
+"Leave out of transcripts" = "Deixar de fora das transcrições";
+"Put back in transcripts" = "Voltar a pôr nas transcrições";
+"Left out of transcripts" = "Fora das transcrições";
+"Not asked about" = "Sem pergunta pelo nome";
+"Put back" = "Repor";
+"Ask again" = "Voltar a perguntar";

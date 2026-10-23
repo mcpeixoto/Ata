@@ -240,7 +240,7 @@ final class MeetingModel: ObservableObject {
 
         if let stored = StoredTranscript.load(from: m.storedTranscriptURL) {
             hasStoredTranscript = true
-            lines = Transcriber.blocks(stored).enumerated().map { i, b in
+            lines = Transcriber.blocks(stored.excluding(Speakers.leftOut(for: m))).enumerated().map { i, b in
                 Line(id: i, start: b.start, end: b.end, speaker: b.speaker, name: names(b.speaker), text: b.text,
                      words: WordTiming.words(of: b))
             }
@@ -403,6 +403,19 @@ final class MeetingModel: ObservableObject {
     func merge(_ speaker: Speaker, into other: Voice) {
         guard let voice = speaker.voice else { return }
         PeopleModel.shared.merge(voice, into: other)
+        reload()
+    }
+
+    func dismiss(_ speaker: Speaker, _ on: Bool) {
+        guard let voice = speaker.voice else { return }
+        PeopleModel.shared.dismiss(voice, on)
+        reload()
+    }
+
+    /// Leaves this voice out of every transcript, this one included, or puts it back.
+    func exclude(_ speaker: Speaker, _ on: Bool) {
+        guard let voice = speaker.voice else { return }
+        PeopleModel.shared.setExcluded(voice, on)
         reload()
     }
 

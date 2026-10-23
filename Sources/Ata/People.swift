@@ -26,7 +26,9 @@ final class PeopleModel: ObservableObject {
     var enabled: Bool { Pref.d.bool(forKey: Pref.recogniseVoices) }
 
     var worthAsking: [Voice] { library.worthAsking }
-    var named: [Voice] { voices.filter { $0.name != nil && !$0.isMe }.sorted { $0.meetings > $1.meetings } }
+    var named: [Voice] {
+        voices.filter { $0.name != nil && !$0.isMe && !$0.isExcluded }.sorted { $0.meetings > $1.meetings }
+    }
     var me: Voice? { voices.first(where: \.isMe) }
 
     func reload() {
@@ -67,6 +69,25 @@ final class PeopleModel: ObservableObject {
         library.merge(source.id, into: target.id)
         persist()
         rerender(meetings: source.meetingIDs + target.meetingIDs)
+    }
+
+    /// Stop asking for this voice's name.
+    func dismiss(_ voice: Voice, _ on: Bool = true) {
+        library.setDismissed(voice.id, on)
+        persist()
+    }
+
+    /// Leave this voice out of every transcript, or put it back; transcripts are redrawn.
+    func setExcluded(_ voice: Voice, _ on: Bool) {
+        library.setExcluded(voice.id, on)
+        persist()
+        rerender(meetings: voice.meetingIDs)
+    }
+
+    /// Voices that are neither named nor asked about: dismissed, or left out.
+    var hidden: [Voice] {
+        voices.filter { !$0.isMe && ($0.isExcluded || ($0.name == nil && $0.isDismissed)) }
+            .sorted { $0.meetings > $1.meetings }
     }
 
     func forget(_ voice: Voice) {
