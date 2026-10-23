@@ -71,6 +71,7 @@ enum Pref {
     static let summaryModel = "summaryModel"
     static let audioRetentionDays = "audioRetentionDays" // 0 = keep forever
     static let recogniseVoices = "recogniseVoices" // diarize and match voices; off by default
+    static let cancelEcho = "cancelEcho"     // take the others out of the mic before transcribing
     static let autoUpdate = "autoUpdate"     // check GitHub for new releases
     static let updateFeed = "updateFeed"     // override the release feed (forks)
     static let menuIconSymbol = "menuIconSymbol"     // MenuIcon.Symbol while recording
@@ -107,6 +108,7 @@ enum Pref {
             autoUpdate: true,
             audioRetentionDays: 0,
             recogniseVoices: false,
+            cancelEcho: true,
             menuIconSymbol: MenuIcon.Symbol.dot.rawValue,
             menuIconTint: MenuIcon.Tint.monochrome.rawValue,
             menuIconTimer: true,

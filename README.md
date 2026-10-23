@@ -218,7 +218,7 @@ person is named in every transcript, including the ones already written.
 | the app crashes or the battery dies | already has the audio on disk (header rewritten every 3 s) and transcribes it on next launch |
 | you quit while recording | closes the files properly and transcribes when you're back |
 | transcription fails | keeps the audio and shows **Try again** |
-| you're not wearing headphones | drops the lines your mic picked up as echo of the others |
+| you're not wearing headphones | takes the others out of your microphone before transcribing, using what your Mac played, so their words never come out as yours |
 | two people talk in one Whisper segment | splits the line word by word at the change of speaker |
 
 ## Updates

@@ -65,6 +65,7 @@ CI also attaches a fresh set to every pull request as a downloadable artifact.
 | `Recorder.swift`, `WavWriter.swift` | capture the mic and system audio into two aligned WAVs |
 | `MeetingDetector.swift` | notices when another app starts using the microphone |
 | `Transcriber.swift` | merges the two tracks, removes echo, writes the Markdown |
+| `EchoCanceller.swift` | takes the others out of the microphone track when there are no headphones |
 | `LocalEngine.swift`, `OpenAIEngine.swift` | the two transcription backends |
 | `Updater.swift` | finds, verifies and installs new releases |
 | `Diarization.swift`, `Voices.swift`, `People*.swift` | who spoke when, the voice library, the People tab |
