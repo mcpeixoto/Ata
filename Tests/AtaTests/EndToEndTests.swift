@@ -255,3 +255,40 @@ extension EndToEndTests {
                        "the cleaned copy is temporary")
     }
 }
+
+extension EndToEndTests {
+    /// Portuguese, then English, then Portuguese again, all on your microphone.
+    /// Each stretch must come out in the language it was spoken, not translated.
+    func testSwitchingLanguagesInTheSameVoiceKeepsEachLanguage() async throws {
+        try XCTSkipUnless(LanguageChoice.plausible.contains("pt"),
+                          "needs Portuguese in this Mac's languages, as the maintainer has")
+        let model = try XCTUnwrap(LocalModel.find("large-v3-turbo-q5_0"))
+        try install(model.url, as: model.file, bytes: model.bytes)
+        try install(Paths.vadModelURL, as: Paths.vadModel.lastPathComponent, bytes: 885_098)
+
+        var m = try Meeting.new(app: "Teams")
+        try conversation([
+            ("Joana", "Bom dia a todos. Hoje vamos rever o orçamento da campanha e decidir as datas de lançamento."),
+            // Another voice, but the same microphone track, which is what matters here.
+            ("Daniel", "Thanks for joining from London. The budget for the campaign was approved by finance yesterday."),
+            ("Joana", "Perfeito. Então ficamos com quinta-feira para o lançamento e eu envio o resumo à equipa."),
+        ], to: m.micURL)
+        m.duration = WavWriter.duration(of: m.micURL)
+        m.status = .transcribing
+
+        var options = TranscribeOptions.current()
+        options.engine = .local
+        options.localModel = model.id
+        options.language = "auto"
+        options.myName = "Alex"
+        options.summarize = false
+        _ = try await Transcriber.transcribe(m, options: options) { _ in }
+
+        let md = try String(contentsOf: m.transcriptURL, encoding: .utf8)
+        if ProcessInfo.processInfo.environment["ATA_PRINT_TRANSCRIPT"] == "1" { print(md) }
+        let text = md.lowercased()
+        for word in ["orçamento", "lançamento", "quinta-feira"] { XCTAssertTrue(text.contains(word), "Portuguese kept: \(word)\n\(md)") }
+        for word in ["london", "budget", "finance", "yesterday"] { XCTAssertTrue(text.contains(word), "English kept: \(word)\n\(md)") }
+        XCTAssertFalse(text.contains("londres"), "English was not translated into Portuguese:\n\(md)")
+    }
+}

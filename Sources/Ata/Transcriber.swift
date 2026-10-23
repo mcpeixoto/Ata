@@ -29,6 +29,12 @@ struct Segment {
         let end: Int   // ms
         let text: String
     }
+
+    /// The same segment, `ms` later: for a piece transcribed on its own.
+    func shifted(by ms: Int) -> Segment {
+        Segment(speaker: speaker, start: start + ms, end: end + ms, text: text,
+                words: words.map { Word(start: $0.start + ms, end: $0.end + ms, text: $0.text) })
+    }
 }
 
 /// Which backend produces the transcript.
@@ -164,6 +170,41 @@ enum LanguageChoice {
         return codes.filter { seen.insert($0).inserted }
     }
 
+    /// Pieces shorter than this keep their neighbours' language: a lone "okay"
+    /// is not a switch to English.
+    static let minRunSeconds = 3.0
+
+    /// Consecutive pieces of one track that share a language.
+    struct Run: Equatable {
+        var pieces: Range<Int>
+        var language: String
+    }
+
+    /// A language per stretch of speech, for someone who switches between
+    /// languages in one call. Each piece is decided by the same rule as a whole
+    /// track; a piece that is unsure or too short takes the language before it
+    /// (or, at the start, the first one that is sure).
+    static func runs(_ detections: [(code: String, p: Double)?], seconds: [Double],
+                     plausible: [String], fallback: String) -> [Run] {
+        let sure = detections.indices.map { i -> String? in
+            guard let d = detections[i], d.p >= confidence, plausible.contains(d.code),
+                  seconds[i] >= minRunSeconds else { return nil }
+            return d.code
+        }
+        var previous = sure.compactMap { $0 }.first ?? fallback
+        var out: [Run] = []
+        for (i, s) in sure.enumerated() {
+            let language = s ?? previous
+            previous = language
+            if let last = out.last, last.language == language {
+                out[out.count - 1].pieces = last.pieces.lowerBound..<(i + 1)
+            } else {
+                out.append(Run(pieces: i..<(i + 1), language: language))
+            }
+        }
+        return out
+    }
+
     /// One language per track, in the order given.
     static func pick(_ detections: [(code: String, p: Double)?], plausible: [String]) -> [String] {
         let confident = detections.map { d -> String? in
@@ -247,9 +288,18 @@ enum Transcriber {
                 guard let model = LocalModel.find(options.localModel), model.isInstalled else {
                     throw TranscriberError.modelMissing
                 }
-                segments += try await LocalEngine.transcribe(audio: track.audio, speaker: track.speaker,
-                                                             model: model, language: languages[i],
-                                                             progress: step)
+                if options.language == "auto", LanguageChoice.plausible.count > 1 {
+                    // Someone who speaks more than one language may switch mid-call:
+                    // each stretch of speech is transcribed in its own language.
+                    segments += try await LocalEngine.transcribeMixed(audio: track.audio, speaker: track.speaker,
+                                                                      model: model, fallback: languages[i],
+                                                                      plausible: LanguageChoice.plausible,
+                                                                      progress: step)
+                } else {
+                    segments += try await LocalEngine.transcribe(audio: track.audio, speaker: track.speaker,
+                                                                 model: model, language: languages[i],
+                                                                 progress: step)
+                }
             case .openAI:
                 let result = try await OpenAIEngine.transcribe(audio: track.audio, speaker: track.speaker,
                                                                language: options.language,

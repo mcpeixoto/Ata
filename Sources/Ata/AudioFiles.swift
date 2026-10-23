@@ -55,6 +55,17 @@ enum AudioFiles {
         return chunks
     }
 
+    /// Copies samples `range` of a 16 kHz mono 16-bit WAV into a WAV of its own.
+    static func copySamples(_ url: URL, _ range: Range<Int>, to destination: URL) throws {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        try handle.seek(toOffset: UInt64(44 + range.lowerBound * 2))
+        let payload = try handle.read(upToCount: range.count * 2) ?? Data()
+        var data = WavWriter.header(dataBytes: UInt32(payload.count))
+        data.append(payload)
+        try data.write(to: destination, options: .atomic)
+    }
+
     static func cleanUp(_ chunks: [Chunk]) {
         for c in chunks where c.temporary {
             try? FileManager.default.removeItem(at: c.url)
@@ -179,5 +190,92 @@ final class PCM16Reader {
             }
         }
         return nil
+    }
+}
+
+/// Pieces of a recording cut at pauses, so each stretch of speech can be
+/// transcribed in its own language: you may answer in English a moment after
+/// speaking Portuguese, and Whisper told to expect one language decodes the
+/// other badly or translates it.
+enum SpeechChunks {
+    /// 30 ms of audio per envelope frame.
+    static let frame = Int(WavWriter.sampleRate) * 3 / 100
+    /// A pause is at least this many quiet frames (0.6 s).
+    static let pauseFrames = 20
+    static let minSeconds = 4.0
+    static let maxSeconds = 30.0
+
+    /// Sample ranges that cover the whole recording, back to back, cut in the
+    /// middle of pauses; a stretch with no pause longer than 30 s is cut at its
+    /// quietest moment.
+    static func split(_ url: URL) throws -> [Range<Int>] {
+        let data = try Data(contentsOf: url, options: .alwaysMapped)
+        let count = max(0, (data.count - 44) / 2)
+        let frames = count / frame
+        var db = [Double](repeating: -100, count: frames)
+        data.withUnsafeBytes { raw in
+            guard count > 0 else { return }
+            let pcm = raw.baseAddress!.advanced(by: 44).assumingMemoryBound(to: Int16.self)
+            for f in 0..<frames {
+                var sum = 0.0
+                for i in (f * frame)..<((f + 1) * frame) {
+                    let v = Double(Int16(littleEndian: pcm[i])) / 32_768
+                    sum += v * v
+                }
+                db[f] = 10 * log10(sum / Double(frame) + 1e-10)
+            }
+        }
+        return pieces(db: db, samples: count)
+    }
+
+    /// The cutting rule on an energy envelope in dB, one value per `frame` samples.
+    static func pieces(db: [Double], samples: Int) -> [Range<Int>] {
+        let rate = WavWriter.sampleRate
+        let minFrames = Int(minSeconds * rate) / frame
+        let maxFrames = Int(maxSeconds * rate) / frame
+        guard samples > 0 else { return [] }
+        guard db.count > minFrames else { return [0..<samples] }
+
+        // Quiet: 20 dB under the speech. Measured from the speech rather than the noise
+        // floor, so a track that is talk from start to end still finds its pauses; in a
+        // noisy room that hides them, long stretches are cut at their quietest moment.
+        let threshold = db.sorted()[db.count * 9 / 10] - 20
+        var pauses: [Int] = []  // frame in the middle of each pause
+        var run = 0
+        for (f, v) in db.enumerated() {
+            if v < threshold { run += 1 } else {
+                if run >= pauseFrames { pauses.append(f - run / 2) }
+                run = 0
+            }
+        }
+
+        var cuts: [Int] = []
+        var start = 0
+        func quietest(in r: Range<Int>) -> Int {
+            r.min { db[$0] < db[$1] } ?? r.upperBound
+        }
+        for p in pauses + [db.count] {
+            while p - start > maxFrames {
+                // No pause in time: cut at the quietest moment of the last third.
+                let c = quietest(in: (start + maxFrames * 2 / 3)..<(start + maxFrames))
+                cuts.append(c)
+                start = c
+            }
+            if p < db.count, p - start >= minFrames {
+                cuts.append(p)
+                start = p
+            }
+        }
+        // The tail joins the last piece when it is too short to judge on its own.
+        if let last = cuts.last, db.count - last < minFrames { cuts.removeLast() }
+
+        var out: [Range<Int>] = []
+        var from = 0
+        for c in cuts {
+            out.append(from..<(c * frame))
+            from = c * frame
+        }
+        out.append(from..<samples)
+        return out
     }
 }

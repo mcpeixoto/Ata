@@ -31,6 +31,80 @@ enum LocalEngine {
         return parseDetection(log)
     }
 
+    /// The language of each file, from one whisper-cli run: it loads the model
+    /// once and takes any number of `-f` files.
+    static func detectLanguages(_ files: [URL], model: LocalModel) async -> [(code: String, p: Double)?] {
+        guard let cli = Paths.whisperCLI(), model.isInstalled, !files.isEmpty else {
+            return files.map { _ in nil }
+        }
+        var args = ["-m", model.path.path, "-l", "auto", "-dl", "-t", String(threads)]
+        for f in files { args += ["-f", f.path] }
+        if Paths.hasVADModel { args += vad }
+        guard let log = try? await runProcess(cli, args, progress: { _ in }) else { return files.map { _ in nil } }
+        return parseDetections(log, files: files)
+    }
+
+    /// Each file's detection, from the stretch of log after "processing '<file>'".
+    /// A file that logged no detection gets nil rather than the next file's answer.
+    static func parseDetections(_ log: String, files: [URL]) -> [(code: String, p: Double)?] {
+        let starts = files.map { log.range(of: "processing '\($0.path)'")?.lowerBound }
+        return files.indices.map { i in
+            guard let start = starts[i] else { return nil }
+            let end = starts[(i + 1)...].compactMap { $0 }.first ?? log.endIndex
+            return parseDetection(String(log[start..<end]))
+        }
+    }
+
+    /// Transcribes a track whose speaker may switch languages: cut at pauses,
+    /// the language of each piece detected, and each run of one language
+    /// transcribed in that language, times shifted back into the track.
+    static func transcribeMixed(audio: URL, speaker: String, model: LocalModel, fallback: String,
+                                plausible: [String], progress: @escaping @Sendable (Double) -> Void)
+        async throws -> [Segment] {
+        let pieces = try SpeechChunks.split(audio)
+        guard pieces.count > 1 else {
+            return try await transcribe(audio: audio, speaker: speaker, model: model, language: fallback,
+                                        progress: progress)
+        }
+        let dir = audio.deletingLastPathComponent()
+            .appendingPathComponent("languages-\(UUID().uuidString.prefix(8))", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        var files: [URL] = []
+        for (i, range) in pieces.enumerated() {
+            let file = dir.appendingPathComponent("piece-\(i).wav")
+            try AudioFiles.copySamples(audio, range, to: file)
+            files.append(file)
+        }
+        progress(0.02)
+        let detections = await detectLanguages(files, model: model)
+        let rate = Double(WavWriter.sampleRate)
+        let runs = LanguageChoice.runs(detections, seconds: pieces.map { Double($0.count) / rate },
+                                       plausible: plausible, fallback: fallback)
+        progress(0.1)
+        if runs.count == 1 {
+            return try await transcribe(audio: audio, speaker: speaker, model: model, language: runs[0].language) {
+                progress(0.1 + 0.9 * $0)
+            }
+        }
+
+        let total = Double(pieces.last!.upperBound)
+        var out: [Segment] = []
+        for (i, run) in runs.enumerated() {
+            let range = pieces[run.pieces.lowerBound].lowerBound..<pieces[run.pieces.upperBound - 1].upperBound
+            let file = dir.appendingPathComponent("run-\(i).wav")
+            try AudioFiles.copySamples(audio, range, to: file)
+            let offset = range.lowerBound * 1000 / Int(WavWriter.sampleRate)
+            let before = Double(range.lowerBound) / total, share = Double(range.count) / total
+            let segments = try await transcribe(audio: file, speaker: speaker, model: model, language: run.language) {
+                progress(0.1 + 0.9 * (before + share * $0))
+            }
+            out += segments.map { $0.shifted(by: offset) }
+        }
+        return out
+    }
+
     /// "whisper_full_with_state: auto-detected language: pt (p = 0.973118)"
     static func parseDetection(_ log: String) -> (code: String, p: Double)? {
         guard let r = log.range(of: #"auto-detected language: ([a-z]{2,3}) \(p = ([0-9.]+)\)"#,
