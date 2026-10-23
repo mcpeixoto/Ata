@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 /// One meeting in its own window: listen to it, read the notes and the
@@ -34,7 +33,12 @@ struct MeetingView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        #if os(macOS)
         .frame(minWidth: 520, maxWidth: .infinity, minHeight: 520, maxHeight: .infinity)
+        #else
+        // A phone screen is narrower than the Mac window's minimum.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        #endif
         .frame(height: height)
         .onReceive(store.$meetings) { _ in model.reload() }
         .onReceive(people.$voices.dropFirst()) { _ in model.reload() }
@@ -123,17 +127,17 @@ struct MeetingView: View {
                 toolbarButton("square.and.arrow.down", help: L("Save as MP3…")) { model.exportMP3() }
                     .disabled(!(meeting.hasAudio || meeting.hasMergedAudio) || model.exporting)
                 toolbarButton("folder", help: L("Show in Finder")) {
-                    NSWorkspace.shared.activateFileViewerSelecting([meeting.dir])
+                    Platform.actions.reveal(meeting.dir)
                 }
 
                 Menu {
                     Button("Open transcript in your editor") {
-                        if let url = meeting.existingTranscriptURL { NSWorkspace.shared.open(url) }
+                        if let url = meeting.existingTranscriptURL { Platform.actions.open(url) }
                     }
                     .disabled(meeting.existingTranscriptURL == nil)
                     TranscribeAgainMenu(meeting: meeting)
                     if FileManager.default.fileExists(atPath: meeting.versionsDir.path) {
-                        Button("Show earlier versions") { NSWorkspace.shared.open(meeting.versionsDir) }
+                        Button("Show earlier versions") { Platform.actions.open(meeting.versionsDir) }
                     }
                     Divider()
                     Button("Delete…", role: .destructive) { confirmDelete = true }

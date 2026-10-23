@@ -1,0 +1,4 @@
+/* Ata for iPhone — Info.plist texts, English. */
+
+"CFBundleDisplayName" = "Ata";
+"NSMicrophoneUsageDescription" = "Ata records the conversation through the microphone so it can transcribe it.";

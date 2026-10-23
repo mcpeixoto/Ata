@@ -1,16 +1,26 @@
 import Foundation
 
 enum Paths {
+    #if os(macOS)
     static let home = FileManager.default.homeDirectoryForCurrentUser
+    #else
+    /// The app's own container on iPhone.
+    static let home = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+    #endif
 
-    /// Each meeting gets its own folder: ~/Documents/Meetings/<date>/
+    /// Each meeting gets its own folder: ~/Documents/Meetings/<date>/ on the Mac;
+    /// on iPhone, Documents/Meetings inside the app, where the Files app shows it.
     /// `ATA_MEETINGS_DIR` points it elsewhere, for development and for the
     /// README screenshots, which must never show anyone's real meetings.
     static let meetingsDir: URL = {
         if let custom = ProcessInfo.processInfo.environment["ATA_MEETINGS_DIR"], !custom.isEmpty {
             return URL(fileURLWithPath: custom, isDirectory: true)
         }
+        #if os(macOS)
         return home.appendingPathComponent("Documents/Meetings", isDirectory: true)
+        #else
+        return URL.documentsDirectory.appendingPathComponent("Meetings", isDirectory: true)
+        #endif
     }()
 
     /// Models and voice data. `ATA_SUPPORT_DIR` points it elsewhere, so tests
@@ -19,8 +29,17 @@ enum Paths {
         if let custom = ProcessInfo.processInfo.environment["ATA_SUPPORT_DIR"], !custom.isEmpty {
             return URL(fileURLWithPath: custom, isDirectory: true)
         }
+        #if os(macOS)
         return home.appendingPathComponent("Library/Application Support/Ata", isDirectory: true)
+        #else
+        return URL.applicationSupportDirectory.appendingPathComponent("Ata", isDirectory: true)
+        #endif
     }()
+
+    /// Recordings in progress, one folder each. A folder only moves into the
+    /// meetings folder once its audio is closed, so nothing reads, or syncs, a
+    /// half-written file.
+    static let stagingDir = supportDir.appendingPathComponent("Recording", isDirectory: true)
     static let modelsDir = supportDir.appendingPathComponent("models", isDirectory: true)
     /// Voice fingerprints and samples. Never uploaded.
     static let voicesDir = supportDir.appendingPathComponent("voices", isDirectory: true)
@@ -30,12 +49,22 @@ enum Paths {
     static let vadModel = modelsDir.appendingPathComponent("ggml-silero-v5.1.2.bin")
     static let vadModelURL = URL(string: "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin")!
 
+    /// whisper-cli and Homebrew are Mac programs. An iPhone app cannot start
+    /// another program, so there they are never found.
     static func whisperCLI() -> URL? {
-        firstExecutable(["/opt/homebrew/bin/whisper-cli", "/usr/local/bin/whisper-cli"])
+        #if os(macOS)
+        return firstExecutable(["/opt/homebrew/bin/whisper-cli", "/usr/local/bin/whisper-cli"])
+        #else
+        return nil
+        #endif
     }
 
     static func brew() -> URL? {
-        firstExecutable(["/opt/homebrew/bin/brew", "/usr/local/bin/brew"])
+        #if os(macOS)
+        return firstExecutable(["/opt/homebrew/bin/brew", "/usr/local/bin/brew"])
+        #else
+        return nil
+        #endif
     }
 
     private static func firstExecutable(_ paths: [String]) -> URL? {
@@ -80,6 +109,8 @@ enum Pref {
     static let menuIconTimer = "menuIconTimer"       // elapsed time next to the icon
     static let menuIconPulse = "menuIconPulse"       // icon breathes while recording
     static let menuIconProgress = "menuIconProgress" // % next to the icon while transcribing
+    static let recordingMode = "recordingMode"   // iPhone: RecordingMode.rawValue
+    static let iCloudSync = "iCloudSync"         // keep meetings in iCloud Drive (not wired up yet)
 
     static let defaultOpenAIModel = "whisper-1"
     static let defaultSummaryModel = "gpt-4o-mini"
@@ -91,8 +122,7 @@ enum Pref {
     static let summaryModels = ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"]
 
     static func registerDefaults() {
-        let first = NSFullUserName().split(separator: " ").first.map(String.init) ?? L("Me")
-        UserDefaults.standard.register(defaults: [
+        UserDefaults.standard.register(defaults: platformDefaults.merging([
             language: "auto",
             autoDetect: true,
             autoStart: false,
@@ -100,7 +130,7 @@ enum Pref {
             keepAudio: true,
             compressAudio: true,
             saveMP3: true,
-            myName: first.isEmpty ? L("Me") : first,
+            myName: defaultName,
             onboarded: false,
             engine: Engine.local.rawValue,
             openAIModel: defaultOpenAIModel,
@@ -111,12 +141,34 @@ enum Pref {
             audioRetentionDays: 0,
             recogniseVoices: false,
             cancelEcho: true,
+            iCloudSync: false,
+        ]) { platform, _ in platform })
+    }
+
+    /// Your first name, for transcripts, until you type the one you want.
+    private static var defaultName: String {
+        #if os(macOS)
+        let first = NSFullUserName().split(separator: " ").first.map(String.init) ?? ""
+        return first.isEmpty ? L("Me") : first
+        #else
+        // An iPhone app can't read its owner's name: "Me" until you type yours.
+        return L("Me")
+        #endif
+    }
+
+    /// Defaults for settings that only one platform has.
+    private static var platformDefaults: [String: Any] {
+        #if os(macOS)
+        return [
             menuIconSymbol: MenuIcon.Symbol.dot.rawValue,
             menuIconTint: MenuIcon.Tint.monochrome.rawValue,
             menuIconTimer: true,
             menuIconPulse: false,
             menuIconProgress: true,
-        ])
+        ]
+        #else
+        return [:]
+        #endif
     }
 
     static var d: UserDefaults { .standard }

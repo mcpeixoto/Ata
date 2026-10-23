@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Ata for iPhone is in development**, built from the same code as the Mac app: recording with
+  the screen locked, starting from the Action button, Control Center, Siri or a widget, and the
+  recording on the lock screen with Stop and Bookmark. Not released yet.
+
 ## 2.5.0
 
 - **Follow the meeting word by word.** While a meeting plays, the word being said is highlighted
