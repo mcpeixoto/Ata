@@ -41,6 +41,8 @@ struct OpenAIClient {
         let segments: [(start: Int, end: Int, text: String)]
         /// True when the model only returned flat text, so offsets are chunk-coarse.
         let coarse: Bool
+        /// Word times relative to the chunk, when the model gives them (whisper-1).
+        var words: [(start: Int, end: Int, text: String)] = []
     }
 
     /// Transcribes one audio file. `model` is an OpenAI transcription model id.
@@ -51,8 +53,11 @@ struct OpenAIClient {
         // Only whisper-1 returns per-segment timestamps.
         let wantsSegments = model == "whisper-1"
         fields["response_format"] = wantsSegments ? "verbose_json" : "json"
+        // Both granularities: segments for the lines, words for following along while playing.
+        let repeated = wantsSegments
+            ? [("timestamp_granularities[]", "segment"), ("timestamp_granularities[]", "word")] : []
 
-        let body = try multipart(fields: fields, fileURL: audio, fileField: "file")
+        let body = try multipart(fields: fields, repeated: repeated, fileURL: audio, fileField: "file")
         var req = URLRequest(url: Self.base.appendingPathComponent("audio/transcriptions"))
         req.httpMethod = "POST"
         req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -71,7 +76,12 @@ struct OpenAIClient {
                      end: Int(($0.end * 1000).rounded()),
                      text: $0.text.trimmingCharacters(in: .whitespacesAndNewlines))
                 },
-                coarse: false)
+                coarse: false,
+                words: (parsed.words ?? []).map {
+                    (start: Int(($0.start * 1000).rounded()),
+                     end: Int(($0.end * 1000).rounded()),
+                     text: $0.word.trimmingCharacters(in: .whitespacesAndNewlines))
+                })
         }
 
         guard let plain = try? JSONDecoder().decode(PlainResponse.self, from: data) else {
@@ -168,11 +178,12 @@ struct OpenAIClient {
 
     private static let boundary = "AtaBoundary7F3A1C"
 
-    private func multipart(fields: [String: String], fileURL: URL, fileField: String) throws -> Data {
+    private func multipart(fields: [String: String], repeated: [(String, String)] = [],
+                           fileURL: URL, fileField: String) throws -> Data {
         var body = Data()
         func append(_ s: String) { body.append(Data(s.utf8)) }
 
-        for (name, value) in fields.sorted(by: { $0.key < $1.key }) {
+        for (name, value) in fields.sorted(by: { $0.key < $1.key }).map({ ($0.key, $0.value) }) + repeated {
             append("--\(Self.boundary)\r\n")
             append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n")
             append("\(value)\r\n")
@@ -198,7 +209,9 @@ struct OpenAIClient {
 
     private struct VerboseResponse: Decodable {
         struct Segment: Decodable { let start: Double; let end: Double; let text: String }
+        struct Word: Decodable { let start: Double; let end: Double; let word: String }
         let segments: [Segment]?
+        let words: [Word]?
     }
 
     private struct PlainResponse: Decodable { let text: String }

@@ -60,7 +60,10 @@ enum Snapshots {
                                        transcribingID: nil, progress: 0)
             // A meeting's own window: its notes, and its transcript.
             for (tab, name) in [(MeetingView.Tab.notes, "notes"), (MeetingView.Tab.transcript, "transcript")] {
-                let meeting = render(MeetingView(model: MeetingModel(id: Fixture.meetingID), tab: tab, height: 760)
+                let model = MeetingModel(id: Fixture.meetingID)
+                // Mid-playback, so the transcript shows the word being heard.
+                model.player.applySnapshotPosition(10.4, duration: 58)
+                let meeting = render(MeetingView(model: model, tab: tab, height: 760)
                                         .environmentObject(store),
                                      width: 600, height: 760, appearance: appearance)
                 write(frame(meeting, appearance), to: out, name: "meeting-\(name)-\(appearance.name)")

@@ -47,7 +47,8 @@ struct MeetingView: View {
             PlayerBar(player: model.player,
                       hasAudio: meeting.hasAudio || meeting.hasMergedAudio,
                       fallbackDuration: meeting.duration ?? 0,
-                      sharedAudio: model.sharedAudio)
+                      sharedAudio: model.sharedAudio,
+                      waveform: model.waveform)
             if let message = model.message {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
@@ -71,7 +72,7 @@ struct MeetingView: View {
             case .notes:
                 ScrollView { NotesTab(model: model, meeting: meeting).padding(.bottom, 12) }
             case .transcript:
-                TranscriptTab(model: model, player: model.player)
+                TranscriptTab(model: model)
             case .people:
                 ScrollView { PeopleTab(model: model, meeting: meeting).padding(.bottom, 12) }
             }
@@ -235,6 +236,8 @@ private struct PlayerBar: View {
     /// The meeting as an MP3 named after it, once ready: dragged out of the
     /// player into Mail, Slack or Finder.
     let sharedAudio: URL?
+    /// You and the others over time; nil while it is being computed.
+    let waveform: Waveform?
 
     private var duration: Double { player.duration > 0 ? player.duration : fallbackDuration }
 
@@ -256,11 +259,10 @@ private struct PlayerBar: View {
                     skipButton("goforward.15", by: 15)
 
                     VStack(spacing: 2) {
-                        Slider(value: Binding(get: { min(player.time, duration) },
-                                              set: { player.seek(to: $0) }),
-                               in: 0...max(duration, 1))
-                            .controlSize(.small)
-                            .disabled(!player.loaded)
+                        WaveformView(waveform: waveform, duration: duration, time: min(player.time, duration)) {
+                            player.seek(to: $0)
+                        }
+                        .disabled(!player.loaded)
                         HStack {
                             Text(Self.clock(player.time)).monospacedDigit()
                             Spacer()
@@ -396,20 +398,12 @@ private func heading(_ title: String) -> some View {
 
 private struct TranscriptTab: View {
     @ObservedObject var model: MeetingModel
-    @ObservedObject var player: MeetingPlayer
     @State private var query = ""
 
     private var shown: [MeetingModel.Line] {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return model.lines }
         return model.lines.filter { $0.text.localizedCaseInsensitiveContains(q) || $0.name.localizedCaseInsensitiveContains(q) }
-    }
-
-    /// The line being heard right now.
-    private var currentID: Int? {
-        guard player.isPlaying || player.time > 0 else { return nil }
-        let ms = Int(player.time * 1000)
-        return model.lines.last { $0.start <= ms }?.id
     }
 
     var body: some View {
@@ -422,11 +416,11 @@ private struct TranscriptTab: View {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 4) {
                             ForEach(shown) { line in
-                                LineRow(line: line, current: line.id == currentID, coarse: model.coarse) {
-                                    player.seek(to: Double(line.start) / 1000)
-                                    player.play()
-                                }
-                                .id(line.id)
+                                let current = model.cursor?.line == line.id
+                                LineRow(line: line, word: current ? model.cursor?.word : nil,
+                                        current: current, coarse: model.coarse)
+                                    .equatable()
+                                    .id(line.id)
                             }
                             if shown.isEmpty {
                                 Text("Nothing in this transcript matches.")
@@ -435,11 +429,17 @@ private struct TranscriptTab: View {
                         }
                         .padding(.bottom, 12)
                     }
-                    .onChange(of: currentID) { _, id in
-                        guard player.isPlaying, query.isEmpty, let id else { return }
+                    .onChange(of: model.cursor?.line) { _, id in
+                        guard model.playing, query.isEmpty, let id else { return }
                         withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(id, anchor: .center) }
                     }
                 }
+                // Every word and timestamp is an ata-seek link: clicking one plays from there.
+                .environment(\.openURL, OpenURLAction { url in
+                    guard let ms = SeekLink.ms(url) else { return .systemAction }
+                    MainActor.assumeIsolated { model.play(fromMs: ms) }
+                    return .handled
+                })
             } else if let markdown = model.markdown {
                 ScrollView {
                     Text(markdown)
@@ -457,19 +457,21 @@ private struct TranscriptTab: View {
     }
 }
 
-private struct LineRow: View {
+/// One block of the transcript. Equatable, so only the line being heard redraws
+/// as playback moves from word to word.
+private struct LineRow: View, Equatable {
     let line: MeetingModel.Line
+    /// The word being heard, when this is the current line.
+    let word: Int?
     let current: Bool
     let coarse: Bool
-    let play: () -> Void
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             if !coarse {
-                Button(Transcriber.timestamp(line.start), action: play)
-                    .buttonStyle(.plain)
+                Text(Self.timestamp(line))
                     .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(current ? Color.accentColor : Color.secondary)
+                    .tint(current ? Color.accentColor : Color.secondary)
                     .help(L("Play from here"))
                     .frame(width: 52, alignment: .leading)
             }
@@ -477,8 +479,9 @@ private struct LineRow: View {
                 Text(line.name)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(line.speaker == Speakers.me ? Theme.meTint : Theme.othersTint)
-                Text(line.text)
+                Text(Self.text(line, word: word, linked: !coarse))
                     .font(.system(size: 13))
+                    .tint(.primary)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -487,7 +490,34 @@ private struct LineRow: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
         .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(current ? Color.accentColor.opacity(0.12) : Color.clear))
+            .fill(current ? Color.accentColor.opacity(0.08) : Color.clear))
+    }
+
+    static func timestamp(_ line: MeetingModel.Line) -> AttributedString {
+        var a = AttributedString(Transcriber.timestamp(line.start))
+        a.link = SeekLink.url(ms: line.start)
+        return a
+    }
+
+    /// The line as links, one per word. While it plays, the word being heard is
+    /// highlighted and the words still to come are dimmed, like lyrics.
+    static func text(_ line: MeetingModel.Line, word: Int?, linked: Bool) -> AttributedString {
+        guard linked, !line.words.isEmpty else { return AttributedString(line.text) }
+        var out = AttributedString()
+        for (i, w) in line.words.enumerated() {
+            if i > 0 { out.append(AttributedString(" ")) }
+            var a = AttributedString(w.text)
+            a.link = SeekLink.url(ms: w.start)
+            if let word {
+                if i == word {
+                    a.backgroundColor = Color.accentColor.opacity(0.3)
+                } else if i > word {
+                    a.foregroundColor = Color.secondary
+                }
+            }
+            out.append(a)
+        }
+        return out
     }
 }
 
@@ -668,5 +698,74 @@ struct TranscribeAgainMenu: View {
                 }
             }
         }
+    }
+}
+
+/// The meeting's loudness over time, mirrored: the others above the line, you
+/// below. What has been played is solid; click or drag anywhere to jump there.
+struct WaveformView: View {
+    let waveform: Waveform?
+    let duration: Double
+    let time: Double
+    let seek: (Double) -> Void
+    @State private var hover: CGFloat?
+
+    var body: some View {
+        GeometryReader { geo in
+            Canvas { context, size in
+                let mid = size.height / 2
+                guard let waveform, waveform.count > 0, duration > 0 else {
+                    context.fill(Path(CGRect(x: 0, y: mid - 0.5, width: size.width, height: 1)),
+                                 with: .color(Color.primary.opacity(0.15)))
+                    return
+                }
+                let step: CGFloat = 3
+                let columns = max(1, Int(size.width / step))
+                let played = size.width * CGFloat(time / duration)
+                let msPerColumn = duration * 1000 / Double(columns)
+                for c in 0..<columns {
+                    let lo = min(waveform.count - 1, Int(Double(c) * msPerColumn) / Waveform.bucketMs)
+                    let hi = min(waveform.count, max(lo + 1, Int(Double(c + 1) * msPerColumn) / Waveform.bucketMs))
+                    let up = CGFloat(waveform.others[lo..<hi].max() ?? 0) / 255
+                    let down = CGFloat(waveform.me[lo..<hi].max() ?? 0) / 255
+                    let x = CGFloat(c) * step
+                    let alpha = x <= played ? 1.0 : 0.35
+                    let hUp = max(1, up * (mid - 1)), hDown = max(1, down * (mid - 1))
+                    context.fill(Path(roundedRect: CGRect(x: x, y: mid - hUp, width: 2, height: hUp), cornerRadius: 1),
+                                 with: .color(Theme.othersTint.opacity(alpha)))
+                    context.fill(Path(roundedRect: CGRect(x: x, y: mid, width: 2, height: hDown), cornerRadius: 1),
+                                 with: .color(Theme.meTint.opacity(alpha)))
+                }
+                context.fill(Path(CGRect(x: min(played, size.width - 1), y: 0, width: 1.5, height: size.height)),
+                             with: .color(Color.primary.opacity(0.8)))
+                if let hover {
+                    context.fill(Path(CGRect(x: hover, y: 0, width: 1, height: size.height)),
+                                 with: .color(Color.primary.opacity(0.3)))
+                }
+            }
+            .overlay(alignment: .topLeading) {
+                if let hover, duration > 0 {
+                    Text(Transcriber.timestamp(Int(Double(hover / geo.size.width) * duration * 1000)))
+                        .font(.system(size: 9, weight: .medium)).monospacedDigit()
+                        .padding(.horizontal, 4).padding(.vertical, 1)
+                        .background(Capsule().fill(.regularMaterial))
+                        .offset(x: min(max(0, hover - 16), geo.size.width - 36), y: -2)
+                        .allowsHitTesting(false)
+                }
+            }
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0).onChanged { g in
+                guard duration > 0, geo.size.width > 0 else { return }
+                seek(Double(min(max(0, g.location.x / geo.size.width), 1)) * duration)
+            })
+            .onContinuousHover { phase in
+                switch phase {
+                case .active(let p): hover = p.x
+                case .ended: hover = nil
+                }
+            }
+        }
+        .frame(height: 40)
+        .help(L("You below, the others above. Click to jump."))
     }
 }

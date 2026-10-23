@@ -139,6 +139,17 @@ if support:
             "segments": [{"start": a * 1000, "end": b * 1000, "speaker": sp, "text": t} for a, b, sp, t in lines],
             "coarse": False, "summary": summary, "engine": "local", "model": "large-v3-q5_0",
         }, f, indent=2)
+    # The player's waveform: 50 ms levels per lane, loud where each side speaks.
+    import struct, math
+    buckets = 58 * 20
+    me_lane = bytearray(buckets); others_lane = bytearray(buckets)
+    for a, b, sp, _ in lines:
+        lane = me_lane if sp == "me" else others_lane
+        for i in range(a * 20, min(buckets, b * 20)):
+            syllable = 0.55 + 0.45 * abs(math.sin(i * 0.9)) * (0.6 + 0.4 * random.random())
+            lane[i] = int(150 + 90 * syllable) if random.random() > 0.08 else 60
+    with open(os.path.join(zoom, "waveform.bin"), "wb") as f:
+        f.write(b"ATAW" + bytes([1]) + struct.pack("<HI", 50, buckets) + bytes(me_lane) + bytes(others_lane))
     with open(os.path.join(zoom, "transcript.md"), "w") as f:
         f.write("# Zoom\n")
     with open(os.path.join(zoom, "notes.md"), "w") as f:

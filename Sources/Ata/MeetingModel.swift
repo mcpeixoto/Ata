@@ -1,7 +1,45 @@
 import AppKit
 import AVFoundation
+import Combine
 import Foundation
 import UniformTypeIdentifiers
+
+/// Where playback is in the transcript: the line being heard and its word.
+struct PlaybackCursor: Equatable {
+    var line: Int
+    /// Nil in the pause after a line, before the next one starts.
+    var word: Int?
+
+    /// The last line started by `ms`, and its last word started by then. Times
+    /// lead by `WordTiming.leadMs`, because Whisper's word times run late.
+    static func at(_ ms: Int, in lines: [MeetingModel.Line]) -> PlaybackCursor? {
+        let t = ms + WordTiming.leadMs
+        guard let line = lastIndex(in: lines.map(\.start), atOrBefore: t) else { return nil }
+        let l = lines[line]
+        guard t <= l.end + 500 else { return PlaybackCursor(line: line, word: nil) }
+        return PlaybackCursor(line: line, word: lastIndex(in: l.words.map(\.start), atOrBefore: t))
+    }
+
+    /// Binary search over ascending starts.
+    static func lastIndex(in starts: [Int], atOrBefore t: Int) -> Int? {
+        var lo = 0, hi = starts.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if starts[mid] <= t { lo = mid + 1 } else { hi = mid }
+        }
+        return lo == 0 ? nil : lo - 1
+    }
+}
+
+/// A word in the transcript is a link to its moment in the audio.
+enum SeekLink {
+    static func url(ms: Int) -> URL { URL(string: "ata-seek://t/\(max(0, ms))")! }
+
+    static func ms(_ url: URL) -> Int? {
+        guard url.scheme == "ata-seek", url.host == "t" else { return nil }
+        return Int(url.lastPathComponent)
+    }
+}
 
 /// Your notes and the AI summary of one meeting, as files in its folder.
 enum MeetingNotes {
@@ -112,6 +150,8 @@ final class MeetingModel: ObservableObject {
         let speaker: String
         let name: String
         let text: String
+        /// As transcribed, or estimated for older transcripts; see `WordTiming`.
+        let words: [StoredTranscript.Word]
     }
 
     /// A voice heard in this meeting, other than yours.
@@ -161,6 +201,32 @@ final class MeetingModel: ObservableObject {
             notes = MeetingNotes.load(for: meeting)
             savedNotes = notes
         }
+        // The transcript follows the audio, but only redraws when the word changes.
+        player.$time
+            .sink { [weak self] t in MainActor.assumeIsolated { self?.follow(t) } }
+            .store(in: &watchers)
+        player.$isPlaying
+            .sink { [weak self] p in MainActor.assumeIsolated { self?.playing = p } }
+            .store(in: &watchers)
+    }
+
+    /// The line and word being heard, published only when it changes.
+    @Published private(set) var cursor: PlaybackCursor?
+    @Published private(set) var playing = false
+    /// You in one lane, the others in the other; nil until it has been computed.
+    @Published private(set) var waveform: Waveform?
+    private var watchers: Set<AnyCancellable> = []
+    private var computingWaveform = false
+
+    private func follow(_ seconds: Double) {
+        let next = seconds > 0 || playing ? PlaybackCursor.at(Int(seconds * 1000), in: lines) : nil
+        if next != cursor { cursor = next }
+    }
+
+    /// From a word or a timestamp in the transcript.
+    func play(fromMs ms: Int) {
+        player.seek(to: Double(ms) / 1000)
+        player.play()
     }
 
     func reload() {
@@ -175,7 +241,8 @@ final class MeetingModel: ObservableObject {
         if let stored = StoredTranscript.load(from: m.storedTranscriptURL) {
             hasStoredTranscript = true
             lines = Transcriber.blocks(stored).enumerated().map { i, b in
-                Line(id: i, start: b.start, end: b.end, speaker: b.speaker, name: names(b.speaker), text: b.text)
+                Line(id: i, start: b.start, end: b.end, speaker: b.speaker, name: names(b.speaker), text: b.text,
+                     words: WordTiming.words(of: b))
             }
             coarse = stored.coarse
             summary = stored.summary
@@ -204,9 +271,24 @@ final class MeetingModel: ObservableObject {
         for line in lines where !people.contains(line.name) { people.append(line.name) }
         participants = people
 
+        if waveform == nil { waveform = Waveform.read(from: m.waveformURL) }
         guard !Snapshots.rendering else { return }
         if !player.loaded, m.hasAudio || m.hasMergedAudio {
             player.load(m)
+        }
+        // Meetings transcribed before Ata 2.5 get their waveform the first time they're opened.
+        if waveform == nil, m.hasAudio, !computingWaveform {
+            computingWaveform = true
+            let mic = m.micAudioURL, system = m.systemAudioURL, file = m.waveformURL
+            Task {
+                let computed = await Task.detached(priority: .utility) { () -> Waveform? in
+                    guard let w = try? Waveform.compute(mic: mic, system: system) else { return nil }
+                    try? w.write(to: file)
+                    return w
+                }.value
+                if let computed { waveform = computed }
+                computingWaveform = false
+            }
         }
         // Meetings from before Ata saved an MP3 get one the first time they're opened.
         AppStore.shared.saveMergedAudio(of: m)
@@ -432,6 +514,12 @@ final class MeetingPlayer: ObservableObject {
 
     func toggle() { isPlaying ? pause() : play() }
 
+    /// For the snapshot renderer only: a moment in the meeting, without audio.
+    func applySnapshotPosition(_ seconds: Double, duration: Double) {
+        self.duration = duration
+        time = seconds
+    }
+
     func close() {
         pause()
         if let timeObserver { player.removeTimeObserver(timeObserver) }
@@ -452,7 +540,8 @@ final class MeetingPlayer: ObservableObject {
     func skip(by seconds: Double) { seek(to: time + seconds) }
 
     private func observe(_ item: AVPlayerItem) {
-        timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 4),
+        // 20 Hz, so the highlighted word keeps up with the voice.
+        timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 20),
                                                       queue: .main) { [weak self] t in
             MainActor.assumeIsolated {
                 guard let self, t.seconds.isFinite else { return }

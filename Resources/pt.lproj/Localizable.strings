@@ -317,3 +317,6 @@
 /* 2.4.1: echo cancellation. */
 "Remove the others' voices from your microphone" = "Tirar a voz dos outros do teu microfone";
 "For calls without headphones: Ata takes what your Mac played out of your microphone before transcribing. The recording itself is not changed." = "Para chamadas sem auscultadores: antes de transcrever, o Ata tira do teu microfone o que o Mac tocou. A gravação não é alterada.";
+
+/* 2.5: following the transcript, the waveform. */
+"You below, the others above. Click to jump." = "Tu em baixo, os outros em cima. Clica para saltar.";

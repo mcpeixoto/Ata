@@ -41,7 +41,8 @@ enum OpenAIEngine {
             progress(Double(i) / Double(chunks.count))
             let piece = try await client.transcribe(audio: chunk.url, model: model, language: language)
             coarse = coarse || piece.coarse
-            for s in piece.segments {
+            let words = attach(words: piece.words, to: piece.segments)
+            for (s, own) in zip(piece.segments, words) {
                 let text = s.text.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !text.isEmpty, !Transcriber.isNoise(text) else { continue }
                 // A coarse chunk has no internal timing: span it across the chunk
@@ -50,10 +51,32 @@ enum OpenAIEngine {
                 segments.append(Segment(speaker: speaker,
                                         start: chunk.offsetMs + s.start,
                                         end: chunk.offsetMs + end,
-                                        text: text))
+                                        text: text,
+                                        words: own.map { Segment.Word(start: chunk.offsetMs + $0.start,
+                                                                      end: chunk.offsetMs + $0.end,
+                                                                      text: $0.text) }))
             }
         }
         progress(1)
         return Result(segments: segments, coarse: coarse)
+    }
+
+    /// OpenAI returns words in one list beside the segments: each word goes to
+    /// the segment its middle falls in, or the nearest one when it falls between two.
+    static func attach(words: [(start: Int, end: Int, text: String)],
+                       to segments: [(start: Int, end: Int, text: String)]) -> [[(start: Int, end: Int, text: String)]] {
+        var out = segments.map { _ in [(start: Int, end: Int, text: String)]() }
+        guard !segments.isEmpty else { return out }
+        for w in words where !w.text.isEmpty {
+            let mid = (w.start + w.end) / 2
+            var best = 0, distance = Int.max
+            for (i, s) in segments.enumerated() {
+                let d = mid < s.start ? s.start - mid : (mid > s.end ? mid - s.end : 0)
+                if d < distance { best = i; distance = d }
+                if d == 0 { break }
+            }
+            out[best].append(w)
+        }
+        return out
     }
 }

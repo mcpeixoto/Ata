@@ -101,6 +101,15 @@ struct StoredTranscript: Codable, Equatable {
         var text: String
         /// `Speakers.me`, `Speakers.others`, or a diarized label like "S1".
         var speaker: String
+        /// When each word was said, for following along while the meeting plays.
+        /// Absent in transcripts from before Ata 2.5 and from engines without word times.
+        var words: [Word]? = nil
+    }
+
+    struct Word: Codable, Equatable {
+        var start: Int // ms
+        var end: Int   // ms
+        var text: String
     }
 
     var segments: [Line]
@@ -266,6 +275,13 @@ enum Transcriber {
                 NSLog("Ata: echo cancellation failed, using the microphone as recorded: \(error.localizedDescription)")
             }
         }
+        // The player's waveform, from the tracks as transcribed: with the echo taken out,
+        // the others don't show up in your lane.
+        let micTrack = prepared.first(where: { $0.speaker == Speakers.me })?.audio
+        let systemTrack = prepared.first(where: { $0.speaker == Speakers.others })?.audio
+        if let waveform = try? Waveform.compute(mic: micTrack, system: systemTrack) {
+            try? waveform.write(to: meeting.waveformURL)
+        }
         let audioSeconds = prepared.reduce(0) { $0 + WavWriter.duration(of: $1.audio) }
 
         // The local engine gets an explicit language per track; see LanguageChoice.
@@ -327,7 +343,12 @@ enum Transcriber {
         }
 
         var stored = StoredTranscript(
-            segments: segments.map { StoredTranscript.Line(start: $0.start, end: $0.end, text: $0.text, speaker: $0.speaker) },
+            segments: segments.map { s in
+                StoredTranscript.Line(start: s.start, end: s.end, text: s.text, speaker: s.speaker,
+                                      words: s.words.isEmpty ? nil : s.words.map {
+                                          StoredTranscript.Word(start: $0.start, end: $0.end, text: $0.text)
+                                      })
+            },
             coarse: coarse, summary: nil, engine: options.engine.rawValue, model: options.modelID)
 
         var cost = options.engine.isLocal ? 0 : Pricing.transcription(model: options.openAIModel,
@@ -503,8 +524,13 @@ enum Transcriber {
         var blocks: [StoredTranscript.Line] = []
         for s in t.segments.sorted(by: { $0.start < $1.start }) {
             if let last = blocks.last, last.speaker == s.speaker, s.start - last.end < 2_500 {
+                // Keep word times through the join; a line without them gets estimates,
+                // so a block is never half clickable.
+                let words = last.words == nil && s.words == nil
+                    ? nil : WordTiming.words(of: last) + WordTiming.words(of: s)
                 blocks[blocks.count - 1] = .init(start: last.start, end: s.end,
-                                                 text: last.text + " " + s.text, speaker: last.speaker)
+                                                 text: last.text + " " + s.text, speaker: last.speaker,
+                                                 words: words)
             } else {
                 blocks.append(s)
             }
@@ -565,5 +591,37 @@ enum Transcriber {
         return s >= 3600
             ? String(format: "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60)
             : String(format: "%02d:%02d", s / 60, s % 60)
+    }
+}
+
+/// Word times for following a transcript while it plays.
+enum WordTiming {
+    /// Whisper's word times run a little late (see `SpeakerAssignment`), so the
+    /// highlight moves to a word this much before its start.
+    static let leadMs = 150
+
+    /// The line's words: as transcribed, or, for a line without word times
+    /// (transcribed before Ata 2.5, or by a model without them), spread over the
+    /// line in proportion to their length.
+    static func words(of line: StoredTranscript.Line) -> [StoredTranscript.Word] {
+        if let words = line.words, !words.isEmpty { return words }
+        return estimate(line)
+    }
+
+    static func estimate(_ line: StoredTranscript.Line) -> [StoredTranscript.Word] {
+        let texts = line.text.split(whereSeparator: \.isWhitespace).map(String.init)
+        guard !texts.isEmpty else { return [] }
+        let span = max(0, line.end - line.start)
+        // A space's worth for each word, so short words still get some time.
+        let weights = texts.map { Double($0.count + 1) }
+        let total = weights.reduce(0, +)
+        var out: [StoredTranscript.Word] = []
+        var at = Double(line.start)
+        for (text, w) in zip(texts, weights) {
+            let length = Double(span) * w / total
+            out.append(.init(start: Int(at.rounded()), end: Int((at + length).rounded()), text: text))
+            at += length
+        }
+        return out
     }
 }
