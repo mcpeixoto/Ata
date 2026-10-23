@@ -180,13 +180,8 @@ enum VoiceSamples {
 
         let asset = AVURLAsset(url: audio)
         guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetAppleM4A) else { return nil }
-        session.outputURL = out
-        session.outputFileType = .m4a
         session.timeRange = CMTimeRange(start: CMTime(seconds: start, preferredTimescale: 1000),
                                         duration: CMTime(seconds: length, preferredTimescale: 1000))
-        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
-            session.exportAsynchronously { c.resume() }
-        }
-        return session.status == .completed ? name : nil
+        return await AudioFiles.runExport(session, to: out) == nil ? name : nil
     }
 }

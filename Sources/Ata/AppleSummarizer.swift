@@ -21,7 +21,11 @@ enum AppleModel {
         #if canImport(FoundationModels)
         if #available(macOS 26.0, iOS 26.0, *) { return AppleSummarizer.unavailableReason }
         #endif
+        #if os(iOS)
+        return L("Needs Apple Intelligence turned on in Settings.")
+        #else
         return L("Needs macOS 26 with Apple Intelligence turned on.")
+        #endif
     }
 
     /// The summary as Markdown, or nil when the model is unavailable, does not

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.6.0
 
 - **Transcribe with Apple's speech recognition.** On macOS 26, **Settings → Transcription** has a
   third engine, **On this Mac (Apple)**: free, nothing leaves the Mac, and no whisper.cpp to

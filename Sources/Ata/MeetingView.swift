@@ -127,7 +127,7 @@ struct MeetingView: View {
 
                 toolbarButton("square.and.arrow.down", help: L("Save as MP3…")) { model.exportMP3() }
                     .disabled(!(meeting.hasAudio || meeting.hasMergedAudio) || model.exporting)
-                toolbarButton("folder", help: L("Show in Finder")) {
+                toolbarButton("folder", help: Self.revealTitle) {
                     Platform.actions.reveal(meeting.dir)
                 }
 
@@ -186,6 +186,14 @@ struct MeetingView: View {
         .help(L("Share"))
         .disabled(model.sharedAudio == nil && !model.preparingAudio && model.sharedTranscript == nil
                   && model.notesText.isEmpty)
+    }
+
+    private static var revealTitle: String {
+        #if os(iOS)
+        return L("Show in Files")
+        #else
+        return L("Show in Finder")
+        #endif
     }
 
     private func toolbarButton(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {
@@ -392,13 +400,24 @@ private struct NotesTab: View {
                 switch Summarizer.engine(preference: summaryEngine, appleAvailable: AppleModel.isAvailable,
                                          hasOpenAIKey: Keychain.has(Keychain.openAIKey)) {
                 case .apple?:
+                    #if os(iOS)
+                    Button("Write notes on this iPhone") { Task { await model.writeNotes() } }
+                    Text("Written on this iPhone. Nothing leaves it.")
+                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                    #else
                     Button("Write notes on this Mac") { Task { await model.writeNotes() } }
                     Text("Written on this Mac. Nothing leaves it.")
                         .font(.system(size: 10)).foregroundStyle(.secondary)
+                    #endif
                 case .openAI?:
                     Button(L("Write notes with %@", summaryModel)) { Task { await model.writeNotes() } }
+                    #if os(iOS)
+                    Text("Sends the transcript text to OpenAI. The audio stays on this iPhone.")
+                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                    #else
                     Text("Sends the transcript text to OpenAI. The audio stays on this Mac.")
                         .font(.system(size: 10)).foregroundStyle(.secondary)
+                    #endif
                 case nil:
                     if summaryEngine == SummaryEngine.apple.rawValue, let reason = AppleModel.unavailableReason {
                         Text(reason)
@@ -633,8 +652,13 @@ private struct PeopleTab: View {
             Image(systemName: "person.wave.2.fill").font(.system(size: 26)).foregroundStyle(Theme.brand)
             if !recognise {
                 Text("Know who said what").font(.system(size: 13, weight: .semibold))
+                #if os(iOS)
+                Text("Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay on this iPhone.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                #else
                 Text("Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay on this Mac.")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
+                #endif
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                 if Diarization.isSupported {
@@ -778,6 +802,9 @@ struct TranscribeAgainMenu: View {
     var body: some View {
         if meeting.hasAudio && meeting.status != .transcribing && meeting.status != .recording {
             Button("Transcribe again") { store.retry(meeting) }
+            #if os(iOS)
+            // The phone has one engine: Apple's, on the device.
+            #else
             Menu("Transcribe again with") {
                 Section("On this Mac") {
                     ForEach(LocalModel.all) { model in
@@ -803,6 +830,7 @@ struct TranscribeAgainMenu: View {
                     }
                 }
             }
+            #endif
         }
     }
 }

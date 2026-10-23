@@ -109,8 +109,12 @@ enum AppleSpeechError: LocalizedError {
         case .unavailable:
             return L("Apple's on-device speech recognition needs macOS 26. Choose whisper.cpp in Settings → Transcription.")
         case .unsupported(let code):
+            #if os(iOS)
+            return L("Apple's on-device speech doesn't support %@ yet.", AppleSpeech.languageName(code))
+            #else
             return L("Apple's on-device speech doesn't support %@ yet — choose whisper.cpp in Settings → Transcription.",
                      AppleSpeech.languageName(code))
+            #endif
         case .download(let message):
             return L("Apple's speech model could not be downloaded: %@", message)
         }

@@ -411,3 +411,16 @@
 "Last meeting" = "Última reunião";
 "Record with Ata" = "Gravar com a Ata";
 "Starts recording a conversation, even from the lock screen." = "Começa a gravar uma conversa, mesmo a partir do ecrã bloqueado.";
+
+/* The same sentences on the iPhone */
+"Show in Files" = "Mostrar em Ficheiros";
+"Write notes on this iPhone" = "Escrever notas neste iPhone";
+"Written on this iPhone. Nothing leaves it." = "Escrito neste iPhone. Nada sai daqui.";
+"Sends the transcript text to OpenAI. The audio stays on this iPhone." = "Envia o texto da transcrição para a OpenAI. O áudio fica neste iPhone.";
+"Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay on this iPhone." = "O Ata consegue distinguir os outros participantes e aprender as vozes deles de reunião para reunião. As impressões vocais ficam neste iPhone.";
+"Could not write notes on this iPhone. Try again." = "Não foi possível escrever as notas neste iPhone. Tenta de novo.";
+"%d voices learned, all on this iPhone." = "%d vozes aprendidas, todas neste iPhone.";
+"Voice fingerprints stay on this iPhone. Turning this on downloads 21 MB of models once." = "As impressões de voz ficam neste iPhone. Ativar isto descarrega 21 MB de modelos, uma vez.";
+"%@ saved on this iPhone" = "%@ poupados neste iPhone";
+"Apple's on-device speech doesn't support %@ yet." = "O reconhecimento de fala da Apple no dispositivo ainda não suporta %@.";
+"Needs Apple Intelligence turned on in Settings." = "Requer o Apple Intelligence ativado nas Definições.";

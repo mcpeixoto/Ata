@@ -3,6 +3,14 @@ import SwiftUI
 
 /// The menu's second tab: what you've recorded, who talked, what it cost.
 struct InsightsView: View {
+    private static func savedLine(_ amount: String) -> String {
+        #if os(iOS)
+        return L("%@ saved on this iPhone", amount)
+        #else
+        return L("%@ saved on this Mac", amount)
+        #endif
+    }
+
     @EnvironmentObject var store: AppStore
     @State private var data = Insights()
     /// Drives every entrance animation: charts grow and numbers count up from zero.
@@ -57,7 +65,7 @@ struct InsightsView: View {
             Tile(symbol: "dollarsign.circle.fill", tint: .pink, title: L("Spent this month"),
                  value: Pricing.format(shown ? data.spentThisMonth : 0),
                  footnote: data.savedLocally > 0.005
-                    ? L("%@ saved on this Mac", Pricing.format(data.savedLocally)) : nil)
+                    ? Self.savedLine(Pricing.format(data.savedLocally)) : nil)
             }
         }
         .fixedSize(horizontal: false, vertical: true)

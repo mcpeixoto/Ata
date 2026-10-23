@@ -181,7 +181,7 @@ final class PhoneRecorder {
         let session = AVAudioSession.sharedInstance()
         // Bluetooth lets AirPods be the microphone; without headphones the
         // bottom speaker, not the earpiece, plays anything Ata plays.
-        try session.setCategory(.playAndRecord, mode: .default, options: [.allowBluetooth, .defaultToSpeaker])
+        try session.setCategory(.playAndRecord, mode: .default, options: [.allowBluetoothHFP, .defaultToSpeaker])
         try session.setActive(true)
     }
 

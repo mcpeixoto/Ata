@@ -411,3 +411,16 @@
 "Last meeting" = "Last meeting";
 "Record with Ata" = "Record with Ata";
 "Starts recording a conversation, even from the lock screen." = "Starts recording a conversation, even from the lock screen.";
+
+/* The same sentences on the iPhone */
+"Show in Files" = "Show in Files";
+"Write notes on this iPhone" = "Write notes on this iPhone";
+"Written on this iPhone. Nothing leaves it." = "Written on this iPhone. Nothing leaves it.";
+"Sends the transcript text to OpenAI. The audio stays on this iPhone." = "Sends the transcript text to OpenAI. The audio stays on this iPhone.";
+"Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay on this iPhone." = "Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay on this iPhone.";
+"Could not write notes on this iPhone. Try again." = "Could not write notes on this iPhone. Try again.";
+"%d voices learned, all on this iPhone." = "%d voices learned, all on this iPhone.";
+"Voice fingerprints stay on this iPhone. Turning this on downloads 21 MB of models once." = "Voice fingerprints stay on this iPhone. Turning this on downloads 21 MB of models once.";
+"%@ saved on this iPhone" = "%@ saved on this iPhone";
+"Apple's on-device speech doesn't support %@ yet." = "Apple's on-device speech doesn't support %@ yet.";
+"Needs Apple Intelligence turned on in Settings." = "Needs Apple Intelligence turned on in Settings.";

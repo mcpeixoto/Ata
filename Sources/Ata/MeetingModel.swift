@@ -410,9 +410,13 @@ final class MeetingModel: ObservableObject {
         let draft = Transcriber.render(stored, meeting: meeting,
                                        names: Speakers.names(for: meeting, myName: options.myName))
         guard let result = await Summarizer.summarize(markdown: draft, options: options) else {
+            #if os(iOS)
+            message = L("Could not write notes on this iPhone. Try again.")
+            #else
             message = onThisMac
                 ? L("Could not write notes on this Mac. Try again, or choose OpenAI in Settings.")
                 : L("Could not write notes. Check your OpenAI key in Settings and try again.")
+            #endif
             return
         }
         do {
