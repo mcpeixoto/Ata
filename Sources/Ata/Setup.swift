@@ -43,7 +43,8 @@ final class SetupModel: ObservableObject {
     /// Everything needed to record and transcribe with the selected engine.
     var ready: Bool {
         guard mic && !systemAudioMissing else { return false }
-        return usesOpenAI ? hasOpenAIKey : (whisper && model)
+        if usesOpenAI { return hasOpenAIKey }
+        return Engine.current.needsWhisper ? (whisper && model) : true
     }
 
     /// Whether the local engine is installed, regardless of which engine is selected.
@@ -55,7 +56,7 @@ final class SetupModel: ObservableObject {
         if systemAudioMissing { m.append(L("system audio")) }
         if usesOpenAI {
             if !hasOpenAIKey { m.append(L("OpenAI API key")) }
-        } else {
+        } else if Engine.current.needsWhisper {
             if !whisper { m.append(L("transcription engine")) }
             if !model { m.append(L("model")) }
         }

@@ -133,15 +133,16 @@ final class PhoneStore: ObservableObject {
     func stopRecording() {
         guard isRecording else { return }
         phase = .stopping
-        let finished = recorder.stop()
+        var finished = recorder.stop()
         stopTicker()
         activity.end()
         if finished == nil {
             lastError = L("The recording could not be moved into your meetings. It is safe and will be tried again next time Ata opens.")
         }
-        // Moments marked during the recording are kept only until Meeting can store them.
-        if let finished, !bookmarks.isEmpty {
-            NSLog("Ata: \(bookmarks.count) bookmarks in \(finished.id): \(bookmarks)")
+        if var m = finished, !bookmarks.isEmpty {
+            m.bookmarks = bookmarks.map { Bookmark(ms: $0) }
+            Library.save(m)
+            finished = m
         }
         bookmarks = []
         phase = .idle

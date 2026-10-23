@@ -167,7 +167,13 @@ enum Pref {
             menuIconProgress: true,
         ]
         #else
-        return [:]
+        // The phone transcribes and summarizes with Apple's on-device models, which
+        // cost nothing, and an in-person recording needs voices told apart.
+        return [
+            engine: Engine.apple.rawValue,
+            summarize: true,
+            recogniseVoices: true,
+        ]
         #endif
     }
 

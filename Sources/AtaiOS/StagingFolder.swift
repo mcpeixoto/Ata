@@ -26,8 +26,9 @@ enum StagingFolder {
         let id = FolderNames.unique(FolderNames.name(startedAt: now, app: app), existing: taken)
         let folder = Paths.stagingDir.appendingPathComponent(id, isDirectory: true)
         try fm.createDirectory(at: folder, withIntermediateDirectories: true)
-        let meeting = Meeting(id: id, startedAt: now, endedAt: nil, duration: nil,
+        var meeting = Meeting(id: id, startedAt: now, endedAt: nil, duration: nil,
                               app: app, status: .recording, error: nil)
+        meeting.origin = Device.current
         try writeMeta(meeting, in: folder)
         return (meeting, folder)
     }
