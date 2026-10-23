@@ -430,11 +430,26 @@ enum Transcriber {
 
     // MARK: - Voices
 
-    /// Splits the "others" lines by speaker and matches each speaker against the
-    /// voice library. Anything going wrong here leaves the lines as "others":
-    /// a transcript is never lost to voice recognition.
+    /// Splits the lines by speaker and matches each speaker against the voice
+    /// library: the "others" lines of a call, or, for a meeting in the room with
+    /// no system track to speak of, the microphone's. Anything going wrong here
+    /// leaves the lines as they were: a transcript is never lost to voice recognition.
     private static func recogniseSpeakers(_ segments: [Segment], meeting: Meeting, diarizer: Diarizer,
                                           system: URL?, mic: URL?) async -> [Segment] {
+        // The waveform was just drawn from these same tracks; read only if it wasn't.
+        let systemLevels: [UInt8]? = system.map { url in
+            Waveform.read(from: meeting.waveformURL)?.others ?? ((try? Waveform.levels(url)) ?? [])
+        }
+        switch SpeakerRoute.choose(systemLevels: systemLevels, hasMic: mic != nil) {
+        case .call:
+            break
+        case .inPerson:
+            guard let mic else { return segments }
+            return await recogniseInPerson(segments, meeting: meeting, diarizer: diarizer, mic: mic)
+        case .nobody:
+            return segments
+        }
+
         var speakers: [MeetingSpeaker] = []
         var turns: [SpeakerTurn] = []
         var relabelled = segments
@@ -462,6 +477,8 @@ enum Transcriber {
                 return segments
             }
         }
+        // Learned as your voice (`Voice.isMe`), which is how a later meeting in the
+        // room knows which of its speakers is you.
         if let mic, let e = try? await diarizer.embed(mic) {
             speakers.append(MeetingSpeaker(label: Speakers.me, embedding: e, seconds: 0, voiceID: nil))
         }
@@ -470,19 +487,69 @@ enum Transcriber {
         let found = speakers
         let assigned = await MainActor.run { PeopleModel.shared.assign(found, meetingID: meeting.id) }
         try? MeetingVoices(speakers: assigned, turns: turns).save(for: meeting)
+        if let system { await cutSamples(for: assigned, turns: turns, from: system) }
+        return relabelled
+    }
 
-        // A few seconds of each new voice, so the user can hear who it is.
-        if let system {
-            for speaker in assigned where speaker.label != Speakers.me {
-                guard let id = speaker.voiceID else { continue }
-                let hasSample = await MainActor.run { PeopleModel.shared.voices.first { $0.id == id }?.sample != nil }
-                if hasSample { continue }
-                if let file = await VoiceSamples.extract(label: speaker.label, turns: turns, from: system, voice: id) {
-                    await MainActor.run { PeopleModel.shared.setSample(id, file: file) }
-                }
+    /// One microphone, several people: the microphone is diarized, the speaker
+    /// who is you keeps your lines (see `InPerson.me`), and everyone else is
+    /// matched and named like the others on a call.
+    private static func recogniseInPerson(_ segments: [Segment], meeting: Meeting, diarizer: Diarizer,
+                                          mic: URL) async -> [Segment] {
+        let found: (turns: [SpeakerTurn], embeddings: [String: [Float]])
+        do {
+            found = try await diarizer.diarize(mic)
+        } catch {
+            NSLog("Ata: diarization of the microphone failed: \(error.localizedDescription)")
+            return segments
+        }
+        let clusters = InPerson.clusters(found.turns, embeddings: found.embeddings)
+        let fingerprints = await MainActor.run { PeopleModel.shared.myFingerprints() }
+        guard let me = InPerson.me(among: clusters, fingerprints: fingerprints) else { return segments }
+
+        let rename = InPerson.labels(found.turns, me: me.label)
+        var turns = found.turns.map { SpeakerTurn(start: $0.start, end: $0.end, label: rename[$0.label] ?? $0.label) }
+        var speakers: [MeetingSpeaker] = []
+        for c in clusters {
+            guard let e = c.embedding, let label = rename[c.label] else { continue }
+            if label == Speakers.me && !me.recognised { continue }
+            speakers.append(MeetingSpeaker(label: label, embedding: e, seconds: c.seconds, voiceID: nil))
+        }
+
+        var assigned: [MeetingSpeaker] = []
+        if !speakers.isEmpty {
+            let toAssign = speakers
+            assigned = await MainActor.run { PeopleModel.shared.assign(toAssign, meetingID: meeting.id) }
+            let myVoices = await MainActor.run { Set(PeopleModel.shared.voices.filter(\.isMe).map(\.id)) }
+            let alsoMe = InPerson.alsoMe(assigned, myVoices: myVoices)
+            if !alsoMe.isEmpty {
+                turns = turns.map { alsoMe.contains($0.label) ? SpeakerTurn(start: $0.start, end: $0.end, label: Speakers.me) : $0 }
+                assigned.removeAll { alsoMe.contains($0.label) }
             }
         }
+
+        // The same word-level split as the system track of a call.
+        let relabelled = segments.flatMap { s -> [Segment] in
+            guard s.speaker == Speakers.me else { return [s] }
+            return SpeakerAssignment.split(s, turns: turns)
+        }
+        if !assigned.isEmpty {
+            try? MeetingVoices(speakers: assigned, turns: turns).save(for: meeting)
+            await cutSamples(for: assigned, turns: turns, from: mic)
+        }
         return relabelled
+    }
+
+    /// A few seconds of each new voice, so the user can hear who it is.
+    private static func cutSamples(for assigned: [MeetingSpeaker], turns: [SpeakerTurn], from audio: URL) async {
+        for speaker in assigned where speaker.label != Speakers.me {
+            guard let id = speaker.voiceID else { continue }
+            let hasSample = await MainActor.run { PeopleModel.shared.voices.first { $0.id == id }?.sample != nil }
+            if hasSample { continue }
+            if let file = await VoiceSamples.extract(label: speaker.label, turns: turns, from: audio, voice: id) {
+                await MainActor.run { PeopleModel.shared.setSample(id, file: file) }
+            }
+        }
     }
 
     // MARK: - Versions

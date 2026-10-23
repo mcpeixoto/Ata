@@ -1,4 +1,3 @@
-import AppKit
 import AVFoundation
 import SwiftUI
 
@@ -44,11 +43,17 @@ final class PeopleModel: ObservableObject {
         return out
     }
 
+    /// Your voice as the library knows it now, read fresh: an in-person meeting
+    /// looks for it among the people in the room.
+    func myFingerprints() -> [[Float]] {
+        reload()
+        return library.myFingerprints
+    }
+
+    /// Voices only this meeting introduced go, with their samples; see `VoiceLibrary.save`.
     func removeMeeting(_ meetingID: String) {
         library = VoiceLibrary()
-        for voice in library.removeMeeting(meetingID) {
-            if let sample = voice.sample { try? FileManager.default.removeItem(at: Paths.voicesDir.appendingPathComponent(sample)) }
-        }
+        library.removeMeeting(meetingID)
         persist()
     }
 
@@ -90,8 +95,8 @@ final class PeopleModel: ObservableObject {
             .sorted { $0.meetings > $1.meetings }
     }
 
+    /// The voice's file and sample go with it.
     func forget(_ voice: Voice) {
-        if let sample = voice.sample { try? FileManager.default.removeItem(at: Paths.voicesDir.appendingPathComponent(sample)) }
         for id in voice.meetingIDs { repoint(meetingID: id, from: voice.id, to: nil) }
         library.forget(voice.id)
         persist()

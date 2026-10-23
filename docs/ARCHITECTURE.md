@@ -197,9 +197,21 @@ With voice recognition on (off by default; macOS 15+), after the tracks are tran
 5. `speakers.json` (turns and voices) and `transcript.json` (labelled lines) go in the meeting
    folder; a few seconds of each new voice are cut as a sample for the People tab.
 
+**In person** (`SpeakerRoute`, `InPerson`): when there is no system track, or it holds under 3 s
+of sound (a Mac records one in every meeting, silent while nothing plays), the microphone is
+diarized instead. The speaker matching your fingerprint (the `isMe` voices, learned from the
+microphone of calls, by the same 0.65 + 0.1 rule) keeps your lines; with no fingerprint yet or
+no clear match, whoever spoke most is you, and that guess is never learned as your voice.
+Everyone else is split word by word and matched like the others on a call.
+
 Naming, merging or forgetting a voice re-renders every affected `transcript.md` from its
 `transcript.json` — no re-transcription, no new version. The library lives in
-`~/Library/Application Support/Ata/voices/` and never leaves the Mac.
+`~/Library/Application Support/Ata/voices/` and never leaves the Mac: one `<id>.json` per voice
+beside its `<id>.m4a` sample, so two devices editing different voices never write the same file.
+`save` writes only the voices that changed and removes only files it read itself; a file it
+can't read is never written over. The `voices.json` of earlier versions is read once, written
+out per voice and kept as `voices.json.migrated`. Each fingerprint carries its embedding model
+(`Voice.model`, nil before 2.6), and only fingerprints of the current model are compared.
 
 ## 6. Updates — `Updater`
 
