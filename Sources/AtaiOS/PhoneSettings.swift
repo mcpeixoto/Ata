@@ -7,10 +7,28 @@ struct PhoneSettings: View {
     @AppStorage(Pref.language) private var language = "auto"
     @AppStorage(Pref.recogniseVoices) private var recogniseVoices = false
     @AppStorage(Pref.keepAudio) private var keepAudio = true
-    @AppStorage(Pref.iCloudSync) private var iCloudSync = false
+    @StateObject private var cloud = CloudSync.shared
 
     private var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+    }
+
+    private var iCloudFootnote: String {
+        if let problem = cloud.problem { return problem }
+        if cloud.copying {
+            return L("Your meetings stay on this iPhone until their copy in iCloud is checked and uploaded.")
+        }
+        if cloud.isOn {
+            return L("Your meetings and voices are in iCloud Drive, and show up in Ata on your Mac too. Turned off, Ata goes back to the meetings on this iPhone; what's in iCloud stays there.")
+        }
+        switch cloud.status {
+        case .checking:
+            return L("Checking iCloud…")
+        case .available:
+            return L("Copies your meetings and voices into iCloud Drive, so Ata on your Mac shows them too.")
+        case .signedOut, .notOnThisMac:
+            return L("Sign in to iCloud and turn on iCloud Drive for Ata in Settings to use this.")
+        }
     }
 
     var body: some View {
@@ -41,14 +59,26 @@ struct PhoneSettings: View {
                 Section {
                     Toggle("Recognise voices", isOn: $recogniseVoices)
                 } footer: {
-                    Text("Tells the people in a conversation apart and learns their voices, so you name each one once. Fingerprints stay on this iPhone.")
+                    Text(cloud.inCloud
+                         ? L("Tells the people in a conversation apart and learns their voices, so you name each one once. Fingerprints stay in your iCloud, with your meetings.")
+                         : L("Tells the people in a conversation apart and learns their voices, so you name each one once. Fingerprints stay on this iPhone."))
                 }
 
                 Section {
-                    Toggle("Keep meetings in iCloud", isOn: $iCloudSync)
-                        .disabled(true)
+                    Toggle("Keep meetings in iCloud", isOn: Binding(
+                        get: { cloud.isOn || cloud.copying },
+                        set: { on in
+                            if on { cloud.turnOn() } else { cloud.turnOff() }
+                        }))
+                        .disabled(!cloud.isOn && !cloud.copying && cloud.status != .available)
+                    if cloud.copying && cloud.total > 0 {
+                        ProgressView(value: Double(cloud.copied), total: Double(cloud.total)) {
+                            Text(L("Copying your meetings into iCloud… %d of %d", cloud.copied, cloud.total))
+                                .font(.footnote)
+                        }
+                    }
                 } footer: {
-                    Text("Not available yet. When it is, your meetings appear in Ata on your Mac too, through iCloud Drive.")
+                    Text(iCloudFootnote)
                 }
 
                 Section {
@@ -61,6 +91,7 @@ struct PhoneSettings: View {
                 }
             }
             .navigationTitle("Settings")
+            .onAppear { cloud.recheck() }
         }
     }
 }

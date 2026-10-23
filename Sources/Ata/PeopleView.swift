@@ -7,6 +7,7 @@ struct PeopleView: View {
     @State private var confirmForgetAll = false
 
     private static func learnedLine(_ count: Int) -> String {
+        if CloudLibrary.isActive { return L("%d voices learned, kept in your iCloud with your meetings.", count) }
         #if os(iOS)
         return L("%d voices learned, all on this iPhone.", count)
         #else
@@ -15,6 +16,9 @@ struct PeopleView: View {
     }
 
     private static var privacyLine: String {
+        if CloudLibrary.isActive {
+            return L("Voice fingerprints stay in your iCloud, with your meetings, and are never sent anywhere else. Turning this on downloads 21 MB of models once.")
+        }
         #if os(iOS)
         return L("Voice fingerprints stay on this iPhone. Turning this on downloads 21 MB of models once.")
         #else

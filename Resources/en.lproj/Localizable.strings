@@ -403,7 +403,6 @@
 "Recognise voices" = "Recognise voices";
 "Tells the people in a conversation apart and learns their voices, so you name each one once. Fingerprints stay on this iPhone." = "Tells the people in a conversation apart and learns their voices, so you name each one once. Fingerprints stay on this iPhone.";
 "Keep meetings in iCloud" = "Keep meetings in iCloud";
-"Not available yet. When it is, your meetings appear in Ata on your Mac too, through iCloud Drive." = "Not available yet. When it is, your meetings appear in Ata on your Mac too, through iCloud Drive.";
 "Version" = "Version";
 "Source code" = "Source code";
 "About" = "About";
@@ -424,3 +423,28 @@
 "%@ saved on this iPhone" = "%@ saved on this iPhone";
 "Apple's on-device speech doesn't support %@ yet." = "Apple's on-device speech doesn't support %@ yet.";
 "Needs Apple Intelligence turned on in Settings." = "Needs Apple Intelligence turned on in Settings.";
+
+/* iCloud */
+"iCloud" = "iCloud";
+"Checking iCloud…" = "Checking iCloud…";
+"Downloading from iCloud…" = "Downloading from iCloud…";
+"Copying your meetings into iCloud… %d of %d" = "Copying your meetings into iCloud… %d of %d";
+"Originals on this Mac" = "Originals on this Mac";
+"They were copied into iCloud and checked. Remove them when you no longer need them." = "They were copied into iCloud and checked. Remove them when you no longer need them.";
+"The originals stay where they are. Ata moves to the copy once every meeting is in iCloud and checked." = "The originals stay where they are. Ata moves to the copy once every meeting is in iCloud and checked.";
+"Your meetings and voices are in iCloud Drive, and show up in Ata on your iPhone. Turned off, Ata goes back to the meetings on this Mac; what's in iCloud stays there." = "Your meetings and voices are in iCloud Drive, and show up in Ata on your iPhone. Turned off, Ata goes back to the meetings on this Mac; what's in iCloud stays there.";
+"Copies your meetings and voices into iCloud Drive, so Ata on your iPhone shows them too. The originals stay on this Mac." = "Copies your meetings and voices into iCloud Drive, so Ata on your iPhone shows them too. The originals stay on this Mac.";
+"Sign in to iCloud and turn on iCloud Drive in System Settings to use this." = "Sign in to iCloud and turn on iCloud Drive in System Settings to use this.";
+"Turn on “Keep meetings in iCloud” in Ata on your iPhone first. This Mac then uses the same folder." = "Turn on “Keep meetings in iCloud” in Ata on your iPhone first. This Mac then uses the same folder.";
+"Your meetings stay on this iPhone until their copy in iCloud is checked and uploaded." = "Your meetings stay on this iPhone until their copy in iCloud is checked and uploaded.";
+"Your meetings and voices are in iCloud Drive, and show up in Ata on your Mac too. Turned off, Ata goes back to the meetings on this iPhone; what's in iCloud stays there." = "Your meetings and voices are in iCloud Drive, and show up in Ata on your Mac too. Turned off, Ata goes back to the meetings on this iPhone; what's in iCloud stays there.";
+"Copies your meetings and voices into iCloud Drive, so Ata on your Mac shows them too." = "Copies your meetings and voices into iCloud Drive, so Ata on your Mac shows them too.";
+"Sign in to iCloud and turn on iCloud Drive for Ata in Settings to use this." = "Sign in to iCloud and turn on iCloud Drive for Ata in Settings to use this.";
+"iCloud stays off while Ata uses a development folder." = "iCloud stays off while Ata uses a development folder.";
+"%d items could not be copied into iCloud. Nothing was moved, and Ata tries again the next time it opens." = "%d items could not be copied into iCloud. Nothing was moved, and Ata tries again the next time it opens.";
+"The audio hasn't downloaded from iCloud yet. Try again when this device is online." = "The audio hasn't downloaded from iCloud yet. Try again when this device is online.";
+"The recording, the transcript and your notes are deleted from iCloud, on every device." = "The recording, the transcript and your notes are deleted from iCloud, on every device.";
+"Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay in your iCloud, with your meetings." = "Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay in your iCloud, with your meetings.";
+"%d voices learned, kept in your iCloud with your meetings." = "%d voices learned, kept in your iCloud with your meetings.";
+"Voice fingerprints stay in your iCloud, with your meetings, and are never sent anywhere else. Turning this on downloads 21 MB of models once." = "Voice fingerprints stay in your iCloud, with your meetings, and are never sent anywhere else. Turning this on downloads 21 MB of models once.";
+"Tells the people in a conversation apart and learns their voices, so you name each one once. Fingerprints stay in your iCloud, with your meetings." = "Tells the people in a conversation apart and learns their voices, so you name each one once. Fingerprints stay in your iCloud, with your meetings.";

@@ -195,7 +195,8 @@ a voice in two meetings it asks who it is: play a few seconds, type a name. From
 person is named in every transcript, including the ones already written.
 
 - Runs entirely on your Mac, on the Neural Engine, about 100× faster than real time.
-- Voice fingerprints and samples never leave the Mac — not even when OpenAI transcribes.
+- Voice fingerprints and samples never leave the Mac — not even when OpenAI transcribes — except into
+  your own iCloud, with your meetings, if you turn on **Keep meetings in iCloud**.
 - Off by default. Needs macOS 15. Downloads 21 MB of models the first time.
 
 <details>

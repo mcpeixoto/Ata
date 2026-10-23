@@ -26,6 +26,11 @@ struct Meeting: Codable, Identifiable, Equatable {
     var claim: Claim? = nil
     /// Moments marked while recording.
     var bookmarks: [Bookmark]? = nil
+    /// Never written: set on a meeting whose meeting.json is still in iCloud, listed
+    /// from its folder name until the file arrives. See `Library.placeholder`.
+    var cloudPlaceholder: Bool? = nil
+
+    var isPlaceholder: Bool { cloudPlaceholder == true }
 
     /// In the meetings folder, or in this device's staging folder while it is
     /// being recorded (and, if moving it failed, until the next launch moves it).
@@ -59,7 +64,9 @@ struct Meeting: Codable, Identifiable, Equatable {
     /// Both tracks mixed into one file, for listening and sharing. Never the
     /// only copy of the audio: the tracks stay for transcribing again.
     var mergedAudioURL: URL { dir.appendingPathComponent("meeting.mp3") }
-    var hasMergedAudio: Bool { Paths.fileSize(mergedAudioURL) > 0 }
+    var hasMergedAudio: Bool {
+        Paths.fileSize(mergedAudioURL) > 0 || (CloudLibrary.isActive && CloudFiles.isPlaceholder(mergedAudioURL))
+    }
 
     /// How loud you and the others were over time, for the player; see `Waveform`.
     var waveformURL: URL { dir.appendingPathComponent("waveform.bin") }
@@ -78,7 +85,12 @@ struct Meeting: Codable, Identifiable, Equatable {
     private static func resolveAudio(_ wav: URL) -> URL? {
         if Paths.fileSize(wav) > 44 { return wav }
         let m4a = wav.deletingPathExtension().appendingPathExtension("m4a")
-        return Paths.fileSize(m4a) > 0 ? m4a : nil
+        if Paths.fileSize(m4a) > 0 { return m4a }
+        // Still in iCloud: the meeting's audio all the same, downloaded when it is
+        // played or transcribed.
+        guard CloudLibrary.isActive else { return nil }
+        if CloudFiles.isPlaceholder(wav) { return wav }
+        return CloudFiles.isPlaceholder(m4a) ? m4a : nil
     }
 
     var hasAudio: Bool {
@@ -252,9 +264,11 @@ enum Library {
     }()
 
     static func save(_ m: Meeting) {
+        // A stand-in for a meeting.json still in iCloud: writing it would replace the real one.
+        guard !m.isPlaceholder else { return }
         do {
             try FileManager.default.createDirectory(at: m.dir, withIntermediateDirectories: true)
-            try encoder.encode(m).write(to: m.metaURL, options: .atomic)
+            try Coordinated.write(encoder.encode(m), to: m.metaURL)
         } catch {
             NSLog("Ata: could not save \(m.id): \(error)")
         }
@@ -276,11 +290,45 @@ enum Library {
     /// One meeting, read fresh from its folder.
     static func load(_ id: String) -> Meeting? {
         let dir = folder(for: id)
-        guard let data = try? Data(contentsOf: dir.appendingPathComponent("meeting.json")),
+        let meta = dir.appendingPathComponent("meeting.json")
+        // Synced from another device, not downloaded yet: listed as in iCloud, not left out.
+        // Reading a Mac's dataless file would wait for the download, on the main thread.
+        if CloudLibrary.isActive, CloudFiles.state(of: meta) == .inCloud {
+            CloudFiles.requestDownload(meta)
+            return placeholder(id: id, in: dir)
+        }
+        guard let data = try? Data(contentsOf: meta),
               var m = try? decoder.decode(Meeting.self, from: data) else { return nil }
         m.id = id // the folder may have been renamed
         return m
     }
+
+    /// A meeting whose meeting.json is still in iCloud, as far as its folder tells:
+    /// the date and app from its name. Its device is unknown, so nothing treats it
+    /// as this device's to recover, prune or transcribe, and `save` never writes it.
+    static func placeholder(id: String, in dir: URL) -> Meeting {
+        let named = folderName(id)
+        let created = (try? dir.resourceValues(forKeys: [.creationDateKey]))?.creationDate
+        var m = Meeting(id: id, startedAt: named.date ?? created ?? .distantPast, endedAt: nil, duration: nil,
+                        app: named.app, status: .done, error: nil)
+        m.origin = DeviceRef(id: "", name: "")
+        m.cloudPlaceholder = true
+        return m
+    }
+
+    /// "2026-10-23 14.02.05 Zoom" is its date and "Zoom".
+    static func folderName(_ id: String) -> (date: Date?, app: String?) {
+        guard id.count >= 19, let date = folderDates.date(from: String(id.prefix(19))) else { return (nil, nil) }
+        let rest = id.dropFirst(19).trimmingCharacters(in: .whitespaces)
+        return (date, rest.isEmpty ? nil : rest)
+    }
+
+    private static let folderDates: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd HH.mm.ss"
+        return f
+    }()
 
     // MARK: Staging
 

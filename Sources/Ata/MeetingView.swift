@@ -647,7 +647,10 @@ private struct PeopleTab: View {
         }
     }
 
-    private static var recogniseLine: String {
+    private static var voicesPitch: String {
+        if CloudLibrary.isActive {
+            return L("Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay in your iCloud, with your meetings.")
+        }
         #if os(iOS)
         return L("Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay on this iPhone.")
         #else
@@ -660,7 +663,7 @@ private struct PeopleTab: View {
             Image(systemName: "person.wave.2.fill").font(.system(size: 26)).foregroundStyle(Theme.brand)
             if !recognise {
                 Text("Know who said what").font(.system(size: 13, weight: .semibold))
-                Text(Self.recogniseLine)
+                Text(Self.voicesPitch)
                     .font(.system(size: 11)).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)

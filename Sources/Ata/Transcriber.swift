@@ -146,7 +146,7 @@ struct StoredTranscript: Codable, Equatable {
     func save(to url: URL) throws {
         let e = JSONEncoder()
         e.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try e.encode(self).write(to: url, options: .atomic)
+        try Coordinated.write(e.encode(self), to: url)
     }
 
     /// Without the lines of these speaker labels: voices left out of transcripts.
@@ -274,6 +274,13 @@ enum Transcriber {
     static func transcribe(_ meeting: Meeting, options: TranscribeOptions,
                            progress: @escaping @Sendable (Double) -> Void) async throws -> TranscriptionOutcome {
         let started = Date()
+
+        // Audio from another device may still be in iCloud: fetched now, the first time it's needed.
+        let sources = [meeting.micAudioURL, meeting.systemAudioURL].compactMap { $0 }
+        if !CloudFiles.areLocal(sources) {
+            let downloaded = await CloudFiles.download(sources)
+            guard downloaded else { throw CloudFiles.Failure.notDownloaded }
+        }
 
         // Only tracks with at least ~0.5 s of audio are worth sending to an engine.
         var prepared: [(speaker: String, audio: URL, temporary: Bool)] = []
@@ -410,7 +417,7 @@ enum Transcriber {
 
         // Never overwrite an earlier transcript: move it into versions/ first.
         let archived = try archivePrevious(of: meeting)
-        try md.write(to: meeting.transcriptURL, atomically: true, encoding: .utf8)
+        try Coordinated.write(md, to: meeting.transcriptURL)
         try stored.save(to: meeting.storedTranscriptURL)
 
         let talk = talkTime(segments, me: Speakers.me, coarse: coarse)
@@ -734,7 +741,7 @@ enum Transcriber {
     static func rerender(_ meeting: Meeting, myName: String) throws {
         guard let stored = StoredTranscript.load(from: meeting.storedTranscriptURL) else { return }
         let md = render(stored, meeting: meeting, names: Speakers.names(for: meeting, myName: myName))
-        try md.write(to: meeting.transcriptURL, atomically: true, encoding: .utf8)
+        try Coordinated.write(md, to: meeting.transcriptURL)
     }
 
     static func timestamp(_ ms: Int) -> String {

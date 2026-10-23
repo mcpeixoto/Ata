@@ -215,7 +215,7 @@ final class VoiceLibrary {
             do {
                 // No file-protection class: a transcription finishing while the screen is
                 // locked must still be able to read the library back.
-                try encoder.encode(voice).write(to: target, options: .atomic)
+                try Coordinated.write(encoder.encode(voice), to: target)
                 onDisk[voice.id] = voice
             } catch {
                 failure = failure ?? error
@@ -227,7 +227,7 @@ final class VoiceLibrary {
         for (id, gone) in onDisk where !current.contains(id) {
             let target = url(for: id)
             do {
-                if fm.fileExists(atPath: target.path) { try fm.removeItem(at: target) }
+                if fm.fileExists(atPath: target.path) { try Coordinated.remove(target) }
                 onDisk[id] = nil
             } catch {
                 failure = failure ?? error
@@ -235,7 +235,7 @@ final class VoiceLibrary {
             }
             // A merged voice may have handed its sample on to the voice it joined.
             if let sample = gone.sample, !samplesInUse.contains(sample) {
-                try? fm.removeItem(at: directory.appendingPathComponent(sample))
+                try? Coordinated.remove(directory.appendingPathComponent(sample))
             }
         }
         if let failure { throw failure }
@@ -552,7 +552,7 @@ struct MeetingVoices: Codable, Equatable {
     func save(for meeting: Meeting) throws {
         let e = JSONEncoder()
         e.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try e.encode(self).write(to: meeting.speakersURL, options: .atomic)
+        try Coordinated.write(e.encode(self), to: meeting.speakersURL)
     }
 }
 

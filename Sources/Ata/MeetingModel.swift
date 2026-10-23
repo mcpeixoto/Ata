@@ -50,9 +50,9 @@ enum MeetingNotes {
     /// empty notes.md never lingers in the folder.
     static func save(_ text: String, for m: Meeting) throws {
         if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            try? FileManager.default.removeItem(at: m.notesURL)
+            try? Coordinated.remove(m.notesURL)
         } else {
-            try text.write(to: m.notesURL, atomically: true, encoding: .utf8)
+            try Coordinated.write(text, to: m.notesURL)
         }
     }
 
@@ -292,7 +292,9 @@ final class MeetingModel: ObservableObject {
             player.load(m)
         }
         // Meetings transcribed before Ata 2.5 get their waveform the first time they're opened.
-        if waveform == nil, m.hasAudio, !computingWaveform {
+        // Not from audio still in iCloud: opening a meeting doesn't download its recording.
+        if waveform == nil, m.hasAudio, !computingWaveform,
+           CloudFiles.areLocal([m.micAudioURL, m.systemAudioURL].compactMap { $0 }) {
             computingWaveform = true
             let mic = m.micAudioURL, system = m.systemAudioURL, file = m.waveformURL
             Task {
@@ -322,6 +324,9 @@ final class MeetingModel: ObservableObject {
         }
 
         guard sharedAudio == nil, !preparingAudio, m.hasAudio || m.hasMergedAudio else { return }
+        // Audio still in iCloud is shared once it has been played, and so downloaded.
+        let audio = m.hasMergedAudio ? [m.mergedAudioURL] : [m.micAudioURL, m.systemAudioURL].compactMap { $0 }
+        guard CloudFiles.areLocal(audio) else { return }
         preparingAudio = true
         let destination = shareDir.appendingPathComponent(MeetingSharing.name(for: m) + ".mp3")
         Task {
@@ -522,11 +527,21 @@ final class MeetingPlayer: ObservableObject {
     private var endObserver: NSObjectProtocol?
     private var loading = false
     private var playWhenLoaded = false
+    /// A meeting whose audio is still in iCloud: loaded when it is played.
+    private var waiting: Meeting?
 
     func load(_ m: Meeting) {
         guard !loaded, !loading else { return }
+        let files = m.hasMergedAudio ? [m.mergedAudioURL] : [m.micAudioURL, m.systemAudioURL].compactMap { $0 }
+        // Audio still in iCloud is downloaded when it's played, not when the meeting is opened.
+        guard playWhenLoaded || CloudFiles.areLocal(files) else {
+            waiting = m
+            return
+        }
+        waiting = nil
         loading = true
         Task {
+            if !CloudFiles.areLocal(files) { _ = await CloudFiles.download(files) }
             let asset: AVAsset?
             if m.hasMergedAudio {
                 asset = AVURLAsset(url: m.mergedAudioURL)
@@ -546,7 +561,11 @@ final class MeetingPlayer: ObservableObject {
     }
 
     func play() {
-        guard loaded else { playWhenLoaded = true; return }
+        guard loaded else {
+            playWhenLoaded = true
+            if let waiting { load(waiting) }
+            return
+        }
         playWhenLoaded = false
         if duration > 0, time >= duration - 0.1 { seek(to: 0) }
         player.playImmediately(atRate: rate)
