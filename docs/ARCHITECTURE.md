@@ -101,6 +101,18 @@ The cleaned copy is then what gets transcribed and what your voice fingerprint i
 
 `Transcriber` runs each track through the selected engine:
 
+- **Several languages in one voice.** With the language set to Automatic and more than one
+  language on the Mac, `LocalEngine.transcribeMixed` handles each track as follows:
+  - `SpeechChunks` cuts it at pauses (4–30 s pieces);
+  - one whisper-cli run detects every piece's language, loading the model once for all the
+    `-f` files;
+  - `LanguageChoice.runs` keeps a language only when it's sure (p ≥ 0.8, a language the user
+    speaks, at least 3 s). Anything else takes its neighbour's language, so a stray "okay"
+    isn't a switch;
+  - each run of one language is transcribed in that language and shifted back into place.
+  - A track in one language is a single run, as before. whisper.cpp's own `auto` decides once
+    per file, from the first 30 s, so it can't follow a switch.
+
 - **`LocalEngine`** runs `whisper-cli` (from Homebrew's `whisper-cpp`) with the large-v3-turbo
   model and, when available, Silero VAD. It reads progress from whisper's stderr and the segments
   from its JSON output.

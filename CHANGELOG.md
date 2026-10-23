@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.4.2
+
+- **Fixed: switching between Portuguese and English in the same call.** Ata picked one language
+  per track, so once you switched, whatever you said in the other language came out garbled or
+  even translated.
+- **How it works now:** each stretch of speech gets its own language. Ata cuts the track at
+  pauses, detects the language of each piece in a single pass, and transcribes every run in the
+  language it was spoken. It never translates.
+  - A language only counts when Whisper is sure, it's one of your Mac's languages, and it lasts
+    at least 3 seconds, so a short "okay" doesn't switch.
+  - A call in one language is transcribed exactly as before.
+- This is for the local engine with the language set to Automatic. With OpenAI, Automatic
+  already lets OpenAI detect the language.
+
 ## 2.4.1
 
 - **Fixed: without headphones, the others' words showed up as yours.** Your microphone hears
