@@ -187,3 +187,71 @@ final class EndToEndTests: XCTestCase {
         XCTAssertEqual(PeopleModel.shared.voices.first { $0.id == samanthaVoice }?.meetings, 2)
     }
 }
+
+extension EndToEndTests {
+    /// The bug that started echo cancellation: without headphones the microphone
+    /// hears the others through the speakers, and their words came out as yours.
+    func testTheOthersHeardThroughTheSpeakersAreNotTranscribedAsYou() async throws {
+        let model = try XCTUnwrap(LocalModel.find("large-v3-turbo-q5_0"))
+        try install(model.url, as: model.file, bytes: model.bytes)
+        try install(Paths.vadModelURL, as: Paths.vadModel.lastPathComponent, bytes: 885_098)
+
+        var m = try Meeting.new(app: "Meet")
+        try speak("Daniel", "Thanks everyone. The marketing site is ready, and the pricing page was approved by finance "
+                  + "yesterday afternoon, so we are on track for the launch on Thursday.", to: m.systemURL)
+        let alone = m.dir.appendingPathComponent("alex.wav")
+        try speak("Fred", "Great, I will send the release notes tonight.", to: alone)
+
+        // Alex speaks after Daniel; the laptop speakers play Daniel into the microphone,
+        // soft-clipped, 70 ms late and with a few reflections, about as loud as Alex.
+        func samples(_ url: URL) throws -> [Float] {
+            try Data(contentsOf: url).dropFirst(44).withUnsafeBytes { raw in
+                raw.bindMemory(to: Int16.self).map { Float(Int16(littleEndian: $0)) / 32_768 }
+            }
+        }
+        let daniel = try samples(m.systemURL), alex = try samples(alone)
+        let rate = Int(WavWriter.sampleRate)
+        let n = daniel.count + alex.count + 2 * rate
+        var system = [Float](repeating: 0, count: n), mic = system
+        for (i, v) in daniel.enumerated() { system[i] = v }
+        for (i, v) in alex.enumerated() { mic[daniel.count + rate + i] = v }
+        let lag = rate * 7 / 100
+        for (d, a) in [(0, 0.7), (180, 0.25), (530, -0.15), (1210, 0.1), (2300, 0.05)] {
+            for i in 0..<(n - lag - d) { mic[i + lag + d] += Float(a) * tanh(2 * system[i]) / 2 }
+        }
+        func write(_ x: [Float], to url: URL) throws {
+            var data = WavWriter.header(dataBytes: UInt32(x.count * 2))
+            for v in x {
+                let s = Int16(clamping: Int((max(-1, min(1, v)) * 32_767).rounded()))
+                withUnsafeBytes(of: s.littleEndian) { data.append(contentsOf: $0) }
+            }
+            try data.write(to: url)
+        }
+        try write(system, to: m.systemURL)
+        try write(mic, to: m.micURL)
+        try? FileManager.default.removeItem(at: alone)
+        m.duration = Double(n) / Double(rate)
+        m.status = .transcribing
+
+        var options = TranscribeOptions.current()
+        options.engine = .local
+        options.localModel = model.id
+        options.language = "en"
+        options.myName = "Alex"
+        options.summarize = false
+        options.cancelEcho = true
+        _ = try await Transcriber.transcribe(m, options: options) { _ in }
+
+        let md = try String(contentsOf: m.transcriptURL, encoding: .utf8)
+        if ProcessInfo.processInfo.environment["ATA_PRINT_TRANSCRIPT"] == "1" { print(md) }
+        let mine = md.split(separator: "\n").filter { $0.contains("Alex:**") }.joined(separator: "\n").lowercased()
+        let theirs = md.split(separator: "\n").filter { $0.contains("Others:**") }.joined(separator: "\n").lowercased()
+        XCTAssertTrue(theirs.contains("marketing") && theirs.contains("thursday"), md)
+        XCTAssertTrue(mine.contains("release notes"), md)
+        for word in ["marketing", "pricing", "finance", "thursday"] {
+            XCTAssertFalse(mine.contains(word), "\"\(word)\" was said by the others, not by you:\n\(md)")
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: m.dir.appendingPathComponent("mic.echo-cancelled.wav").path),
+                       "the cleaned copy is temporary")
+    }
+}

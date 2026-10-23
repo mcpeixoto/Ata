@@ -54,6 +54,8 @@ struct TranscribeOptions {
     var openAIModel: String
     var localModel: String
     var recogniseVoices: Bool = false
+    /// Take the others out of the microphone track before transcribing it; see EchoCanceller.
+    var cancelEcho: Bool = true
     var summarize: Bool
     var summaryModel: String
 
@@ -68,6 +70,7 @@ struct TranscribeOptions {
             openAIModel: Pref.d.string(forKey: Pref.openAIModel) ?? Pref.defaultOpenAIModel,
             localModel: LocalModel.current.id,
             recogniseVoices: Pref.d.bool(forKey: Pref.recogniseVoices),
+            cancelEcho: Pref.d.bool(forKey: Pref.cancelEcho),
             summarize: Pref.d.bool(forKey: Pref.summarize),
             summaryModel: Pref.d.string(forKey: Pref.summaryModel) ?? Pref.defaultSummaryModel)
     }
@@ -199,6 +202,29 @@ enum Transcriber {
             }
         }
         guard !prepared.isEmpty else { throw TranscriberError.noAudio }
+
+        // Without headphones the microphone also hears the others, whose words then
+        // came out a second time as yours. Clean a copy of the microphone track against
+        // what the speakers played; the recording itself is never changed.
+        if options.cancelEcho,
+           let micIndex = prepared.firstIndex(where: { $0.speaker == Speakers.me }),
+           let system = prepared.first(where: { $0.speaker == Speakers.others }) {
+            let mic = prepared[micIndex]
+            let cleaned = meeting.micURL.deletingPathExtension().appendingPathExtension("echo-cancelled.wav")
+            do {
+                if let result = try EchoCanceller.clean(mic: mic.audio, reference: system.audio, to: cleaned) {
+                    NSLog("Ata: removed the others' voices from the microphone in \(result.blocksCancelled) of "
+                          + "\(result.blocks) blocks (delay \(Int(result.delayMs)) ms, drift "
+                          + String(format: "%.1f", result.driftPPM) + " ppm)")
+                    if mic.temporary { try? FileManager.default.removeItem(at: mic.audio) }
+                    prepared[micIndex] = (Speakers.me, cleaned, true)
+                }
+            } catch {
+                // A transcript is never lost to echo cancellation: use the microphone as recorded.
+                try? FileManager.default.removeItem(at: cleaned)
+                NSLog("Ata: echo cancellation failed, using the microphone as recorded: \(error.localizedDescription)")
+            }
+        }
         let audioSeconds = prepared.reduce(0) { $0 + WavWriter.duration(of: $1.audio) }
 
         // The local engine gets an explicit language per track; see LanguageChoice.

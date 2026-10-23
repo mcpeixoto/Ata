@@ -16,7 +16,8 @@ flowchart LR
     STORE[AppStore<br/>single source of truth] -- start / stop --> capture
 
     capture -- "meeting.json: pending" --> QUEUE[Transcription queue]
-    QUEUE --> T[Transcriber]
+    QUEUE --> AEC[EchoCanceller<br/>others out of the mic]
+    AEC --> T[Transcriber]
     T --> LOCAL[LocalEngine<br/>whisper.cpp + Metal]
     T --> OPENAI[OpenAIEngine<br/>chunked upload]
     LOCAL --> MERGE[Merge tracks · drop echo]
@@ -82,6 +83,22 @@ configurations.
 
 ## 4. Transcribing — `Transcriber`, `LocalEngine`, `OpenAIEngine`
 
+First, **`EchoCanceller`** cleans a copy of the microphone track. Without headphones the
+microphone hears the other participants through the speakers, and their words used to come out a
+second time, as yours. The system track is exactly what the speakers played, so the echo can be
+predicted and removed. The steps:
+- **Clock drift:** measured on 10 s chunks with GCC-PHAT and fitted robustly. It's undone by
+  resampling the reference, and only kept if it removes more echo.
+- **Echo path:** every 10 s, the delay is found from the two energy envelopes. Then, for each
+  frequency, a 12-tap least-squares estimate of the path from speaker to microphone is subtracted.
+- **Leftovers:** a residual suppressor takes care of what's left, and frames that hold nothing
+  but echo are silenced.
+
+With headphones, the envelopes don't correlate, and the microphone is used exactly as recorded.
+The recording itself is never changed. Tuning was done on a Python reference with real speech:
+echo went from 0 to 31–36 dB down while only the others spoke, and your speech was untouched.
+The cleaned copy is then what gets transcribed and what your voice fingerprint is learned from.
+
 `Transcriber` runs each track through the selected engine:
 
 - **`LocalEngine`** runs `whisper-cli` (from Homebrew's `whisper-cpp`) with the large-v3-turbo
@@ -91,10 +108,10 @@ configurations.
   no re-encoding — to stay under OpenAI's 25 MB upload limit, uploads them, and shifts every
   segment's timestamps by its piece's offset.
 
-Then it merges both tracks into one timeline, and **removes echo**: without headphones your
-microphone hears the other participants, so the same sentence appears twice. Microphone segments
-that overlap in time with an "others" segment and share most of its words are dropped. This needs
-real timestamps, so it's skipped for OpenAI models that don't return them.
+Then it merges both tracks into one timeline, and drops any echo that survived as text: microphone
+segments that overlap in time with an "others" segment and share most of its words. This needs
+real timestamps, so it's skipped for OpenAI models that don't return them. Since 2.4.1 it's the
+second line of defence; `EchoCanceller` is the first.
 
 Finally it writes `transcript.md`. If summaries are on, `Summarizer` sends the finished text to
 OpenAI's chat API and the summary goes above the transcript. The transcript is already on disk at

@@ -17,6 +17,7 @@ struct SettingsView: View {
     @AppStorage(Pref.engine) private var engine = Engine.local.rawValue
     @AppStorage(Pref.openAIModel) private var openAIModel = Pref.defaultOpenAIModel
     @AppStorage(Pref.summarize) private var summarize = false
+    @AppStorage(Pref.cancelEcho) private var cancelEcho = true
     @AppStorage(Pref.summaryModel) private var summaryModel = Pref.defaultSummaryModel
     @AppStorage(Pref.autoUpdate) private var autoUpdate = true
     @AppStorage(Pref.audioRetentionDays) private var audioRetentionDays = 0
@@ -141,6 +142,10 @@ struct SettingsView: View {
                 Text("Deutsch").tag("de")
                 Text("Italiano").tag("it")
             }
+            Toggle("Remove the others' voices from your microphone", isOn: $cancelEcho)
+            Text("For calls without headphones: Ata takes what your Mac played out of your microphone before transcribing. The recording itself is not changed.")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             Toggle("Add an AI summary with decisions and action items", isOn: $summarize)
             if summarize {
                 Text("Sends the finished transcript text to OpenAI, even when the audio is transcribed locally.")

@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.4.1
+
+- **Fixed: without headphones, the others' words showed up as yours.** Your microphone hears
+  the other participants through the Mac's speakers, and Ata transcribed them a second time
+  under your name. The old fix compared words after transcribing, and missed the echo whenever
+  it was misheard or came out in another language.
+- **How it's fixed:** Ata now takes the others out of a copy of your microphone track before
+  transcribing, using what your Mac played as the reference.
+  - It finds the delay and the room's echo, and corrects drift between the microphone's clock
+    and external speakers.
+  - With headphones it finds no echo and leaves your microphone exactly as recorded.
+  - The recording itself is never changed.
+  - In tests with real speech, the echo dropped 31–36 dB while only the others spoke, and your
+    own speech was left intact, even when you spoke over them.
+- **Transcribe again** applies the fix to older meetings too. It can be turned off in
+  **Settings → Transcription**.
+
 ## 2.4.0
 
 - **Every meeting in its own window.** Click a meeting in the menu to listen to it, read its
