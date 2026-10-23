@@ -48,7 +48,8 @@ struct MeetingView: View {
                       hasAudio: meeting.hasAudio || meeting.hasMergedAudio,
                       fallbackDuration: meeting.duration ?? 0,
                       sharedAudio: model.sharedAudio,
-                      waveform: model.waveform)
+                      waveform: model.waveform,
+                      marks: model.moments.map(\.bookmark.ms))
             if let message = model.message {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
@@ -238,6 +239,8 @@ private struct PlayerBar: View {
     let sharedAudio: URL?
     /// You and the others over time; nil while it is being computed.
     let waveform: Waveform?
+    /// Moments marked while recording, in ms.
+    var marks: [Int] = []
 
     private var duration: Double { player.duration > 0 ? player.duration : fallbackDuration }
 
@@ -259,7 +262,8 @@ private struct PlayerBar: View {
                     skipButton("goforward.15", by: 15)
 
                     VStack(spacing: 2) {
-                        WaveformView(waveform: waveform, duration: duration, time: min(player.time, duration)) {
+                        WaveformView(waveform: waveform, duration: duration, time: min(player.time, duration),
+                                     marks: marks) {
                             player.seek(to: $0)
                         }
                         .disabled(!player.loaded)
@@ -337,6 +341,16 @@ private struct NotesTab: View {
                 heading(L("Summary"))
                 summary
             }
+            if !model.moments.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    heading(L("Moments you marked"))
+                    ForEach(model.moments) { moment in
+                        MomentRow(moment: moment, playable: meeting.hasAudio || meeting.hasMergedAudio) {
+                            model.play(moment)
+                        }
+                    }
+                }
+            }
             VStack(alignment: .leading, spacing: 8) {
                 heading(L("Your notes"))
                 TextEditor(text: $model.notes)
@@ -400,6 +414,57 @@ private struct NotesTab: View {
                 .font(.system(size: 12)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+/// One marked moment: its time, what was being said, and its note. Clicking plays from there.
+private struct MomentRow: View {
+    let moment: MeetingModel.Moment
+    let playable: Bool
+    let play: () -> Void
+    @State private var hover = false
+
+    var body: some View {
+        Button(action: play) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: "bookmark.fill").font(.system(size: 10)).foregroundStyle(.orange)
+                Text(verbatim: Transcriber.timestamp(moment.bookmark.ms))
+                    .font(.system(size: 11, weight: .semibold)).monospacedDigit().foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    if let line = moment.line {
+                        Text(Self.said(line))
+                            .font(.system(size: 12))
+                            .lineLimit(2)
+                    } else if moment.bookmark.note == nil {
+                        Text("The transcript will show what was said here.")
+                            .font(.system(size: 12)).foregroundStyle(.secondary)
+                    }
+                    if let note = moment.bookmark.note {
+                        Text(verbatim: note).font(.system(size: 11)).italic().foregroundStyle(.secondary)
+                    }
+                }
+                Spacer(minLength: 0)
+                if playable && hover {
+                    Image(systemName: "play.fill").font(.system(size: 10)).foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary.opacity(hover && playable ? 0.06 : 0)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!playable)
+        .onHover { hover = $0 }
+        .help(playable ? L("Play from here") : "")
+    }
+
+    /// "Name: what they said", the name in bold.
+    private static func said(_ line: MeetingModel.Line) -> AttributedString {
+        var name = AttributedString(line.name + ": ")
+        name.inlinePresentationIntent = .stronglyEmphasized
+        return name + AttributedString(line.text)
     }
 }
 
@@ -739,6 +804,8 @@ struct WaveformView: View {
     let waveform: Waveform?
     let duration: Double
     let time: Double
+    /// Moments marked while recording, in ms: drawn as flags over the lanes.
+    var marks: [Int] = []
     let seek: (Double) -> Void
     @State private var hover: CGFloat?
 
@@ -773,6 +840,24 @@ struct WaveformView: View {
                 if let hover {
                     context.fill(Path(CGRect(x: hover, y: 0, width: 1, height: size.height)),
                                  with: .color(Color.primary.opacity(0.3)))
+                }
+            }
+            .overlay {
+                if duration > 0, !marks.isEmpty {
+                    Canvas { context, size in
+                        for ms in marks {
+                            let x = min(max(0, size.width * CGFloat(Double(ms) / 1000 / duration)), size.width - 1)
+                            context.fill(Path(CGRect(x: x - 0.5, y: 0, width: 1, height: size.height)),
+                                         with: .color(Color.orange.opacity(0.7)))
+                            var flag = Path()
+                            flag.move(to: CGPoint(x: x - 3.5, y: 0))
+                            flag.addLine(to: CGPoint(x: x + 3.5, y: 0))
+                            flag.addLine(to: CGPoint(x: x, y: 5))
+                            flag.closeSubpath()
+                            context.fill(flag, with: .color(.orange))
+                        }
+                    }
+                    .allowsHitTesting(false)
                 }
             }
             .overlay(alignment: .topLeading) {

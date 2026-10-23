@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- **Mark a moment.** While recording, press the bookmark button in the menu, or ⌘B, to mark
+  what was just said. Marks show as flags on the meeting's waveform and as a list in the Notes
+  tab, where clicking one plays from there. The transcript gets a **Moments you marked**
+  section with the time and the words being said.
+- **Import audio.** Choose **Import audio…** in the menu, or drop audio files on it, to
+  transcribe a voice memo or any recording made elsewhere. Each file becomes a meeting, named
+  after the file and dated when it was made, and goes through the same queue. The file itself
+  is only read, never moved or changed.
+- **Ready for more than one device.** Each meeting now records which device made it, and a
+  device says when it's transcribing one, so two devices sharing the meetings folder never
+  transcribe the same meeting twice or touch each other's audio. A recording is written
+  outside the meetings folder and moved in whole when it stops, so a synced folder never holds a
+  half-written file. If the move fails, the meeting stays listed and the move is tried again at
+  the next launch.
+
 ## 2.5.0
 
 - **Follow the meeting word by word.** While a meeting plays, the word being said is highlighted

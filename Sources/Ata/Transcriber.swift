@@ -581,6 +581,7 @@ enum Transcriber {
         if let summary = t.summary {
             md += "## " + L("Summary") + "\n\n" + summary + "\n\n"
         }
+        md += moments(meeting.bookmarks ?? [], in: blocks, coarse: t.coarse, names: names)
         md += "---\n\n"
 
         if blocks.isEmpty {
@@ -596,6 +597,41 @@ enum Transcriber {
             ? "_" + L("Transcribed locally by Ata (%@).", t.model) + "_\n"
             : "_" + L("Transcribed by Ata with OpenAI (%@).", t.model) + "_\n"
         return md
+    }
+
+    /// "Moments you marked": each bookmark's time, what was being said then,
+    /// and its note. Empty when nothing was marked. A transcript without line
+    /// times can't say what was said when, so it lists the times alone.
+    static func moments(_ bookmarks: [Bookmark], in blocks: [StoredTranscript.Line], coarse: Bool,
+                        names: (String) -> String) -> String {
+        guard !bookmarks.isEmpty else { return "" }
+        let starts = blocks.map(\.start), ends = blocks.map(\.end)
+        var md = "## " + L("Moments you marked") + "\n\n"
+        for b in bookmarks.sorted(by: { $0.ms < $1.ms }) {
+            var item = "- **[\(timestamp(b.ms))]"
+            if !coarse, let i = Bookmark.nearest(to: b.ms, starts: starts, ends: ends) {
+                item += " \(names(blocks[i].speaker)):** " + excerpt(of: blocks[i], around: b.ms)
+            } else {
+                item += "**"
+            }
+            if let note = b.note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
+                item += " — _\(note)_"
+            }
+            md += item + "\n"
+        }
+        return md + "\n"
+    }
+
+    /// A long block cut down to the words around `ms`: about ten seconds
+    /// before the mark and a few after.
+    static func excerpt(of block: StoredTranscript.Line, around ms: Int) -> String {
+        guard block.text.count > 200 else { return block.text }
+        let words = WordTiming.words(of: block)
+        var picked = words.filter { $0.start >= ms - 10_000 && $0.start <= ms + 4_000 }
+        if picked.isEmpty { picked = Array(words.prefix(30)) }
+        guard let first = picked.first, let last = picked.last else { return block.text }
+        let text = picked.map(\.text).joined(separator: " ")
+        return (first == words.first ? "" : "…") + text + (last == words.last ? "" : "…")
     }
 
     /// Writes transcript.md again from transcript.json — after a voice is named,

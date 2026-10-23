@@ -154,6 +154,17 @@ final class MeetingModel: ObservableObject {
         let words: [StoredTranscript.Word]
     }
 
+    /// A moment marked while recording, with the line being said then.
+    struct Moment: Identifiable, Equatable {
+        let bookmark: Bookmark
+        let line: Line?
+        var id: UUID { bookmark.id }
+
+        /// Where "play" starts: the start of the line it points at, so the
+        /// words that prompted the mark are heard whole.
+        var playFromMs: Int { min(line?.start ?? bookmark.ms, bookmark.ms) }
+    }
+
     /// A voice heard in this meeting, other than yours.
     struct Speaker: Identifiable, Equatable {
         let label: String
@@ -177,6 +188,8 @@ final class MeetingModel: ObservableObject {
     @Published private(set) var hasStoredTranscript = false
     @Published private(set) var speakers: [Speaker] = []
     @Published private(set) var participants: [String] = []
+    /// What was marked while recording, in time order.
+    @Published private(set) var moments: [Moment] = []
 
     @Published var notes = ""
     @Published private(set) var writingNotes = false
@@ -270,6 +283,7 @@ final class MeetingModel: ObservableObject {
         var people = [myName]
         for line in lines where !people.contains(line.name) { people.append(line.name) }
         participants = people
+        moments = Self.moments(m.bookmarks ?? [], in: lines)
 
         if waveform == nil { waveform = Waveform.read(from: m.waveformURL) }
         guard !Snapshots.rendering else { return }
@@ -331,6 +345,18 @@ final class MeetingModel: ObservableObject {
         let mine = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         if !mine.isEmpty { parts.append(mine) }
         return parts.joined(separator: "\n\n")
+    }
+
+    nonisolated static func moments(_ bookmarks: [Bookmark], in lines: [Line]) -> [Moment] {
+        let starts = lines.map(\.start), ends = lines.map(\.end)
+        return bookmarks.sorted { $0.ms < $1.ms }.map { b in
+            Moment(bookmark: b, line: Bookmark.nearest(to: b.ms, starts: starts, ends: ends).map { lines[$0] })
+        }
+    }
+
+    /// Plays from a marked moment.
+    func play(_ moment: Moment) {
+        play(fromMs: moment.playFromMs)
     }
 
     /// "S12" → 12, so speakers list in the order they first spoke.
