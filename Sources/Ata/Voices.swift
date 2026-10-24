@@ -213,13 +213,37 @@ final class VoiceLibrary {
             if (a.number ?? 0) != (b.number ?? 0) { return (a.number ?? 0) < (b.number ?? 0) }
             return a.id.uuidString < b.id.uuidString
         }
-        if migrating {
+        let numbered = numberTheUnnumbered()
+        if migrating || numbered {
             do {
                 try save()
             } catch {
                 NSLog("Ata: could not store the voice library one file per voice: \(error.localizedDescription)")
             }
         }
+    }
+
+    /// Gives a number to every voice that has none, and says whether it had to.
+    ///
+    /// `displayName` is `name ?? "Voice \(number ?? 0)"`, so a voice without a
+    /// number reads as "Voice 0" — and *every* such voice reads as "Voice 0". A
+    /// library from before numbering has them all, which left "Who's this?"
+    /// showing the same name against several different people and no way to tell
+    /// which one you were naming.
+    ///
+    /// Numbers carry on from the highest already in use, in the order the library
+    /// is sorted, so the voices that already had one keep it. Two devices doing
+    /// this at once can land on different numbers for the same voice; that is a
+    /// label, not identity, and `merge(versions:)` settles it by `edited` like
+    /// any other field.
+    private func numberTheUnnumbered() -> Bool {
+        guard voices.contains(where: { $0.number == nil }) else { return false }
+        var next = (voices.compactMap(\.number).max() ?? 0) + 1
+        for i in voices.indices where voices[i].number == nil {
+            voices[i].number = next
+            next += 1
+        }
+        return true
     }
 
     /// Writes each voice that changed since it was read, atomically, and removes
