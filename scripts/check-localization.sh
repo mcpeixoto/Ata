@@ -32,10 +32,10 @@ for file in Resources/*.lproj/Localizable.strings; do
   compare "$base" "$file"
 done
 
-# The iPhone's own tables: Info.plist texts and Siri phrases, and those of its
-# extensions (Resources/iOS/Share). Each English table needs its translations,
-# with the same keys.
-for english in Resources/iOS/en.lproj/*.strings Resources/iOS/*/en.lproj/*.strings; do
+# The iPhone's and the Watch's own tables: Info.plist texts and Siri phrases, and
+# those of the iPhone's extensions (Resources/iOS/Share). Each English table needs
+# its translations, with the same keys.
+for english in Resources/iOS/en.lproj/*.strings Resources/iOS/*/en.lproj/*.strings Sources/AtaWatch/en.lproj/*.strings; do
   [ -e "$english" ] || continue
   plutil -lint "$english" >/dev/null
   tables=$(dirname "$(dirname "$english")")

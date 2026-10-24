@@ -33,6 +33,8 @@ final class PhoneStore: ObservableObject {
     @Published private(set) var bookmarks: [Int] = []
 
     var isRecording: Bool { phase == .recording || phase == .interrupted }
+    /// Seconds of audio recorded so far, kept current in the background too (unlike `elapsed`).
+    var recordedSeconds: Double { recorder.recordedSeconds }
 
     private let recorder = PhoneRecorder()
     private let activity = LiveRecordingActivity()
