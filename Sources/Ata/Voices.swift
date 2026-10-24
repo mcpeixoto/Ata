@@ -37,6 +37,12 @@ struct Voice: Codable, Equatable, Identifiable {
     /// that edits the voice.
     var edited: Date? = nil
 
+    /// Now, to the whole second: the library saves dates as ISO 8601 with
+    /// milliseconds, so a finer time wouldn't read back equal to itself.
+    static func editStamp(_ now: Date = Date()) -> Date {
+        Date(timeIntervalSince1970: now.timeIntervalSince1970.rounded(.down))
+    }
+
     var meetings: Int { meetingIDs.count }
 
     /// The name, or "Voice 3" until it has one.
@@ -357,7 +363,7 @@ final class VoiceLibrary {
         guard let i = voices.firstIndex(where: { $0.id == id }) else { return }
         let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
         voices[i].name = (trimmed?.isEmpty ?? true) ? nil : trimmed
-        voices[i].edited = Date()
+        voices[i].edited = Voice.editStamp()
     }
 
     func setSample(_ id: UUID, file: String) {
@@ -418,14 +424,14 @@ final class VoiceLibrary {
     func setDismissed(_ id: UUID, _ on: Bool) {
         guard let i = voices.firstIndex(where: { $0.id == id }) else { return }
         voices[i].dismissed = on ? true : nil
-        voices[i].edited = Date()
+        voices[i].edited = Voice.editStamp()
     }
 
     /// Leave this voice's lines out of every transcript (or put them back).
     func setExcluded(_ id: UUID, _ on: Bool) {
         guard let i = voices.firstIndex(where: { $0.id == id }) else { return }
         voices[i].excluded = on ? true : nil
-        voices[i].edited = Date()
+        voices[i].edited = Voice.editStamp()
     }
 
     // MARK: - Two devices, one voice
