@@ -16,6 +16,13 @@
 "Ata can only import audio files." = "Ata can only import audio files.";
 "Could not import %@: %@" = "Could not import %@: %@";
 "There is no audio in this file." = "There is no audio in this file.";
+"Adding to Ata…" = "Adding to Ata…";
+"Added to Ata" = "Added to Ata";
+"It will be transcribed when you open Ata." = "It will be transcribed when you open Ata.";
+"They will be transcribed when you open Ata." = "They will be transcribed when you open Ata.";
+"Could not add this to Ata" = "Could not add this to Ata";
+"Ata could not reach its shared folder. Open Ata and import the file from there." = "Ata could not reach its shared folder. Open Ata and import the file from there.";
+"Done" = "Done";
 "nothing" = "nothing";
 "Grant microphone access to record." = "Grant microphone access to record.";
 "That model is not downloaded. Download it in Settings → Transcription." = "That model is not downloaded. Download it in Settings → Transcription.";

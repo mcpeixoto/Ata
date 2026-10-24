@@ -69,6 +69,8 @@ targets:
           - Updater.swift
       - path: ../Sources/AtaiOS
       - path: ../Sources/AtaWidgets/Shared
+      # The share extension's inbox, which the app drains.
+      - path: ../Sources/AtaShare/Shared
       # en.lproj and pt.lproj: the same Localizable.strings as the Mac.
       - path: ../Resources
         excludes:
@@ -84,10 +86,13 @@ targets:
           - Info.plist
           - Widgets-Info.plist
           - "*.entitlements"
+          - Share
+          - Share/**
     dependencies:
       - target: CLame
       - package: AtaDependencies
       - target: AtaWidgets
+      - target: AtaShare
     settings:
       base:
         PRODUCT_NAME: Ata
@@ -137,6 +142,7 @@ targets:
       - path: Tests
       - path: ../Sources/AtaiOS/RecorderState.swift
       - path: ../Sources/AtaiOS/FolderNames.swift
+      - path: ../Sources/AtaShare/Shared/ShareInbox.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.interactive.ata.tests
@@ -159,6 +165,37 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         TARGETED_DEVICE_FAMILY: "1"
         TEST_TARGET_NAME: Ata
+
+  # "Ata" in the share sheet: copies shared audio into the app group's inbox,
+  # which the app turns into meetings when it opens (Sources/AtaShare).
+  AtaShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ../Sources/AtaShare
+      - path: ../Sources/Ata/Localization.swift
+      - path: ../Resources
+        excludes:
+          - Info.plist
+          - Ata.entitlements
+          - AppIcon.iconset
+          - AppIcon.iconset/**
+          - iOS
+          - iOS/**
+      # Its name in the share sheet, in each language.
+      - path: ../Resources/iOS/Share
+        excludes:
+          - Info.plist
+          - "*.entitlements"
+    settings:
+      base:
+        PRODUCT_NAME: AtaShare
+        PRODUCT_BUNDLE_IDENTIFIER: ai.interactive.ata.share
+        INFOPLIST_FILE: ../Resources/iOS/Share/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ../Resources/iOS/Share/AtaShare.entitlements
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"
 
 schemes:
   Ata:
