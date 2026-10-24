@@ -36,20 +36,19 @@ enum AudioImport {
         // The name is taken as text, not turned into a URL: a name with a colon
         // ("Team: weekly") doesn't survive that.
         let fileName = name.flatMap { $0.isEmpty ? nil : $0 } ?? source.lastPathComponent
-        var m = try Meeting.new(app: label(fileName: fileName), at: date, staged: true)
+        var m = try Meeting.newImport(app: label(fileName: fileName), at: date)
         do {
             try AudioFiles.decodeToWAV(source, to: m.micURL)
             guard WavWriter.duration(of: m.micURL) > 0 else { throw Failure.noAudio }
+            let duration = WavWriter.duration(of: m.micURL)
+            m.duration = duration
+            m.endedAt = date.addingTimeInterval(duration)
+            m.status = .pending
+            return try Library.finishImport(m)
         } catch {
             try? FileManager.default.removeItem(at: m.dir)
             throw error
         }
-        let duration = WavWriter.duration(of: m.micURL)
-        m.duration = duration
-        m.endedAt = date.addingTimeInterval(duration)
-        m.status = .pending
-        Library.save(m)
-        return Library.publish(m)
     }
 
     /// When the file was made, as far as it says: a copied file can be newer

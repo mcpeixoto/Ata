@@ -1,6 +1,30 @@
 # Changelog
 
-## Unreleased
+## 2.7.1
+
+Fixes for iCloud sync. It is off unless you turned it on in **Settings → iCloud**, and only matters
+once a second device shares the meetings.
+
+- Fixed: turning iCloud back on no longer overwrites notes or a transcript the other device changed
+  while it was off. If both changed, the newer one keeps its name and the other is saved beside it,
+  as `notes (other device).md` for notes.
+- Fixed: an open meeting now shows notes edited on the other device. If you were typing at the same
+  time, your text is saved and theirs is kept as `notes (other device).md`. Notes still
+  downloading from iCloud show as downloading and can't be edited until they arrive.
+- Fixed: transcribing a meeting again on the iPhone while its earlier transcript was still in
+  iCloud could replace it without keeping it in the meeting's earlier versions. Ata now fetches it
+  first; if it can't, it stops and says so, with the audio untouched for another try.
+- Fixed: if a device slept mid-transcript and the other took the meeting over, both could finish
+  it, and a late failure could replace the finished transcript. Now the device that took over
+  finishes alone.
+- Fixed: on the iPhone, meetings recorded on the Mac before Ata 2.6 counted as the iPhone's own,
+  so its audio settings could compress or delete the Mac's recordings. Copying a library into
+  iCloud now records which device made each older meeting.
+- Fixed: opening a meeting or the People tab could hang while a file was still downloading from
+  iCloud, especially offline.
+- Fixed: naming a voice on one device while the other learned more of it no longer loses the name.
+
+### Ata for iPhone and Apple Watch (in development, not released yet)
 
 - **Import audio on the iPhone.** Share a recording to Ata from Voice Memos, Files, Mail or a
   chat, open it in Ata, or tap the import button in Meetings. Each file becomes a meeting and is
@@ -14,6 +38,23 @@
   down too, and keeps your bookmarks. When the iPhone is back, the recording goes to it and
   becomes a meeting named "Apple Watch", queued for a transcript. The Watch deletes its copy only
   after the iPhone confirms the meeting is saved.
+- **Fixed: recordings made on the iPhone never reached your meetings.** Each one stayed in Ata's
+  recording folder with "could not be moved" showing, so it lost its bookmarks, got no MP3 and
+  never went to iCloud. They move now, and one left behind moves the next time Ata opens.
+- **Fixed: an import cut off halfway came back as a short duplicate.** If Ata is closed while it
+  decodes a file, the half-made meeting is removed and the file is imported again from where it
+  waits (the share sheet's or the Watch's inbox). A finished meeting found in the recording
+  folder keeps its transcript instead of being queued again.
+- **Fixed: a Watch recording could arrive cut short.** A file whose length the Watch never got to
+  write in full is now read to its end before it becomes a meeting, so the Watch never deletes
+  audio the iPhone didn't keep.
+- **Fixed: Resume on the Watch.** It now resumes a recording on the iPhone too, after a call that
+  ended without handing the microphone back. A Watch recording that can't carry on after an
+  interruption stays paused with Resume showing, and one stopped by the audio system restarting
+  is finished and sent, with everything recorded until then.
+- **Fixed: the library could switch to or from iCloud during a Watch import**, and the Watch's
+  confirmation that a recording had arrived could be lost if it came while the connection to
+  the Watch was still starting.
 
 ## 2.7.0
 

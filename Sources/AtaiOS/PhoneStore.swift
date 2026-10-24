@@ -55,6 +55,8 @@ final class PhoneStore: ObservableObject {
     func bootstrap() {
         guard !bootstrapped else { return }
         bootstrapped = true
+        // Read here, on the main thread, before an import off it needs this device's name.
+        _ = Device.current
         Pref.registerDefaults()
         mode = Pref.d.string(forKey: Pref.recordingMode).flatMap(RecordingMode.init(rawValue:)) ?? .inPerson
         try? FileManager.default.createDirectory(at: Paths.meetingsDir, withIntermediateDirectories: true)
@@ -88,11 +90,13 @@ final class PhoneStore: ObservableObject {
     }
 
     /// Recordings cut short by a crash or a dead battery, and transcriptions iOS
-    /// ended, go back into the queue. Nothing is ever deleted here.
+    /// ended, go back into the queue. No audio is ever deleted here: only a
+    /// half-decoded import, whose source was never touched.
     private func recoverInterrupted() {
-        for m in StagingFolder.recoverLeftovers(except: recorder.folder) {
-            NSLog("Ata: recovered an interrupted recording, \(m.id)")
-        }
+        // The Mac's recovery, run before anything can record or import: WAV
+        // headers repaired, a recording cut short queued, an unfinished import
+        // cleared (its source is still in its inbox), every folder moved out of staging.
+        Library.recoverStaged()
         // Only this iPhone's own work: with the meetings in iCloud, the Mac's
         // "transcribing" may be running right now.
         for m in Library.loadAll() where m.status == .transcribing {
@@ -160,21 +164,17 @@ final class PhoneStore: ObservableObject {
     func stopRecording() {
         guard isRecording else { return }
         phase = .stopping
-        var finished = recorder.stop()
+        let finished = recorder.stop(bookmarks: bookmarks.map { Bookmark(ms: $0) })
         stopTicker()
         activity.end()
-        if finished == nil {
+        if finished?.moved == false {
             lastError = L("The recording could not be moved into your meetings. It is safe and will be tried again next time Ata opens.")
-        }
-        if var m = finished, !bookmarks.isEmpty {
-            m.bookmarks = bookmarks.map { Bookmark(ms: $0) }
-            Library.save(m)
-            finished = m
         }
         bookmarks = []
         phase = .idle
         reload()
-        if let finished, finished.status == .pending { saveMergedAudio(of: finished) }
+        // Wherever the folder is now: one left in staging moves with its meeting.mp3.
+        if let m = finished?.meeting, m.status == .pending { saveMergedAudio(of: m) }
         pump()
     }
 
@@ -184,6 +184,16 @@ final class PhoneStore: ObservableObject {
 
     func resumeRecording() {
         recorder.resume()
+    }
+
+    /// Recordings from the Watch are being imported; see `WatchLink`. Counted with
+    /// the other imports, so the library never moves to or from iCloud under one.
+    func watchImportStarted() {
+        importing += 1
+    }
+
+    func watchImportFinished() {
+        importing = max(0, importing - 1)
     }
 
     /// Marks this moment of the recording.
@@ -386,6 +396,11 @@ final class PhoneStore: ObservableObject {
             var m = queued
             let heartbeat = renewClaim(of: queued.id)
             defer { heartbeat.cancel() }
+            // Taken over by the Mac while this iPhone was away: the Mac owns the meeting
+            // now, so nothing here is saved and its audio is left alone.
+            func stillMine(_ status: Meeting.Status) -> Bool {
+                Meeting.mayFinish(status, over: Library.load(queued.id), by: Device.current)
+            }
             do {
                 let outcome = try await Transcriber.transcribe(m, options: options) { p in
                     Task { @MainActor in
@@ -404,21 +419,25 @@ final class PhoneStore: ObservableObject {
                 m.status = .done
                 m.error = nil
                 m.claim = nil
-                Library.save(m)
-                await handleAudio(of: m)
-                Notifier.shared.transcriptReady(m)
+                if stillMine(.done) {
+                    Library.save(m)
+                    await handleAudio(of: m)
+                    Notifier.shared.transcriptReady(m)
+                }
                 background?.finish(success: true)
             } catch let error where Self.shouldRequeue(error) {
                 // Stopped, not failed: back in the queue with its audio untouched.
                 m.status = .pending
-                Library.save(m)
+                if stillMine(.pending) { Library.save(m) }
                 background?.finish(success: false)
             } catch {
                 m.status = .failed
                 m.error = error.localizedDescription
                 m.claim = nil
-                Library.save(m)
-                Notifier.shared.transcriptFailed(m, error: error.localizedDescription)
+                if stillMine(.failed) {
+                    Library.save(m)
+                    Notifier.shared.transcriptFailed(m, error: error.localizedDescription)
+                }
                 background?.finish(success: false)
             }
             background = nil
@@ -431,13 +450,20 @@ final class PhoneStore: ObservableObject {
     }
 
     /// Renews this iPhone's claim on the meeting being transcribed every few
-    /// minutes, so the Mac never takes a long run for an abandoned one.
+    /// minutes, so the Mac never takes a long run for an abandoned one. If the Mac
+    /// took it over meanwhile (this iPhone was away past the claim), the run stops.
     private func renewClaim(of id: String) -> Task<Void, Never> {
         Task {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 5 * 60 * 1_000_000_000)
-                guard !Task.isCancelled, transcribingID == id,
-                      var fresh = Library.load(id), fresh.status == .transcribing else { return }
+                guard !Task.isCancelled, transcribingID == id, var fresh = Library.load(id) else { return }
+                // meeting.json is still coming down from iCloud: renewed next time round.
+                if fresh.isPlaceholder { continue }
+                guard fresh.status == .transcribing, fresh.isClaimed() else {
+                    NSLog("Ata: another device took over \(id); this iPhone stops transcribing it")
+                    job?.cancel()
+                    return
+                }
                 fresh.claim = Claim(device: Device.current, at: Date())
                 Library.save(fresh)
             }

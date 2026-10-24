@@ -42,8 +42,12 @@ enum Device {
         }
         return Host.current().localizedName ?? "Mac"
         #elseif canImport(UIKit)
+        // UIDevice is the main thread's. PhoneStore reads this at launch, on the
+        // main thread; first read anywhere else, it never waits for the main
+        // thread (which may be waiting for it) and says "iPhone", which is what
+        // UIDevice says too without the device-name entitlement.
         if Thread.isMainThread { return MainActor.assumeIsolated { UIDevice.current.name } }
-        return DispatchQueue.main.sync { MainActor.assumeIsolated { UIDevice.current.name } }
+        return "iPhone"
         #else
         return ProcessInfo.processInfo.hostName
         #endif

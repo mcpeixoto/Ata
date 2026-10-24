@@ -142,7 +142,7 @@ targets:
     sources:
       - path: Tests
       - path: ../Sources/AtaiOS/RecorderState.swift
-      - path: ../Sources/AtaiOS/FolderNames.swift
+      - path: ../Sources/Ata/FolderNames.swift
       - path: ../Sources/AtaShare/Shared/ShareInbox.swift
     settings:
       base:

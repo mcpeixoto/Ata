@@ -129,7 +129,11 @@ final class WatchModel: ObservableObject {
     }
 
     func resumeTapped() {
-        if isRecordingHere { recorder.resume() }
+        if isRecordingHere {
+            recorder.resume()
+        } else if isRecordingOnPhone {
+            ask(.resume)
+        }
     }
 
     /// After the iPhone couldn't start: record here instead.

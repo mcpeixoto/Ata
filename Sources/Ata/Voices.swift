@@ -31,6 +31,17 @@ struct Voice: Codable, Equatable, Identifiable {
     /// The embedding model the centroid came from (`Diarization.embeddingModel`). Nil for
     /// voices learned before Ata 2.6, all of them by `Diarization.untaggedEmbeddingModel`.
     var model: String? = nil
+    /// When you last named this voice, or said not to ask or to leave it out. Two
+    /// devices that changed it at once keep these from the later edit; see
+    /// `VoiceLibrary.merge(versions:)`. Nil until an Ata that records it is the one
+    /// that edits the voice.
+    var edited: Date? = nil
+
+    /// Now, to the whole second: the library saves dates as ISO 8601 with
+    /// milliseconds, so a finer time wouldn't read back equal to itself.
+    static func editStamp(_ now: Date = Date()) -> Date {
+        Date(timeIntervalSince1970: now.timeIntervalSince1970.rounded(.down))
+    }
 
     var meetings: Int { meetingIDs.count }
 
@@ -89,6 +100,9 @@ final class VoiceLibrary {
     /// Voice files that exist but couldn't be read: damaged, half-synced, or from
     /// a newer Ata. They are never written over or removed.
     private(set) var unreadable: [URL] = []
+    /// Voices whose file is still in iCloud: not read, so the main thread never waits
+    /// on a download, and, like `unreadable` ones, never written over.
+    private(set) var downloading: Set<UUID> = []
     /// Each voice as it was last read or written, so `save` writes only what changed
     /// and removes only files this library itself knew about.
     private var onDisk: [UUID: Voice] = [:]
@@ -121,7 +135,7 @@ final class VoiceLibrary {
         return f
     }()
 
-    private static func decoder() -> JSONDecoder {
+    static func decoder() -> JSONDecoder {
         let d = JSONDecoder()
         d.dateDecodingStrategy = .custom { decoder in
             let text = try decoder.singleValueContainer().decode(String.self)
@@ -134,7 +148,7 @@ final class VoiceLibrary {
         return d
     }
 
-    private static func encoder() -> JSONEncoder {
+    static func encoder() -> JSONEncoder {
         let e = JSONEncoder()
         e.dateEncodingStrategy = .custom { date, encoder in
             var c = encoder.singleValueContainer()
@@ -159,9 +173,21 @@ final class VoiceLibrary {
         let decoder = Self.decoder()
         var found: [Voice] = []
         for name in (try? fm.contentsOfDirectory(atPath: directory.path)) ?? [] {
-            guard Self.voiceID(fileName: name) != nil else { continue }
+            // On iPhone a voice not downloaded yet is only its placeholder, ".<id>.json.icloud".
+            if name.hasPrefix("."), name.hasSuffix(".icloud") {
+                let real = String(name.dropFirst().dropLast(7))
+                if let id = Self.voiceID(fileName: real) {
+                    downloading.insert(id)
+                    unreadable.append(directory.appendingPathComponent(real))
+                }
+                continue
+            }
+            guard let id = Self.voiceID(fileName: name) else { continue }
             let url = directory.appendingPathComponent(name)
-            if let data = try? Data(contentsOf: url), let voice = try? decoder.decode(Voice.self, from: data) {
+            if CloudFiles.readable(url) == nil {
+                downloading.insert(id)
+                unreadable.append(url)
+            } else if let data = try? Data(contentsOf: url), let voice = try? decoder.decode(Voice.self, from: data) {
                 found.append(voice)
                 onDisk[voice.id] = voice
             } else {
@@ -337,6 +363,7 @@ final class VoiceLibrary {
         guard let i = voices.firstIndex(where: { $0.id == id }) else { return }
         let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
         voices[i].name = (trimmed?.isEmpty ?? true) ? nil : trimmed
+        voices[i].edited = Voice.editStamp()
     }
 
     func setSample(_ id: UUID, file: String) {
@@ -397,12 +424,71 @@ final class VoiceLibrary {
     func setDismissed(_ id: UUID, _ on: Bool) {
         guard let i = voices.firstIndex(where: { $0.id == id }) else { return }
         voices[i].dismissed = on ? true : nil
+        voices[i].edited = Voice.editStamp()
     }
 
     /// Leave this voice's lines out of every transcript (or put them back).
     func setExcluded(_ id: UUID, _ on: Bool) {
         guard let i = voices.firstIndex(where: { $0.id == id }) else { return }
         voices[i].excluded = on ? true : nil
+        voices[i].edited = Voice.editStamp()
+    }
+
+    // MARK: - Two devices, one voice
+
+    /// One version of a voice file that two devices changed before either saw the
+    /// other's change, and when that version was saved.
+    struct Version {
+        var voice: Voice
+        var modified: Date?
+    }
+
+    /// The versions of one voice as one. What you set by hand (the name, "don't ask",
+    /// "leave out") comes from the version edited last, or, when none says, the newest
+    /// name there is; so a name given on one device survives a fingerprint learned on
+    /// the other. What was learned is combined: every meeting, the fingerprint averaged
+    /// by observations as `merge(_:into:)` does (the versions share their history, so
+    /// the count is the larger one, not the sum), the earliest and latest sighting.
+    /// Nil when the versions aren't all of one voice.
+    static func merge(versions: [Version]) -> Voice? {
+        guard let first = versions.first, versions.allSatisfy({ $0.voice.id == first.voice.id }) else { return nil }
+        // Newest first; a tie keeps the given order, this device's version first.
+        let ordered = versions.enumerated().sorted { a, b in
+            let x = a.element.modified ?? .distantPast, y = b.element.modified ?? .distantPast
+            return x != y ? x > y : a.offset < b.offset
+        }.map { $0.element.voice }
+        let newest = ordered[0]
+        var merged = newest
+
+        let byHand = ordered.dropFirst().reduce(newest) { best, v in
+            (v.edited ?? .distantPast) > (best.edited ?? .distantPast) ? v : best
+        }
+        merged.name = byHand.edited == nil ? ordered.compactMap(\.name).first : byHand.name
+        merged.dismissed = byHand.dismissed
+        merged.excluded = byHand.excluded
+        merged.edited = byHand.edited
+
+        // The fingerprint that knows most, averaged with the others from the same model.
+        let learned = ordered.dropFirst().reduce(newest) { best, v in v.observations > best.observations ? v : best }
+        let model = embeddingModel(of: learned)
+        let alike = ordered.filter { embeddingModel(of: $0) == model && $0.centroid.count == learned.centroid.count }
+        let total = Float(alike.reduce(0) { $0 + max(1, $1.observations) })
+        var centroid = [Float](repeating: 0, count: learned.centroid.count)
+        for v in alike {
+            let weight = Float(max(1, v.observations)) / total
+            for i in centroid.indices { centroid[i] += v.centroid[i] * weight }
+        }
+        merged.centroid = normalised(centroid)
+        merged.observations = learned.observations
+        merged.model = learned.model
+
+        merged.meetingIDs = Array(Set(ordered.flatMap(\.meetingIDs))).sorted()
+        merged.sample = ordered.compactMap(\.sample).first
+        merged.firstSeen = ordered.map(\.firstSeen).min() ?? newest.firstSeen
+        merged.lastSeen = ordered.map(\.lastSeen).max() ?? newest.lastSeen
+        merged.isMe = ordered.contains(where: \.isMe)
+        merged.number = newest.number ?? ordered.compactMap(\.number).first
+        return merged
     }
 
     func forgetAll() {
@@ -544,8 +630,9 @@ struct MeetingVoices: Codable, Equatable {
     var speakers: [MeetingSpeaker]
     var turns: [SpeakerTurn]
 
+    /// Nil, too, while speakers.json is still in iCloud: reading it would wait for the download.
     static func load(for meeting: Meeting) -> MeetingVoices? {
-        guard let data = try? Data(contentsOf: meeting.speakersURL) else { return nil }
+        guard let file = CloudFiles.readable(meeting.speakersURL), let data = try? Data(contentsOf: file) else { return nil }
         return try? JSONDecoder().decode(MeetingVoices.self, from: data)
     }
 

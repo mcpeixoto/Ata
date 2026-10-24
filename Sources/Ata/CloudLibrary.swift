@@ -175,9 +175,16 @@ enum CloudFiles {
 
     enum Failure: LocalizedError {
         case notDownloaded
+        /// The meeting's transcript is still in iCloud, so it can't be kept in versions/.
+        case transcriptNotDownloaded
 
         var errorDescription: String? {
-            L("The audio hasn't downloaded from iCloud yet. Try again when this device is online.")
+            switch self {
+            case .notDownloaded:
+                return L("The audio hasn't downloaded from iCloud yet. Try again when this device is online.")
+            case .transcriptNotDownloaded:
+                return L("The earlier transcript hasn't downloaded from iCloud yet, and Ata won't write over it. Try again when this device is online.")
+            }
         }
     }
 
@@ -213,6 +220,15 @@ enum CloudFiles {
         !urls.contains { state(of: $0) == .inCloud }
     }
 
+    /// `url` when reading it won't wait on iCloud: it is on this device, or not
+    /// there at all. A file still in iCloud is asked for and gives nil, so the main
+    /// thread never waits for a download; the watcher reloads once it has arrived.
+    static func readable(_ url: URL) -> URL? {
+        guard CloudLibrary.isActive, state(of: url) == .inCloud else { return url }
+        requestDownload(url)
+        return nil
+    }
+
     /// What the meeting list and the meeting window read, fetched as soon as it
     /// appears. Audio waits until it is played or transcribed.
     static let eagerNames: Set<String> = ["meeting.json", "transcript.json", "transcript.md", "transcricao.md",
@@ -237,14 +253,20 @@ enum CloudFiles {
         guard state(of: url) == .inCloud else { return }
         try? FileManager.default.startDownloadingUbiquitousItem(at: url)
         #if os(macOS)
-        // Without the iCloud entitlement that call may do nothing. A coordinated
-        // read always fetches the file; it waits for it, so off the main thread,
-        // and once per file at a time.
+        // Without the iCloud entitlement that call may do nothing. Reading the file
+        // fetches it; that waits for the download, so off the main thread and once
+        // per file at a time. A plain read, never a coordinated one: held for as long
+        // as the download takes, offline for good, it would keep a coordinated write
+        // to the same file on the main thread waiting with it.
         guard inFlight.withLock({ $0.insert(url.path).inserted }) else { return }
         DispatchQueue.global(qos: .utility).async {
-            var error: NSError?
-            NSFileCoordinator(filePresenter: nil).coordinate(readingItemAt: url, options: [], error: &error) { _ in }
-            if let error { NSLog("Ata: could not fetch \(url.lastPathComponent) from iCloud: \(error.localizedDescription)") }
+            do {
+                let handle = try FileHandle(forReadingFrom: url)
+                _ = try handle.read(upToCount: 1)
+                try handle.close()
+            } catch {
+                NSLog("Ata: could not fetch \(url.lastPathComponent) from iCloud: \(error.localizedDescription)")
+            }
             _ = inFlight.withLock { $0.remove(url.path) }
         }
         #endif
@@ -411,6 +433,16 @@ enum Conflicts {
         return ext.isEmpty ? "\(base) \(suffix)" : "\(base) \(suffix).\(ext)"
     }
 
+    /// The first aside name for `fileName` that nothing in `dir` has, not even a
+    /// file still in iCloud.
+    static func unusedAsideName(for fileName: String, in dir: URL) -> String {
+        var n = 1
+        while CloudFiles.state(of: dir.appendingPathComponent(asideName(for: fileName, number: n))) != .missing {
+            n += 1
+        }
+        return asideName(for: fileName, number: n)
+    }
+
     /// Settles the file's conflicting versions by its rule. Nothing is marked
     /// resolved until every version that is kept has been written. Blocks on file
     /// coordination, so never on the main thread.
@@ -418,6 +450,9 @@ enum Conflicts {
         guard let others = NSFileVersion.unresolvedConflictVersionsOfItem(at: url), !others.isEmpty,
               let current = NSFileVersion.currentVersionOfItem(at: url) else { return }
         let versions = [current] + others
+        if url.deletingLastPathComponent().lastPathComponent == "Voices",
+           VoiceLibrary.voiceID(fileName: url.lastPathComponent) != nil,
+           resolveVoice(url, versions: versions, others: others) { return }
         let dir = url.deletingLastPathComponent()
         let taken = Set((try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? [])
         let decision = Self.plan(fileName: url.lastPathComponent, modified: versions.map(\.modificationDate),
@@ -447,6 +482,28 @@ enum Conflicts {
             NSLog("Ata: left a conflict in \(url.lastPathComponent) unresolved: \(error.localizedDescription)")
         }
     }
+
+    /// A voice changed on both devices: one version, merged, so a name given on one
+    /// survives a fingerprint learned on the other (see `VoiceLibrary.merge(versions:)`).
+    /// False when a version can't be read as a voice; the newest then wins as usual.
+    private static func resolveVoice(_ url: URL, versions: [NSFileVersion], others: [NSFileVersion]) -> Bool {
+        let decoder = VoiceLibrary.decoder()
+        var read: [VoiceLibrary.Version] = []
+        for version in versions {
+            guard let data = try? Data(contentsOf: version.url),
+                  let voice = try? decoder.decode(Voice.self, from: data) else { return false }
+            read.append(VoiceLibrary.Version(voice: voice, modified: version.modificationDate))
+        }
+        guard let merged = VoiceLibrary.merge(versions: read) else { return false }
+        do {
+            try Coordinated.write(VoiceLibrary.encoder().encode(merged), to: url)
+            for version in others { version.isResolved = true }
+            return true
+        } catch {
+            NSLog("Ata: could not merge the versions of \(url.lastPathComponent): \(error.localizedDescription)")
+            return false
+        }
+    }
 }
 
 // MARK: - Copying the library into iCloud
@@ -460,6 +517,9 @@ struct CloudMigration: Sendable {
     let source: URL
     let destination: URL
     let ledgerURL: URL
+    /// The device copying. A meeting from before Ata 2.6 names no device, which on
+    /// one device meant this one; its copy in iCloud says so (see `stampOrigin`).
+    var device: DeviceRef = Device.current
 
     struct Stamp: Codable, Equatable, Sendable {
         var size: Int64
@@ -471,6 +531,9 @@ struct CloudMigration: Sendable {
         var target: String
         /// Every file as it was when it was copied, by path inside the folder.
         var files: [String: Stamp]
+        /// Every file in iCloud as this device last wrote it there, so an update can
+        /// tell a file the other device has changed since. Absent in ledgers from 2.7.0.
+        var copied: [String: Stamp]? = nil
     }
 
     struct Ledger: Codable, Equatable, Sendable {
@@ -525,13 +588,19 @@ struct CloudMigration: Sendable {
             let parts = relative.split(separator: "/")
             if parts.contains(where: { $0.hasPrefix(".") }) || relative.hasSuffix(".partial") { continue }
             let file = folder.appendingPathComponent(relative)
-            guard !CloudLibrary.isDirectory(file),
-                  let attributes = try? fm.attributesOfItem(atPath: file.path) else { continue }
-            let size = (attributes[.size] as? NSNumber)?.int64Value ?? 0
-            let modified = (attributes[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
-            out[relative] = Stamp(size: size, modified: modified)
+            guard !CloudLibrary.isDirectory(file), let stamp = stamp(of: file) else { continue }
+            out[relative] = stamp
         }
         return out
+    }
+
+    /// One file's size and date, or nil when it isn't there (a file iCloud hasn't
+    /// downloaded to an iPhone is only its placeholder).
+    static func stamp(of file: URL) -> Stamp? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: file.path) else { return nil }
+        let size = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+        let modified = (attributes[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+        return Stamp(size: size, modified: modified)
     }
 
     /// Meeting folders still to copy, or changed since they were.
@@ -579,16 +648,18 @@ struct CloudMigration: Sendable {
             // Taken before copying, so a change made during the copy shows up as one next time.
             let stamps = Self.stamps(of: folder)
             do {
-                if let entry = ledger.meetings[name],
-                   CloudLibrary.isDirectory(destination.appendingPathComponent(entry.target, isDirectory: true)) {
+                let entry = ledger.meetings[name]
+                let existing = entry.map { destination.appendingPathComponent($0.target, isDirectory: true) }
+                if let entry, let existing, CloudLibrary.isDirectory(existing) {
                     let changed = stamps.keys.filter { entry.files[$0] != stamps[$0] }.sorted()
-                    try update(changed, from: folder,
-                               into: destination.appendingPathComponent(entry.target, isDirectory: true))
-                    ledger.meetings[name] = Entry(target: entry.target, files: stamps)
+                    let written = try update(changed, from: folder, into: existing, entry: entry)
+                    ledger.meetings[name] = Entry(target: entry.target, files: stamps,
+                                                  copied: (entry.copied ?? [:]).merging(written) { $1 })
                     outcome.updated.append(name)
                 } else {
                     let target = try copyFolder(folder, named: name)
-                    ledger.meetings[name] = Entry(target: target, files: stamps)
+                    ledger.meetings[name] = Entry(target: target, files: stamps,
+                                                  copied: Self.stamps(of: destination.appendingPathComponent(target, isDirectory: true)))
                     outcome.copied.append(name)
                 }
                 try saveLedger(ledger)
@@ -598,7 +669,83 @@ struct CloudMigration: Sendable {
             }
             progress(i + 1, todo.count)
         }
+        if !outcome.stopped { stampOrigins(in: &ledger) }
         return outcome
+    }
+
+    /// Meetings this device copied into iCloud before copies said which device made
+    /// them (Ata 2.7.0) say it now: the ledger only lists this device's own.
+    private func stampOrigins(in ledger: inout Ledger) {
+        var changed = false
+        for (name, entry) in ledger.meetings {
+            let meta = destination.appendingPathComponent(entry.target, isDirectory: true)
+                .appendingPathComponent("meeting.json")
+            // A quick look first: most already name their device, and need no coordination.
+            guard CloudFiles.state(of: meta) == .local, let data = try? Data(contentsOf: meta),
+                  Self.stamped(data, device: device) != nil,
+                  (try? Self.stampOrigin(meta, device: device)) == true,
+                  let stamp = Self.stamp(of: meta) else { continue }
+            // Written by this device, so not a change the other one made.
+            var updated = entry
+            updated.copied = (entry.copied ?? [:]).merging(["meeting.json": stamp]) { $1 }
+            ledger.meetings[name] = updated
+            changed = true
+        }
+        if changed {
+            do {
+                try saveLedger(ledger)
+            } catch {
+                NSLog("Ata: could not save the iCloud copy ledger: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    // MARK: Which device made it
+
+    private static let metaEncoder: JSONEncoder = {
+        // As `Library.save` writes meeting.json.
+        let e = JSONEncoder()
+        e.dateEncodingStrategy = .iso8601
+        e.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return e
+    }()
+
+    private static let metaDecoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.dateDecodingStrategy = .iso8601
+        return d
+    }()
+
+    /// meeting.json as `data` has it, now naming `device` as the one that made it;
+    /// nil when it already names a device or isn't a meeting.
+    static func stamped(_ data: Data, device: DeviceRef) -> Data? {
+        guard var meeting = try? metaDecoder.decode(Meeting.self, from: data), meeting.origin == nil else { return nil }
+        meeting.origin = device
+        return try? metaEncoder.encode(meeting)
+    }
+
+    /// A meeting from before Ata 2.6 names no device: on one device that meant this
+    /// one, but in iCloud the other device would take it for its own, and compress or
+    /// delete its audio by its own settings. So its copy names the device that copied
+    /// it. True when meeting.json was written; one that already names a device, or
+    /// can't be read as a meeting, is left as it is.
+    static func stampOrigin(_ meta: URL, device: DeviceRef) throws -> Bool {
+        var wrote = false
+        var writeError: Error?
+        var coordinationError: NSError?
+        NSFileCoordinator(filePresenter: nil).coordinate(writingItemAt: meta, options: .forMerging,
+                                                         error: &coordinationError) { target in
+            guard let data = try? Data(contentsOf: target), let named = Self.stamped(data, device: device) else { return }
+            do {
+                try named.write(to: target, options: .atomic)
+                wrote = true
+            } catch {
+                writeError = error
+            }
+        }
+        if let writeError { throw writeError }
+        if let coordinationError { throw coordinationError }
+        return wrote
     }
 
     /// Copies `folder` into the destination and returns the name it has there. A
@@ -609,7 +756,8 @@ struct CloudMigration: Sendable {
         var candidate = name
         var n = 2
         while fm.fileExists(atPath: destination.appendingPathComponent(candidate).path) {
-            if Self.verified(destination.appendingPathComponent(candidate, isDirectory: true), against: folder) {
+            if Self.verified(destination.appendingPathComponent(candidate, isDirectory: true), against: folder,
+                             stampedBy: device) {
                 return candidate
             }
             candidate = "\(name) \(n)"
@@ -623,6 +771,8 @@ struct CloudMigration: Sendable {
             guard Self.verified(partial, against: folder) else {
                 throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: partial.path])
             }
+            // Checked as it is here; only then does it say which device made it.
+            _ = try Self.stampOrigin(partial.appendingPathComponent("meeting.json"), device: device)
             try Coordinated.move(partial, to: destination.appendingPathComponent(candidate, isDirectory: true))
         } catch {
             try? fm.removeItem(at: partial)
@@ -631,11 +781,66 @@ struct CloudMigration: Sendable {
         return candidate
     }
 
-    /// Brings files that changed since the first copy over, one by one, each
-    /// checked before it replaces the copy in iCloud.
-    private func update(_ files: [String], from folder: URL, into target: URL) throws {
+    /// Brings files that changed since the last copy over, one by one; see
+    /// `update(_:to:lastWritten:device:)`. Returns each file in iCloud that now has
+    /// this device's version, as it is there.
+    private func update(_ files: [String], from folder: URL, into target: URL, entry: Entry) throws -> [String: Stamp] {
+        var written: [String: Stamp] = [:]
         for relative in files {
-            try Self.copyFile(folder.appendingPathComponent(relative), to: target.appendingPathComponent(relative))
+            // As this device left it in iCloud. A 2.7.0 ledger didn't say; a copy keeps
+            // the original's date, so the original as it was copied tells the same.
+            let lastWritten = [entry.copied?[relative], entry.files[relative]].compactMap { $0 }
+            if let placed = try Self.update(folder.appendingPathComponent(relative),
+                                            to: target.appendingPathComponent(relative), lastWritten: lastWritten,
+                                            device: relative == "meeting.json" ? device : nil) {
+                written[relative] = placed
+            }
+        }
+        return written
+    }
+
+    /// One file that changed here since it was copied, into iCloud through a checked
+    /// hidden copy beside `to`. While `to` is as this device last wrote it there
+    /// (`lastWritten`), it is replaced. If the other device has changed it since, or
+    /// it hasn't downloaded so nobody can tell, neither version is lost: the newer one
+    /// keeps the name and the other is kept beside it under `Conflicts.asideName`.
+    /// `device` names who made a meeting.json that doesn't say. Returns `to` as it is
+    /// now when this device's version took the name, nil when it was kept beside.
+    static func update(_ from: URL, to: URL, lastWritten: [Stamp], device: DeviceRef?) throws -> Stamp? {
+        let fm = FileManager.default
+        let dir = to.deletingLastPathComponent()
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        let partial = dir.appendingPathComponent(".\(to.lastPathComponent).partial")
+        if fm.fileExists(atPath: partial.path) { try fm.removeItem(at: partial) }
+        do {
+            try fm.copyItem(at: from, to: partial)
+            guard sameContents(partial, from) else {
+                throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: partial.path])
+            }
+            if let device { _ = try stampOrigin(partial, device: device) }
+            let state = CloudFiles.state(of: to)
+            let theirs = stamp(of: to)
+            if state == .missing {
+                try Coordinated.move(partial, to: to)
+            } else if let theirs, lastWritten.contains(theirs) {
+                try replace(to, with: partial)
+            } else if state == .local, sameContents(partial, to) {
+                // The same change on both devices.
+                try fm.removeItem(at: partial)
+            } else {
+                let aside = dir.appendingPathComponent(Conflicts.unusedAsideName(for: to.lastPathComponent, in: dir))
+                if let theirs, let mine = stamp(of: from), mine.modified > theirs.modified {
+                    try Coordinated.move(to, to: aside)
+                    try Coordinated.move(partial, to: to)
+                } else {
+                    try Coordinated.move(partial, to: aside)
+                    return nil
+                }
+            }
+            return stamp(of: to)
+        } catch {
+            try? fm.removeItem(at: partial)
+            throw error
         }
     }
 
@@ -651,18 +856,7 @@ struct CloudMigration: Sendable {
                 throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: partial.path])
             }
             if fm.fileExists(atPath: to.path) {
-                var coordinationError: NSError?
-                var replaceError: Error?
-                NSFileCoordinator(filePresenter: nil).coordinate(writingItemAt: to, options: .forReplacing,
-                                                                 error: &coordinationError) { target in
-                    do {
-                        _ = try fm.replaceItemAt(target, withItemAt: partial)
-                    } catch {
-                        replaceError = error
-                    }
-                }
-                if let replaceError { throw replaceError }
-                if let coordinationError { throw coordinationError }
+                try replace(to, with: partial)
             } else {
                 try Coordinated.move(partial, to: to)
             }
@@ -670,6 +864,22 @@ struct CloudMigration: Sendable {
             try? fm.removeItem(at: partial)
             throw error
         }
+    }
+
+    /// `to` becomes `partial`, in one coordinated step.
+    private static func replace(_ to: URL, with partial: URL) throws {
+        var coordinationError: NSError?
+        var replaceError: Error?
+        NSFileCoordinator(filePresenter: nil).coordinate(writingItemAt: to, options: .forReplacing,
+                                                         error: &coordinationError) { target in
+            do {
+                _ = try FileManager.default.replaceItemAt(target, withItemAt: partial)
+            } catch {
+                replaceError = error
+            }
+        }
+        if let replaceError { throw replaceError }
+        if let coordinationError { throw coordinationError }
     }
 
     // MARK: Voices
@@ -734,6 +944,19 @@ struct CloudMigration: Sendable {
             }
         }
         return true
+    }
+
+    /// The same, or the same but for its meeting.json naming `device` as the device
+    /// that made it, which is how `copyFolder` leaves a meeting from before Ata 2.6.
+    static func verified(_ copy: URL, against original: URL, stampedBy device: DeviceRef) -> Bool {
+        if verified(copy, against: original) { return true }
+        let meta = "meeting.json"
+        guard let data = try? Data(contentsOf: original.appendingPathComponent(meta)),
+              let expected = stamped(data, device: device),
+              (try? Data(contentsOf: copy.appendingPathComponent(meta))) == expected else { return false }
+        return stamps(of: original).keys.allSatisfy { relative in
+            relative == meta || sameContents(copy.appendingPathComponent(relative), original.appendingPathComponent(relative))
+        }
     }
 
     /// Byte for byte, a megabyte at a time.

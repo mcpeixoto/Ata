@@ -373,8 +373,15 @@ private struct NotesTab: View {
                     .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.045)))
                     .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
                     .onChange(of: model.notes) { model.notesChanged() }
-                Text("Saved as notes.md in the meeting folder, next to the transcript.")
-                    .font(.system(size: 10)).foregroundStyle(.secondary)
+                    // Typing over notes that haven't arrived would hide the other device's.
+                    .disabled(model.notesDownloading)
+                if model.notesDownloading {
+                    Label("Downloading from iCloud…", systemImage: "icloud.and.arrow.down")
+                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                } else {
+                    Text("Saved as notes.md in the meeting folder, next to the transcript.")
+                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -549,6 +556,10 @@ private struct TranscriptTab: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.bottom, 12)
                 }
+            } else if model.transcriptDownloading {
+                Label("Downloading from iCloud…", systemImage: "icloud.and.arrow.down")
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                Spacer()
             } else {
                 Text("The transcript appears here once the meeting is transcribed.")
                     .font(.system(size: 12)).foregroundStyle(.secondary)

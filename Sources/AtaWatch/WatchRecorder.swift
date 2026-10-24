@@ -181,7 +181,11 @@ final class WatchRecorder: NSObject {
                 if recorder?.record() == true {
                     clock.run(at: now)
                 } else {
+                    // Still paused, so Resume shows again, rather than a clock
+                    // running over nothing. What was recorded stays in the file.
                     NSLog("Ata: the Watch recording could not resume")
+                    recorder?.pause()
+                    _ = state.handle(.interruptionBegan)
                 }
             case .restartCapture:
                 // The recorder follows a new input by itself.
@@ -199,6 +203,14 @@ final class WatchRecorder: NSObject {
         onEndedBySystem?()
     }
 
+    /// The audio system restarted, and the recorder with it: nothing more reaches
+    /// the file. Finished like a recording watchOS stopped, so what it holds is kept and sent.
+    private func mediaServicesReset() {
+        guard state.isActive else { return }
+        NSLog("Ata: the audio system restarted during the Watch recording")
+        onEndedBySystem?()
+    }
+
     // MARK: Notifications
 
     private func installObservers() {
@@ -207,6 +219,10 @@ final class WatchRecorder: NSObject {
                                                                 object: session, queue: .main) { [weak self] note in
             guard let event = Self.interruptionEvent(note.userInfo) else { return }
             MainActor.assumeIsolated { self?.handle(event) }
+        })
+        observers.append(NotificationCenter.default.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification,
+                                                                object: session, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.mediaServicesReset() }
         })
     }
 

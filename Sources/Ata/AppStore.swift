@@ -37,6 +37,8 @@ final class AppStore: ObservableObject {
     private var pendingAutoStop = false
     private var lastSystemSoundAt = Date()
     private var mergeTasks: [String: Task<Void, Never>] = [:]
+    /// The transcription running now, so it can stop if another device takes it over.
+    private var transcribeJob: Task<Void, Never>?
 
     private init() {}
 
@@ -415,9 +417,14 @@ final class AppStore: ObservableObject {
         reload()
         let job = m
 
-        Task {
+        transcribeJob = Task {
             var m = job
             let heartbeat = renewClaim(of: job.id)
+            // Taken over by another device while this one was away: that device owns the
+            // meeting now, so nothing here is saved and its audio is left alone.
+            func stillMine(_ status: Meeting.Status) -> Bool {
+                Meeting.mayFinish(status, over: Library.load(job.id), by: Device.current)
+            }
             do {
                 let outcome = try await Transcriber.transcribe(m, options: options) { p in
                     Task { @MainActor in
@@ -433,22 +440,27 @@ final class AppStore: ObservableObject {
                 m.status = .done
                 m.error = nil
                 m.claim = nil
-                Library.save(m)
-                await self.handleAudio(of: m)
-                Notifier.shared.transcriptReady(m)
+                if stillMine(.done) {
+                    Library.save(m)
+                    await self.handleAudio(of: m)
+                    Notifier.shared.transcriptReady(m)
+                }
             } catch TranscriberError.cancelled {
                 // Stopped because Ata is quitting: back in the queue for the next launch,
                 // still claimed, so another device only takes it if this one stays away.
                 m.status = .pending
-                Library.save(m)
+                if stillMine(.pending) { Library.save(m) }
             } catch {
                 m.status = .failed
                 m.error = error.localizedDescription
                 m.claim = nil
-                Library.save(m)
-                Notifier.shared.transcriptFailed(m, error: error.localizedDescription)
+                if stillMine(.failed) {
+                    Library.save(m)
+                    Notifier.shared.transcriptFailed(m, error: error.localizedDescription)
+                }
             }
             heartbeat.cancel()
+            transcribeJob = nil
             transcribingID = nil
             transcribeProgress = 0
             reload()
@@ -457,13 +469,20 @@ final class AppStore: ObservableObject {
     }
 
     /// Renews this device's claim on the meeting being transcribed every few
-    /// minutes, so a long run is never taken for an abandoned one.
+    /// minutes, so a long run is never taken for an abandoned one. If another
+    /// device took it over meanwhile (this Mac slept past the claim), the run stops.
     private func renewClaim(of id: String) -> Task<Void, Never> {
         Task {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 5 * 60 * 1_000_000_000)
-                guard !Task.isCancelled, transcribingID == id,
-                      var fresh = Library.load(id), fresh.status == .transcribing else { return }
+                guard !Task.isCancelled, transcribingID == id, var fresh = Library.load(id) else { return }
+                // meeting.json is still coming down from iCloud: renewed next time round.
+                if fresh.isPlaceholder { continue }
+                guard fresh.status == .transcribing, fresh.isClaimed() else {
+                    NSLog("Ata: another device took over \(id); this Mac stops transcribing it")
+                    transcribeJob?.cancel()
+                    return
+                }
                 fresh.claim = Claim(device: Device.current, at: Date())
                 Library.save(fresh)
             }
