@@ -2,3 +2,4 @@
 
 "CFBundleDisplayName" = "Ata";
 "NSMicrophoneUsageDescription" = "Ata records the conversation through the microphone so it can transcribe it.";
+"Audio" = "Audio";

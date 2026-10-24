@@ -222,6 +222,11 @@ final class MeetingModel: ObservableObject {
         player.$isPlaying
             .sink { [weak self] p in MainActor.assumeIsolated { self?.playing = p } }
             .store(in: &watchers)
+        #if os(iOS)
+        // The iPhone's screenshot run opens its meeting mid-playback; the Mac's
+        // renderer sets the position itself.
+        Snapshots.position(player, meeting: id)
+        #endif
     }
 
     /// The line and word being heard, published only when it changes.

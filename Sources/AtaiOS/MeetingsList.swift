@@ -7,6 +7,7 @@ struct MeetingsList: View {
     @EnvironmentObject var navigation: PhoneNavigation
     @State private var query = ""
     @State private var pendingDelete: Meeting?
+    @State private var choosingAudio = false
 
     private var shown: [Meeting] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
@@ -17,6 +18,14 @@ struct MeetingsList: View {
     var body: some View {
         NavigationStack(path: $navigation.meetingPath) {
             List {
+                if store.importing > 0 {
+                    Section {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text("Importing audio…").foregroundStyle(.secondary)
+                        }
+                    }
+                }
                 if store.waitingForEngine {
                     Section {
                         Label("Recordings wait here until this iPhone can transcribe them. The audio is kept.",
@@ -49,6 +58,24 @@ struct MeetingsList: View {
             .searchable(text: $query, prompt: Text("Search meetings"))
             .refreshable { store.reload() }
             .navigationTitle("Meetings")
+            // Audio recorded elsewhere: Voice Memos, a recorder, a file someone sent.
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { choosingAudio = true } label: {
+                        Label("Import audio…", systemImage: "square.and.arrow.down")
+                    }
+                }
+            }
+            .fileImporter(isPresented: $choosingAudio, allowedContentTypes: AudioImport.types,
+                          allowsMultipleSelection: true) { result in
+                switch result {
+                case .success(let urls): store.importAudio(urls)
+                case .failure(let error): store.importError = error.localizedDescription
+                }
+            }
+            .alert(store.importError ?? "", isPresented: importFailed) {
+                Button(L("Close"), role: .cancel) {}
+            }
             .navigationDestination(for: String.self) { id in
                 MeetingScreen(id: id)
             }
@@ -61,6 +88,10 @@ struct MeetingsList: View {
                      : L("The recording, the transcript and your notes are deleted from this iPhone."))
             }
         }
+    }
+
+    private var importFailed: Binding<Bool> {
+        Binding(get: { store.importError != nil }, set: { if !$0 { store.importError = nil } })
     }
 
     private var deleting: Binding<Bool> {

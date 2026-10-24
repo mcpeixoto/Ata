@@ -150,6 +150,24 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build test
 
+      # For reviewers, not a gate, like the Mac's Screenshots job: every screen in
+      # light and dark, with fixture meetings. Download the "iphone-screenshots"
+      # artifact from the run's summary page.
+      - name: Take iPhone screenshots
+        continue-on-error: true
+        timeout-minutes: 15
+        run: ./ios/snapshots.sh "${{ steps.sim.outputs.udid }}"
+
+      - name: Upload iPhone screenshots
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: iphone-screenshots
+          path: ios/build/screenshots/*.png
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Verify the app
         run: |
           APP=ios/build/DerivedData/Build/Products/Debug-iphonesimulator/Ata.app
@@ -158,6 +176,8 @@ jobs:
           echo "Mac $mac, iPhone $phone"
           [ "$mac" = "$phone" ] || { echo "::error::The iPhone app is $phone, the Mac $mac"; exit 1; }
           test -d "$APP/PlugIns/AtaWidgets.appex"
+          test -d "$APP/PlugIns/AtaShare.appex"
+          test -f "$APP/PlugIns/AtaShare.appex/pt.lproj/InfoPlist.strings"
           test -f "$APP/en.lproj/Localizable.strings"
           test -f "$APP/pt.lproj/Localizable.strings"
           test -f "$APP/pt.lproj/InfoPlist.strings"

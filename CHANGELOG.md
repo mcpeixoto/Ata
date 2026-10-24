@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Import audio on the iPhone.** Share a recording to Ata from Voice Memos, Files, Mail or a
+  chat, open it in Ata, or tap the import button in Meetings. Each file becomes a meeting and is
+  transcribed like a recording. The original is only read; a shared file waits in Ata's inbox
+  until its meeting exists, and stays there if the import fails.
+
 ## 2.7.0
 
 - **Keep meetings in iCloud.** A new switch in **Settings → iCloud**, on the Mac and the iPhone,
