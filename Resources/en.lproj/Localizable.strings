@@ -418,6 +418,19 @@
 "Record with Ata" = "Record with Ata";
 "Starts recording a conversation, even from the lock screen." = "Starts recording a conversation, even from the lock screen.";
 
+/* The Apple Watch */
+"Recording on this Apple Watch" = "Recording on this Apple Watch";
+"Recording on your iPhone" = "Recording on your iPhone";
+"Records on this Apple Watch" = "Records on this Apple Watch";
+"Records on your iPhone" = "Records on your iPhone";
+"Record on this Apple Watch" = "Record on this Apple Watch";
+"Open Ata on your iPhone to record there." = "Open Ata on your iPhone to record there.";
+"Your iPhone did not answer." = "Your iPhone did not answer.";
+"Allow Ata on your iPhone to use the microphone." = "Allow Ata on your iPhone to use the microphone.";
+"Ata may still be recording on your iPhone." = "Ata may still be recording on your iPhone.";
+"Recordings waiting for your iPhone: %d" = "Recordings waiting for your iPhone: %d";
+"The recording could not start." = "The recording could not start.";
+
 /* The same sentences on the iPhone */
 "Show in Files" = "Show in Files";
 "Write notes on this iPhone" = "Write notes on this iPhone";

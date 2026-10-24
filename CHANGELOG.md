@@ -6,6 +6,14 @@
   chat, open it in Ata, or tap the import button in Meetings. Each file becomes a meeting and is
   transcribed like a recording. The original is only read; a shared file waits in Ata's inbox
   until its meeting exists, and stays there if the import fails.
+- **Ata on the Apple Watch.** Start, stop and bookmark a recording on your iPhone from your wrist,
+  with the time running on the Watch. If iOS won't let Ata turn the iPhone's microphone on while
+  it's in the background, the Watch says so and offers to record by itself; opening Ata on the
+  iPhone first always works.
+- **Record on the Watch alone.** With the iPhone out of reach, the Watch records, with the wrist
+  down too, and keeps your bookmarks. When the iPhone is back, the recording goes to it and
+  becomes a meeting named "Apple Watch", queued for a transcript. The Watch deletes its copy only
+  after the iPhone confirms the meeting is saved.
 
 ## 2.7.0
 

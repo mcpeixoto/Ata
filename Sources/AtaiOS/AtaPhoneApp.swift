@@ -14,6 +14,7 @@ struct AtaPhoneApp: App {
         }
         Notifier.shared.setUp()
         PhoneStore.shared.bootstrap()
+        WatchLink.shared.activate()
     }
 
     var body: some Scene {
