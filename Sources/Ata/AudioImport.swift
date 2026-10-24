@@ -33,8 +33,10 @@ enum AudioImport {
     /// (the iPhone's share inbox), whose name and dates are the copy's.
     static func meeting(from source: URL, named name: String? = nil, at date: Date? = nil) throws -> Meeting {
         let date = date ?? recordedDate(of: source)
-        let titled = name.flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) } ?? source
-        var m = try Meeting.new(app: label(for: titled), at: date, staged: true)
+        // The name is taken as text, not turned into a URL: a name with a colon
+        // ("Team: weekly") doesn't survive that.
+        let fileName = name.flatMap { $0.isEmpty ? nil : $0 } ?? source.lastPathComponent
+        var m = try Meeting.new(app: label(fileName: fileName), at: date, staged: true)
         do {
             try AudioFiles.decodeToWAV(source, to: m.micURL)
             guard WavWriter.duration(of: m.micURL) > 0 else { throw Failure.noAudio }
@@ -59,7 +61,11 @@ enum AudioImport {
 
     /// The file's name, made safe for a folder name.
     static func label(for source: URL) -> String {
-        let name = source.deletingPathExtension().lastPathComponent
+        label(fileName: source.lastPathComponent)
+    }
+
+    static func label(fileName: String) -> String {
+        let name = (fileName as NSString).deletingPathExtension
             .replacingOccurrences(of: "/", with: "-")
             .replacingOccurrences(of: ":", with: "-")
             .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ".")))
