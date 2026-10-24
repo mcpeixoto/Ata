@@ -141,6 +141,36 @@ jobs:
           [ -n "$UDID" ] || { echo "::error::No iOS 26 iPhone simulator available"; exit 1; }
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
 
+      # The Watch app is embedded in the iPhone app, so the iPhone build compiles
+      # it for the watchOS simulator too.
+      - name: Make sure watchOS 26 is installed
+        run: |
+          has_watchos() {
+            xcrun simctl list runtimes available -j | python3 -I -c '
+          import json, sys
+          ok = any(r.get("name", "").startswith("watchOS") and int(r.get("version", "0").split(".")[0]) >= 26
+                   for r in json.load(sys.stdin)["runtimes"])
+          sys.exit(0 if ok else 1)
+          '
+          }
+          if has_watchos; then
+            echo "watchOS 26 is installed."
+          else
+            echo "No watchOS 26 runtime installed; downloading the watchOS platform."
+            xcodebuild -downloadPlatform watchOS
+            has_watchos || { echo "::error::No watchOS 26 runtime available"; exit 1; }
+          fi
+
+      # On its own first, so a Watch-only failure says so.
+      - name: Build the Watch app
+        run: |
+          set -o pipefail
+          xcodebuild -project ios/Ata.xcodeproj -scheme AtaWatch \
+            -destination 'generic/platform=watchOS Simulator' \
+            -derivedDataPath ios/build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
       - name: Build and test
         run: |
           set -o pipefail
@@ -161,3 +191,14 @@ jobs:
           test -f "$APP/en.lproj/Localizable.strings"
           test -f "$APP/pt.lproj/Localizable.strings"
           test -f "$APP/pt.lproj/InfoPlist.strings"
+          WATCH="$APP/Watch/AtaWatch.app"
+          test -d "$WATCH"
+          watch=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$WATCH/Info.plist")
+          companion=$(/usr/libexec/PlistBuddy -c "Print :WKCompanionAppBundleIdentifier" "$WATCH/Info.plist")
+          phoneID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist")
+          echo "Watch $watch, companion $companion"
+          [ "$watch" = "$mac" ] || { echo "::error::The Watch app is $watch, the Mac $mac"; exit 1; }
+          [ "$companion" = "$phoneID" ] || { echo "::error::The Watch app's companion is $companion, not $phoneID"; exit 1; }
+          test -f "$WATCH/en.lproj/Localizable.strings"
+          test -f "$WATCH/pt.lproj/Localizable.strings"
+          test -f "$WATCH/pt.lproj/InfoPlist.strings"

@@ -237,6 +237,13 @@ phone without touching the Mac build. CI runs both. Mac-only files are listed un
 in `ios/project.yml`; wording that names the Mac goes behind `#if os(iOS)` with an iPhone
 sentence in both tables.
 
+The Apple Watch app (`Sources/AtaWatch`, target `AtaWatch`) is embedded in the iPhone app, so
+the command above builds it too, and needs the watchOS 26 platform
+(`xcodebuild -downloadPlatform watchOS`). On its own: `xcodebuild -project ios/Ata.xcodeproj
+-scheme AtaWatch -destination 'generic/platform=watchOS Simulator' CODE_SIGNING_ALLOWED=NO build`.
+It compiles only the shared files `ios/project.yml` names; the Watch↔iPhone messages, the outbox
+and the import (`Sources/Ata/WatchProtocol.swift`, `WatchImport.swift`) are covered by `swift test`.
+
 **Always pass `--disable-keychain`** to `swift build`/`swift test`: without it SwiftPM can hang
 silently on a hidden keychain prompt while fetching FluidAudio. Package.swift is tools 6.2
 (Xcode 26) for `traits: []`, which keeps FluidAudio's unused 87 MB TTS library out.

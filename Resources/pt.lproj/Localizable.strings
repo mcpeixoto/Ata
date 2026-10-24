@@ -411,6 +411,19 @@
 "Record with Ata" = "Gravar com a Ata";
 "Starts recording a conversation, even from the lock screen." = "Começa a gravar uma conversa, mesmo a partir do ecrã bloqueado.";
 
+/* O Apple Watch */
+"Recording on this Apple Watch" = "A gravar neste Apple Watch";
+"Recording on your iPhone" = "A gravar no teu iPhone";
+"Records on this Apple Watch" = "Grava neste Apple Watch";
+"Records on your iPhone" = "Grava no teu iPhone";
+"Record on this Apple Watch" = "Gravar neste Apple Watch";
+"Open Ata on your iPhone to record there." = "Abre a Ata no teu iPhone para gravares lá.";
+"Your iPhone did not answer." = "O teu iPhone não respondeu.";
+"Allow Ata on your iPhone to use the microphone." = "Permite que a Ata do teu iPhone use o microfone.";
+"Ata may still be recording on your iPhone." = "A Ata pode ainda estar a gravar no teu iPhone.";
+"Recordings waiting for your iPhone: %d" = "Gravações à espera do teu iPhone: %d";
+"The recording could not start." = "Não foi possível começar a gravação.";
+
 /* The same sentences on the iPhone */
 "Show in Files" = "Mostrar em Ficheiros";
 "Write notes on this iPhone" = "Escrever notas neste iPhone";

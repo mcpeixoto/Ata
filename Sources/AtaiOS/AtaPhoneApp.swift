@@ -9,6 +9,7 @@ struct AtaPhoneApp: App {
     init() {
         Notifier.shared.setUp()
         PhoneStore.shared.bootstrap()
+        WatchLink.shared.activate()
     }
 
     var body: some Scene {
