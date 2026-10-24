@@ -50,6 +50,9 @@ struct Meeting: Codable, Identifiable, Equatable {
         return nil
     }
 
+    /// Both names a transcript may have, there or not.
+    var transcriptFiles: [URL] { [transcriptURL, legacyTranscriptURL] }
+
     /// Where the recorder writes. Kept audio may later be compressed to m4a,
     /// so anything that reads audio back goes through `micAudioURL` /
     /// `systemAudioURL` instead.
@@ -145,8 +148,13 @@ struct Meeting: Codable, Identifiable, Equatable {
     /// Made on this device, or before Ata knew about devices.
     var isMine: Bool { belongs(to: Device.current) }
 
+    /// A meeting that names no device is from before Ata 2.6, and this device's only
+    /// while the library is on it. In iCloud it could be the other device's: copying a
+    /// library in names its device (`CloudMigration.stampOrigin`), so there it is
+    /// nobody's to compress, delete or recover.
     func belongs(to device: DeviceRef) -> Bool {
-        origin == nil || origin?.id == device.id
+        guard let origin else { return !CloudLibrary.isActive }
+        return origin.id == device.id
     }
 
     /// Whether `device` may transcribe it now: nobody has it, `device` already
@@ -170,6 +178,23 @@ struct Meeting: Codable, Identifiable, Equatable {
         default:
             return false
         }
+    }
+
+    /// `device` holds the claim: nobody has taken the meeting over from it.
+    func isClaimed(by device: DeviceRef = Device.current) -> Bool {
+        claim?.device.id == device.id
+    }
+
+    /// Whether a run `device` started may end by saving `status`, with meeting.json
+    /// as `fresh` has it now (nil: deleted meanwhile, never brought back). Only while
+    /// the claim is still the run's: a device that took over a stale claim owns the
+    /// meeting now, and its transcript is never replaced by an older one or by a
+    /// failure. A meeting.json still in iCloud can't tell, and leaves it as it was.
+    static func mayFinish(_ status: Status, over fresh: Meeting?, by device: DeviceRef) -> Bool {
+        guard let fresh else { return false }
+        if fresh.isPlaceholder { return true }
+        if fresh.status == .done, status != .done { return false }
+        return fresh.isClaimed(by: device)
     }
 
     /// What a meeting left behind by a crash, power loss or force quit becomes

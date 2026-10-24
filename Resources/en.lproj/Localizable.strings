@@ -463,6 +463,7 @@
 "iCloud stays off while Ata uses a development folder." = "iCloud stays off while Ata uses a development folder.";
 "%d items could not be copied into iCloud. Nothing was moved, and Ata tries again the next time it opens." = "%d items could not be copied into iCloud. Nothing was moved, and Ata tries again the next time it opens.";
 "The audio hasn't downloaded from iCloud yet. Try again when this device is online." = "The audio hasn't downloaded from iCloud yet. Try again when this device is online.";
+"The earlier transcript hasn't downloaded from iCloud yet, and Ata won't write over it. Try again when this device is online." = "The earlier transcript hasn't downloaded from iCloud yet, and Ata won't write over it. Try again when this device is online.";
 "The recording, the transcript and your notes are deleted from iCloud, on every device." = "The recording, the transcript and your notes are deleted from iCloud, on every device.";
 "Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay in your iCloud, with your meetings." = "Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay in your iCloud, with your meetings.";
 "%d voices learned, kept in your iCloud with your meetings." = "%d voices learned, kept in your iCloud with your meetings.";

@@ -157,8 +157,9 @@ struct StoredTranscript: Codable, Equatable {
         return t
     }
 
+    /// Nil, too, while the file is still in iCloud: reading it would wait for the download.
     static func load(from url: URL) -> StoredTranscript? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
+        guard let file = CloudFiles.readable(url), let data = try? Data(contentsOf: file) else { return nil }
         return try? JSONDecoder().decode(StoredTranscript.self, from: data)
     }
 }
@@ -415,6 +416,15 @@ enum Transcriber {
         }
         let md = render(stored, meeting: meeting, names: Speakers.names(for: meeting, myName: options.myName))
 
+        // A device that took this meeting over while this one was away owns it now:
+        // its transcript stays, and this run ends without writing.
+        if let claim = meeting.claim, !Meeting.mayFinish(.done, over: Library.load(meeting.id), by: claim.device) {
+            throw TranscriberError.cancelled
+        }
+        // An earlier transcript still in iCloud is fetched, so it can go into versions/.
+        if !CloudFiles.areLocal(meeting.transcriptFiles) {
+            _ = await CloudFiles.download(meeting.transcriptFiles, timeout: 120)
+        }
         // Never overwrite an earlier transcript: move it into versions/ first.
         let archived = try archivePrevious(of: meeting)
         try Coordinated.write(md, to: meeting.transcriptURL)
@@ -562,9 +572,13 @@ enum Transcriber {
     // MARK: - Versions
 
     /// Moves the current transcript to `versions/<date> <model>.md` and returns
-    /// that file name, or nil when there was nothing to move.
+    /// that file name, or nil when there was nothing to move. A transcript still in
+    /// iCloud (on iPhone only a hidden placeholder) is a transcript all the same: it
+    /// is moved as it is, or, if it can't be, nothing is, and the run fails before
+    /// anything is written over it.
     static func archivePrevious(of meeting: Meeting) throws -> String? {
-        guard let current = meeting.existingTranscriptURL else { return nil }
+        guard let current = meeting.existingTranscriptURL
+                ?? meeting.transcriptFiles.first(where: { CloudFiles.isPlaceholder($0) }) else { return nil }
         let fm = FileManager.default
         try fm.createDirectory(at: meeting.versionsDir, withIntermediateDirectories: true)
 
@@ -578,7 +592,17 @@ enum Transcriber {
         if fm.fileExists(atPath: meeting.versionsDir.appendingPathComponent(name).path) {
             name = "\(f.string(from: date)) \(previous?.model ?? "earlier") \(UUID().uuidString.prefix(4)).md"
         }
-        try fm.moveItem(at: current, to: meeting.versionsDir.appendingPathComponent(name))
+        let target = meeting.versionsDir.appendingPathComponent(name)
+        if CloudFiles.isPlaceholder(current) {
+            do {
+                try Coordinated.move(current, to: target)
+            } catch {
+                NSLog("Ata: could not move the earlier transcript of \(meeting.id) aside: \(error.localizedDescription)")
+                throw CloudFiles.Failure.transcriptNotDownloaded
+            }
+        } else {
+            try fm.moveItem(at: current, to: target)
+        }
         return name
     }
 
@@ -739,7 +763,14 @@ enum Transcriber {
     /// Writes transcript.md again from transcript.json — after a voice is named,
     /// for instance. Same transcription, new names, so nothing is archived.
     static func rerender(_ meeting: Meeting, myName: String) throws {
-        guard let stored = StoredTranscript.load(from: meeting.storedTranscriptURL) else { return }
+        // Not while its speakers or their voices are still in iCloud: their names would
+        // come out as "Speaker 2". The next rename draws it again.
+        guard CloudFiles.readable(meeting.speakersURL) != nil,
+              let stored = StoredTranscript.load(from: meeting.storedTranscriptURL) else { return }
+        if let map = MeetingVoices.load(for: meeting) {
+            let downloading = VoiceLibrary().downloading
+            if map.speakers.contains(where: { s in s.voiceID.map { downloading.contains($0) } == true }) { return }
+        }
         let md = render(stored, meeting: meeting, names: Speakers.names(for: meeting, myName: myName))
         try Coordinated.write(md, to: meeting.transcriptURL)
     }

@@ -56,6 +56,14 @@ enum MeetingNotes {
         }
     }
 
+    /// Keeps `text` beside notes.md, as "notes (other device).md" or the next free
+    /// name, so a version of your notes that isn't kept as notes.md is never lost.
+    static func keepAside(_ text: String, for m: Meeting) throws {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let name = Conflicts.unusedAsideName(for: m.notesURL.lastPathComponent, in: m.dir)
+        try Coordinated.write(text, to: m.dir.appendingPathComponent(name))
+    }
+
     /// Adds a summary written after the meeting was transcribed: into
     /// transcript.json, into transcript.md, and its cost into the latest
     /// transcription so Insights stays right. Returns the updated meeting.
@@ -88,6 +96,27 @@ enum MeetingNotes {
         return (try? AttributedString(markdown: text,
                                       options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
             ?? AttributedString(text)
+    }
+}
+
+/// What the meeting window does with your notes when notes.md may have changed
+/// under it: on the other device, with the library in iCloud.
+enum NotesRefresh {
+    enum Action: Equatable {
+        /// notes.md is as last saved, or already holds what's in the window.
+        case keep
+        /// Nothing typed since the last save: the window shows notes.md as it is now.
+        case load
+        /// Typed here and changed there: what's typed is saved as notes.md, and the
+        /// file's version is kept beside it.
+        case keepBoth
+    }
+
+    /// `buffer` is what the window holds, `saved` what it last saved or loaded, and
+    /// `disk` notes.md now ("" when there is none).
+    static func decide(buffer: String, saved: String, disk: String) -> Action {
+        if disk == saved || disk == buffer { return .keep }
+        return buffer == saved ? .load : .keepBoth
     }
 }
 
@@ -191,6 +220,10 @@ final class MeetingModel: ObservableObject {
     @Published private(set) var moments: [Moment] = []
 
     @Published var notes = ""
+    /// notes.md is still in iCloud: shown as downloading, and not editable until it arrives.
+    @Published private(set) var notesDownloading = false
+    /// transcript.json or transcript.md is still in iCloud.
+    @Published private(set) var transcriptDownloading = false
     @Published private(set) var writingNotes = false
     @Published private(set) var exporting = false
     /// The save panel is up: a second click must not open another.
@@ -210,11 +243,8 @@ final class MeetingModel: ObservableObject {
     init(id: String) {
         self.id = id
         PeopleModel.shared.reload()
+        // Reads your notes too; see `refreshNotes`.
         reload()
-        if let meeting {
-            notes = MeetingNotes.load(for: meeting)
-            savedNotes = notes
-        }
         // The transcript follows the audio, but only redraws when the word changes.
         player.$time
             .sink { [weak self] t in MainActor.assumeIsolated { self?.follow(t) } }
@@ -254,10 +284,14 @@ final class MeetingModel: ObservableObject {
             return
         }
         meeting = m
+        refreshNotes(m)
         let myName = Pref.myNameOrDefault
         let names = Speakers.names(for: m, myName: myName)
 
-        if let stored = StoredTranscript.load(from: m.storedTranscriptURL) {
+        // Files still in iCloud are asked for, not waited on: this is the main thread.
+        // The watcher reloads once they have arrived.
+        let storedHere = CloudFiles.readable(m.storedTranscriptURL) != nil
+        if storedHere, let stored = StoredTranscript.load(from: m.storedTranscriptURL) {
             hasStoredTranscript = true
             lines = Transcriber.blocks(stored.excluding(Speakers.leftOut(for: m))).enumerated().map { i, b in
                 Line(id: i, start: b.start, end: b.end, speaker: b.speaker, name: names(b.speaker), text: b.text,
@@ -266,12 +300,16 @@ final class MeetingModel: ObservableObject {
             coarse = stored.coarse
             summary = stored.summary
             markdown = nil
+            transcriptDownloading = false
         } else {
             hasStoredTranscript = false
             lines = []
             coarse = false
             summary = nil
-            markdown = m.existingTranscriptURL.flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+            let markdownHere = !m.transcriptFiles.contains { CloudFiles.readable($0) == nil }
+            let file = storedHere && markdownHere ? m.existingTranscriptURL : nil
+            markdown = file.flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+            transcriptDownloading = !storedHere || !markdownHere
         }
 
         let map = MeetingVoices.load(for: m)
@@ -291,14 +329,16 @@ final class MeetingModel: ObservableObject {
         participants = people
         moments = Self.moments(m.bookmarks ?? [], in: lines)
 
-        if waveform == nil { waveform = Waveform.read(from: m.waveformURL) }
+        let waveformHere = CloudFiles.readable(m.waveformURL) != nil
+        if waveform == nil, waveformHere { waveform = Waveform.read(from: m.waveformURL) }
         guard !Snapshots.rendering else { return }
         if !player.loaded, m.hasAudio || m.hasMergedAudio {
             player.load(m)
         }
         // Meetings transcribed before Ata 2.5 get their waveform the first time they're opened.
         // Not from audio still in iCloud: opening a meeting doesn't download its recording.
-        if waveform == nil, m.hasAudio, !computingWaveform,
+        // Nor while the waveform itself is on its way.
+        if waveform == nil, waveformHere, m.hasAudio, !computingWaveform,
            CloudFiles.areLocal([m.micAudioURL, m.systemAudioURL].compactMap { $0 }) {
             computingWaveform = true
             let mic = m.micAudioURL, system = m.systemAudioURL, file = m.waveformURL
@@ -320,6 +360,8 @@ final class MeetingModel: ObservableObject {
     /// Makes the share copies: the transcript again whenever it changes (a
     /// voice was named, notes were written), the audio once.
     private func prepareSharing(_ m: Meeting) {
+        // Copying a transcript still in iCloud would wait for it here, on the main thread.
+        if let transcript = m.existingTranscriptURL, CloudFiles.readable(transcript) == nil { return }
         let stamp = m.existingTranscriptURL.flatMap {
             (try? FileManager.default.attributesOfItem(atPath: $0.path))?[.modificationDate] as? Date
         }
@@ -393,14 +435,47 @@ final class MeetingModel: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8, execute: work)
     }
 
+    /// Writes what's typed as notes.md. If notes.md changed meanwhile (on the other
+    /// device), its version is kept beside it first; if it's still in iCloud, what's
+    /// typed goes beside it instead, and the window shows notes.md once it arrives.
     func saveNotes() {
         pendingSave?.cancel()
         guard let meeting, notes != savedNotes else { return }
         do {
+            if CloudFiles.readable(meeting.notesURL) == nil {
+                try MeetingNotes.keepAside(notes, for: meeting)
+                savedNotes = notes
+                notesDownloading = true
+                return
+            }
+            let disk = MeetingNotes.load(for: meeting)
+            if disk != savedNotes, disk != notes { try MeetingNotes.keepAside(disk, for: meeting) }
             try MeetingNotes.save(notes, for: meeting)
             savedNotes = notes
         } catch {
             message = L("Could not save your notes: %@", error.localizedDescription)
+        }
+    }
+
+    /// Your notes as notes.md has them now, which the other device may have changed;
+    /// see `NotesRefresh`. Notes still in iCloud are shown as downloading and can't be
+    /// edited, so nothing typed here is ever saved over a version not seen yet.
+    private func refreshNotes(_ m: Meeting) {
+        guard CloudFiles.readable(m.notesURL) != nil else {
+            notesDownloading = true
+            return
+        }
+        notesDownloading = false
+        let disk = MeetingNotes.load(for: m)
+        switch NotesRefresh.decide(buffer: notes, saved: savedNotes, disk: disk) {
+        case .keep:
+            if disk == notes { savedNotes = disk }
+        case .load:
+            // Saved first: the editor sees the new text as already saved.
+            savedNotes = disk
+            notes = disk
+        case .keepBoth:
+            saveNotes()
         }
     }
 
