@@ -45,6 +45,9 @@ private func watchIntegers(_ value: Any?) -> [Int]? {
 /// its `WatchPhoneState`.
 enum WatchCommand: String, CaseIterable, Equatable, Sendable {
     case start, stop, bookmark
+    /// Carry on after an interruption the iPhone did not end by itself (a call
+    /// that ended without iOS handing the microphone back).
+    case resume
     /// Only the answer: what the iPhone is doing now.
     case state
 

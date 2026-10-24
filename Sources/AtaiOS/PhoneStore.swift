@@ -55,6 +55,8 @@ final class PhoneStore: ObservableObject {
     func bootstrap() {
         guard !bootstrapped else { return }
         bootstrapped = true
+        // Read here, on the main thread, before an import off it needs this device's name.
+        _ = Device.current
         Pref.registerDefaults()
         mode = Pref.d.string(forKey: Pref.recordingMode).flatMap(RecordingMode.init(rawValue:)) ?? .inPerson
         try? FileManager.default.createDirectory(at: Paths.meetingsDir, withIntermediateDirectories: true)
@@ -88,11 +90,13 @@ final class PhoneStore: ObservableObject {
     }
 
     /// Recordings cut short by a crash or a dead battery, and transcriptions iOS
-    /// ended, go back into the queue. Nothing is ever deleted here.
+    /// ended, go back into the queue. No audio is ever deleted here: only a
+    /// half-decoded import, whose source was never touched.
     private func recoverInterrupted() {
-        for m in StagingFolder.recoverLeftovers(except: recorder.folder) {
-            NSLog("Ata: recovered an interrupted recording, \(m.id)")
-        }
+        // The Mac's recovery, run before anything can record or import: WAV
+        // headers repaired, a recording cut short queued, an unfinished import
+        // cleared (its source is still in its inbox), every folder moved out of staging.
+        Library.recoverStaged()
         // Only this iPhone's own work: with the meetings in iCloud, the Mac's
         // "transcribing" may be running right now.
         for m in Library.loadAll() where m.status == .transcribing {
@@ -160,21 +164,17 @@ final class PhoneStore: ObservableObject {
     func stopRecording() {
         guard isRecording else { return }
         phase = .stopping
-        var finished = recorder.stop()
+        let finished = recorder.stop(bookmarks: bookmarks.map { Bookmark(ms: $0) })
         stopTicker()
         activity.end()
-        if finished == nil {
+        if finished?.moved == false {
             lastError = L("The recording could not be moved into your meetings. It is safe and will be tried again next time Ata opens.")
-        }
-        if var m = finished, !bookmarks.isEmpty {
-            m.bookmarks = bookmarks.map { Bookmark(ms: $0) }
-            Library.save(m)
-            finished = m
         }
         bookmarks = []
         phase = .idle
         reload()
-        if let finished, finished.status == .pending { saveMergedAudio(of: finished) }
+        // Wherever the folder is now: one left in staging moves with its meeting.mp3.
+        if let m = finished?.meeting, m.status == .pending { saveMergedAudio(of: m) }
         pump()
     }
 
@@ -184,6 +184,16 @@ final class PhoneStore: ObservableObject {
 
     func resumeRecording() {
         recorder.resume()
+    }
+
+    /// Recordings from the Watch are being imported; see `WatchLink`. Counted with
+    /// the other imports, so the library never moves to or from iCloud under one.
+    func watchImportStarted() {
+        importing += 1
+    }
+
+    func watchImportFinished() {
+        importing = max(0, importing - 1)
     }
 
     /// Marks this moment of the recording.

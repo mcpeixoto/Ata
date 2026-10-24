@@ -85,9 +85,9 @@ struct WatchRecordView: View {
             Label("Paused", systemImage: "pause.circle.fill")
                 .font(.footnote)
                 .foregroundStyle(.orange)
-            if model.isRecordingHere {
-                Button("Resume") { model.resumeTapped() }
-            }
+            // Here or on the iPhone: a call can end without handing the microphone back to either.
+            Button("Resume") { model.resumeTapped() }
+                .disabled(model.isBusy)
         }
     }
 

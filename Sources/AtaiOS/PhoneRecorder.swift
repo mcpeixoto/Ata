@@ -83,10 +83,12 @@ final class PhoneRecorder {
         return staged.meeting
     }
 
-    /// Stops, closes the file and moves the recording into the meetings folder,
-    /// queued for transcription. Nil when nothing was recording. If the move
-    /// fails, the folder stays in staging and is recovered at the next launch.
-    func stop() -> Meeting? {
+    /// Stops, closes the file, saves meeting.json with `bookmarks` and moves the
+    /// recording into the meetings folder, queued for transcription. Nil when
+    /// nothing was recording. If the move fails (`moved` is false), the folder
+    /// stays in staging, where it is still listed and transcribed, and the next
+    /// launch moves it.
+    func stop(bookmarks: [Bookmark]) -> (meeting: Meeting, moved: Bool)? {
         guard state.isActive, var m = meeting, let folder else { return nil }
         removeObservers()
         let seconds = recordedSeconds
@@ -101,13 +103,8 @@ final class PhoneRecorder {
         let hasAudio = Paths.fileSize(folder.appendingPathComponent("mic.wav")) > 44
         m.status = hasAudio ? .pending : .failed
         if !hasAudio { m.error = L("Empty recording") }
-        do {
-            return try StagingFolder.publish(m, from: folder)
-        } catch {
-            try? StagingFolder.writeMeta(m, in: folder)
-            NSLog("Ata: could not move the recording out of staging: \(error.localizedDescription)")
-            return nil
-        }
+        if !bookmarks.isEmpty { m.bookmarks = bookmarks }
+        return StagingFolder.publish(m)
     }
 
     /// Carries on after an interruption that iOS did not hand back by itself.

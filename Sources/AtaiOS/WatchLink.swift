@@ -29,6 +29,8 @@ final class WatchLink {
     private let delegate = PhoneSessionDelegate()
     private var observers: Set<AnyCancellable> = []
     private var activated = false
+    /// Imported recordings whose confirmation waits for WatchConnectivity to be active.
+    private var unconfirmed: [UUID] = []
 
     private init() {}
 
@@ -110,6 +112,10 @@ final class WatchLink {
                 await store.stopFromIntent()
             case .bookmark:
                 await store.bookmarkFromIntent()
+            case .resume:
+                // A call that ended without iOS handing the microphone back.
+                guard store.phase == .interrupted else { break }
+                store.resumeRecording()
             }
             reply(currentState().dictionary)
         }
@@ -117,22 +123,35 @@ final class WatchLink {
 
     // MARK: Recordings from the Watch
 
+    /// Counted as an import from here, on the main actor, until it is done: the
+    /// library must not move to or from iCloud while a meeting is being made.
     func importWaiting() {
+        guard !WatchImport.waiting().isEmpty else { return }
+        PhoneStore.shared.watchImportStarted()
         watchImportQueue.async {
             let done = WatchImport.importWaiting()
-            guard !done.isEmpty else { return }
-            Task { @MainActor in WatchLink.shared.imported(done) }
+            Task { @MainActor in
+                PhoneStore.shared.watchImportFinished()
+                WatchLink.shared.imported(done)
+            }
         }
     }
 
     private func imported(_ ids: [UUID]) {
-        let session = WCSession.default
-        // If this one is lost, the Watch sends the recording again within the
-        // hour, and it is only confirmed again.
-        if session.activationState == .activated {
-            for id in ids { session.transferUserInfo(WatchAck.message(for: id)) }
-        }
+        guard !ids.isEmpty else { return }
+        for id in ids where !unconfirmed.contains(id) { unconfirmed.append(id) }
+        sendConfirmations()
         PhoneStore.shared.libraryChanged()
+    }
+
+    /// Tells the Watch which recordings it may delete, once WatchConnectivity is
+    /// active; until then they wait here. If one is lost with the app, the Watch
+    /// sends the recording again within the hour, and it is only confirmed again.
+    func sendConfirmations() {
+        let session = WCSession.default
+        guard session.activationState == .activated, !unconfirmed.isEmpty else { return }
+        for id in unconfirmed { session.transferUserInfo(WatchAck.message(for: id)) }
+        unconfirmed.removeAll()
     }
 }
 
@@ -140,7 +159,10 @@ final class WatchLink {
 private final class PhoneSessionDelegate: NSObject, WCSessionDelegate {
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         if let error { NSLog("Ata: WatchConnectivity did not activate: \(error.localizedDescription)") }
-        Task { @MainActor in WatchLink.shared.push() }
+        Task { @MainActor in
+            WatchLink.shared.push()
+            WatchLink.shared.sendConfirmations()
+        }
     }
 
     func sessionDidBecomeInactive(_ session: WCSession) {}

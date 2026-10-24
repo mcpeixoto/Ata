@@ -130,13 +130,25 @@ struct Meeting: Codable, Identifiable, Equatable {
         f.dateFormat = "yyyy-MM-dd HH.mm.ss"
         var name = f.string(from: date)
         if let app { name += " \(app)" }
-        let id = Library.unusedID(name)
+        let id = try Library.makeFolder(named: name, staged: staged)
         var m = Meeting(id: id, startedAt: date, endedAt: nil, duration: nil,
                         app: app, status: .recording, error: nil)
         m.origin = Device.current
-        let parent = staged ? Device.stagingDir : Paths.meetingsDir
-        try FileManager.default.createDirectory(at: parent.appendingPathComponent(id, isDirectory: true),
-                                                withIntermediateDirectories: true)
+        return m
+    }
+
+    /// A new staged meeting folder for an import (an audio file, a Watch
+    /// recording), marked as one until `Library.finishImport` has it whole. A
+    /// launch after a crash then knows an import cut off mid-decode, whose source
+    /// is still where it was, from a recording cut short, which is all there is.
+    static func newImport(app: String?, at date: Date) throws -> Meeting {
+        let m = try new(app: app, at: date, staged: true)
+        do {
+            try Data().write(to: m.dir.appendingPathComponent(Library.importMarker))
+        } catch {
+            try? FileManager.default.removeItem(at: m.dir)
+            throw error
+        }
         return m
     }
 
@@ -368,31 +380,96 @@ enum Library {
         return id
     }
 
+    /// Makes a new, empty meeting folder, in staging or in the meetings folder,
+    /// and returns its id: `name`, or the next free `name 2`, `name 3`… Looking
+    /// and making are two steps, so the folder itself is made without
+    /// `withIntermediateDirectories`: if another import made it in between, that
+    /// one fails here and the next name is tried. Two meetings never share a folder.
+    static func makeFolder(named name: String, staged: Bool) throws -> String {
+        let fm = FileManager.default
+        let parent = staged ? Device.stagingDir : Paths.meetingsDir
+        try fm.createDirectory(at: parent, withIntermediateDirectories: true)
+        var id = unusedID(name)
+        var n = 2
+        while true {
+            let dir = parent.appendingPathComponent(id, isDirectory: true)
+            do {
+                try fm.createDirectory(at: dir, withIntermediateDirectories: false)
+                return id
+            } catch {
+                // Anything but "it's there now" is a real failure.
+                guard fm.fileExists(atPath: dir.path) else { throw error }
+            }
+            repeat {
+                id = "\(name) \(n)"
+                n += 1
+            } while fm.fileExists(atPath: Device.stagingDir.appendingPathComponent(id).path)
+                || fm.fileExists(atPath: Paths.meetingsDir.appendingPathComponent(id).path)
+        }
+    }
+
     /// Moves a meeting that has stopped recording out of staging and into the
     /// meetings folder, and returns it as it is now. If the move fails the
     /// meeting stays in staging, where it is still listed and transcribed, and
     /// the next launch tries again.
     @discardableResult
     static func publish(_ m: Meeting) -> Meeting {
-        let staged = Device.stagingDir.appendingPathComponent(m.id, isDirectory: true)
-        guard FileManager.default.fileExists(atPath: staged.path) else { return m }
         do {
-            let moved = try moveFolder(staged, into: Paths.meetingsDir)
-            var m = m
-            m.id = moved.lastPathComponent
-            return m
+            return try moveIntoMeetings(m)
         } catch {
             NSLog("Ata: could not move \(m.id) into the meetings folder, kept for the next launch: \(error)")
             return m
         }
     }
 
+    /// `publish`, for a caller that tells you when the move failed. The id in
+    /// the result is the folder's name in the meetings folder, which changes
+    /// only if the name was taken there. Nothing is moved, and `m` comes back
+    /// as it is, when it isn't in staging.
+    static func moveIntoMeetings(_ m: Meeting) throws -> Meeting {
+        let staged = Device.stagingDir.appendingPathComponent(m.id, isDirectory: true)
+        guard FileManager.default.fileExists(atPath: staged.path) else { return m }
+        let moved = try moveFolder(staged, into: Paths.meetingsDir)
+        var m = m
+        m.id = moved.lastPathComponent
+        return m
+    }
+
+    /// In a staged folder from `Meeting.newImport` until the import is whole.
+    /// Hidden, so it is never mistaken for a meeting's file.
+    static let importMarker = ".importing"
+
+    /// An import is decoded: saves its meeting.json, drops the marker and moves
+    /// it into the meetings folder (or, if that fails, leaves it in staging for
+    /// the next launch, like a recording). Throws, with the marker still in place,
+    /// if meeting.json could not be written or the marker could not be removed:
+    /// the caller then keeps its source, and the next launch clears the folder.
+    static func finishImport(_ m: Meeting) throws -> Meeting {
+        let fm = FileManager.default
+        save(m)
+        guard fm.fileExists(atPath: m.metaURL.path) else {
+            throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: m.metaURL.path])
+        }
+        let marker = m.dir.appendingPathComponent(importMarker)
+        if fm.fileExists(atPath: marker.path) { try fm.removeItem(at: marker) }
+        return publish(m)
+    }
+
     /// After a crash: finishes what a recording left in staging (its WAV
-    /// headers, its status), then moves it into the meetings folder.
+    /// headers, its status), then moves it into the meetings folder. An import
+    /// cut off before it was whole is removed instead: what it was decoding is
+    /// still where it came from (the Watch's or the share sheet's inbox, which
+    /// import it again, or the file you picked), so nothing is lost, and a
+    /// half-decoded copy would only be a truncated duplicate.
     static func recoverStaged() {
         let fm = FileManager.default
         for id in stagedIDs() {
             let dir = Device.stagingDir.appendingPathComponent(id, isDirectory: true)
+            if fm.fileExists(atPath: dir.appendingPathComponent(importMarker).path) {
+                NSLog("Ata: removing an import that did not finish, \(id); its source is untouched")
+                try? fm.removeItem(at: dir)
+                continue
+            }
             var m: Meeting
             if let saved = load(id) {
                 m = saved

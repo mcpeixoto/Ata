@@ -112,27 +112,26 @@ enum WatchImport {
     /// folder. The source is only read, except that a header left wrong by a
     /// recording cut short is corrected. A failure removes only the copy.
     static func meeting(from source: URL, info: WatchRecordingInfo) throws -> Meeting {
-        var m = try Meeting.new(app: app, at: info.startedAt, staged: true)
+        // Before the first decode, not after a failed one: a header that still
+        // holds an early size decodes fine, as a meeting missing its end, and
+        // the Watch would then delete the whole recording. A no-op when the
+        // sizes are right.
+        repairSizes(source)
+        var m = try Meeting.newImport(app: app, at: info.startedAt)
         do {
-            if (try? decode(source, into: m)) != true {
-                // Cut short, perhaps: fix the header and try once more. A file
-                // that is simply broken fails again, with its own error.
-                repairSizes(source)
-                guard try decode(source, into: m) else { throw Failure.noAudio }
+            guard try decode(source, into: m) else { throw Failure.noAudio }
+            let duration = WavWriter.duration(of: m.micURL)
+            m.duration = duration
+            m.endedAt = info.startedAt.addingTimeInterval(duration)
+            m.status = .pending
+            if !info.bookmarks.isEmpty {
+                m.bookmarks = info.bookmarks.sorted().map { Bookmark(ms: max(0, $0)) }
             }
+            return try Library.finishImport(m)
         } catch {
             try? FileManager.default.removeItem(at: m.dir)
             throw error
         }
-        let duration = WavWriter.duration(of: m.micURL)
-        m.duration = duration
-        m.endedAt = info.startedAt.addingTimeInterval(duration)
-        m.status = .pending
-        if !info.bookmarks.isEmpty {
-            m.bookmarks = info.bookmarks.sorted().map { Bookmark(ms: max(0, $0)) }
-        }
-        Library.save(m)
-        return Library.publish(m)
     }
 
     /// Whether decoding gave any audio.
@@ -144,7 +143,8 @@ enum WatchImport {
     /// A WAV whose recorder stopped before writing its final sizes (the Watch
     /// ran out of battery) says it holds less than it does. Sets the RIFF and
     /// data sizes from the file's length; the samples are left as they are.
-    /// False when it isn't a WAV or its sizes are already right.
+    /// False when it isn't a WAV or its sizes are already right, which includes
+    /// a WAV whose audio is followed by whole chunks of another kind (tags).
     @discardableResult
     static func repairSizes(_ url: URL) -> Bool {
         guard let handle = try? FileHandle(forUpdating: url) else { return false }
@@ -169,6 +169,8 @@ enum WatchImport {
             let chunk = u32(offset + 4)
             if id == Data("data".utf8) {
                 let start = UInt64(offset + 8)
+                let declaredEnd = start + UInt64(chunk) + UInt64(chunk & 1)
+                if chunk > 0, declaredEnd < size, endsInChunks(handle, from: declaredEnd, size: size) { return false }
                 let dataBytes = UInt32((size - start) / 2 * 2)
                 let riff = UInt32(size - 8)
                 guard u32(4) != riff || chunk != dataBytes else { return false }
@@ -186,6 +188,30 @@ enum WatchImport {
             offset += 8 + Int(chunk) + Int(chunk & 1)
         }
         return false
+    }
+
+    /// Whether what follows `offset` is whole chunks ending exactly at `size`.
+    /// Audio past a stale data size almost never reads as one: a chunk id is
+    /// four printable characters, and the lengths have to add up to the byte.
+    private static func endsInChunks(_ handle: FileHandle, from offset: UInt64, size: UInt64) -> Bool {
+        var at = offset
+        var chunks = 0
+        while at + 8 <= size, chunks < 64 {
+            let bytes: [UInt8]
+            do {
+                try handle.seek(toOffset: at)
+                let read = try handle.read(upToCount: 8)
+                bytes = [UInt8](read ?? Data())
+            } catch {
+                return false
+            }
+            guard bytes.count == 8, bytes[0..<4].allSatisfy({ $0 >= 0x20 && $0 <= 0x7E }) else { return false }
+            var length: UInt64 = 0
+            for i in 0..<4 { length |= UInt64(bytes[4 + i]) << (8 * UInt64(i)) }
+            at += 8 + length + (length & 1)
+            chunks += 1
+        }
+        return at == size
     }
 
     // MARK: Ledger
