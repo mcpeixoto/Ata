@@ -7,6 +7,11 @@ struct AtaPhoneApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        // The screenshot run starts from fixtures instead; see PhoneSnapshots.swift.
+        if Snapshots.rendering {
+            Snapshots.setUp()
+            return
+        }
         Notifier.shared.setUp()
         PhoneStore.shared.bootstrap()
     }
@@ -17,8 +22,9 @@ struct AtaPhoneApp: App {
                 .environmentObject(store)
                 .environmentObject(navigation)
                 .tint(Theme.meTint)
+                .preferredColorScheme(Snapshots.colorScheme)
                 .onChange(of: scenePhase) { _, phase in
-                    if phase == .active { store.becameActive() }
+                    if phase == .active, !Snapshots.rendering { store.becameActive() }
                 }
         }
     }

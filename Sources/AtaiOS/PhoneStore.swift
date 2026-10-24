@@ -416,6 +416,24 @@ final class PhoneStore: ObservableObject {
         return task
     }
 
+    // MARK: Screenshots
+
+    /// For the screenshot run only (`-AtaSnapshots`, see PhoneSnapshots.swift), in
+    /// place of `bootstrap()`: the fixture meetings and a made-up recording, with
+    /// no microphone, no queue and nothing written.
+    func applySnapshotFixture(recording: Bool, elapsed: Double, level: Float, bookmarks: [Int],
+                              transcribingID: String?, progress: Double) {
+        guard Snapshots.rendering else { return }
+        bootstrapped = true
+        meetings = Library.loadAll()
+        phase = recording ? .recording : .idle
+        self.elapsed = elapsed
+        self.level = level
+        self.bookmarks = bookmarks
+        self.transcribingID = transcribingID
+        transcribeProgress = progress
+    }
+
     // MARK: Widgets
 
     private func updateWidgets() {

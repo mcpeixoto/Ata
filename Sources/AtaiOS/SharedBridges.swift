@@ -10,9 +10,11 @@ typealias AppStore = PhoneStore
 /// Showing a meeting or Settings: a tab and a navigation path here, not a window.
 typealias WindowManager = PhoneNavigation
 
-/// The Mac renders README screenshots offscreen; the iPhone app never does.
+/// The Mac renders README screenshots offscreen. The iPhone is photographed in a
+/// simulator for review, launched with `-AtaSnapshots` by the AtaUITests target
+/// (see PhoneSnapshots.swift); a normal launch never has the argument.
 enum Snapshots {
-    static let rendering = false
+    static let rendering = ProcessInfo.processInfo.arguments.contains("-AtaSnapshots")
 }
 
 extension View {

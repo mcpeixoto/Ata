@@ -143,6 +143,23 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         TARGETED_DEVICE_FAMILY: "1"
 
+  # Screenshots for review, not a gate: launches Ata in the simulator once per
+  # screen with -AtaSnapshots and fixture meetings. Only the AtaSnapshots scheme
+  # runs it (ios/snapshots.sh), so the Ata scheme's tests stay unit tests.
+  AtaUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: Ata
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.interactive.ata.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+        TEST_TARGET_NAME: Ata
+
 schemes:
   Ata:
     build:
@@ -154,3 +171,13 @@ schemes:
         - AtaiOSTests
     archive:
       config: Release
+
+  # The iPhone screenshots; see ios/snapshots.sh.
+  AtaSnapshots:
+    build:
+      targets:
+        Ata: all
+        AtaUITests: [test]
+    test:
+      targets:
+        - AtaUITests

@@ -261,6 +261,14 @@ meetings and argument-domain defaults; `ATA_SNAPSHOT_NATIVE=1` renders the true 
 controls instead of the snapshot-only lookalike, to check the shipping layout. The script has a
 two-minute watchdog — if it trips, a macOS permission prompt is the usual cause.
 
+iPhone UI changes: the `ios` CI job uploads `iphone-screenshots` (every tab, a meeting's notes
+and transcript, recording and onboarding, light and dark) — download it with
+`gh run download <run-id> -n iphone-screenshots` and **look at** them. Locally, after
+`./ios/generate.sh`: `./ios/snapshots.sh [simulator udid]` → `ios/build/screenshots/`. The
+AtaUITests target launches the app with `-AtaSnapshots <screen>` and fixture meetings; that
+argument is the only way into the fake state (`Sources/AtaiOS/PhoneSnapshots.swift`). These
+are not committed to `docs/images` yet.
+
 ## Ship
 
 Public repo, so: PR → CI green → `gh pr merge --squash --auto --delete-branch`. Then bump
