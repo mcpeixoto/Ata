@@ -54,6 +54,9 @@ final class PhoneStore: ObservableObject {
         // Meetings play through the speaker even with the silent switch on.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
 
+        CloudSync.shared.start(isIdle: { PhoneStore.shared.canMoveLibrary },
+                               changed: { PhoneStore.shared.libraryChanged() })
+
         recorder.onPhaseChange = { [weak self] phase in self?.recorderChanged(phase) }
         recorder.onWarning = { [weak self] w in self?.warning = w }
 
@@ -70,6 +73,7 @@ final class PhoneStore: ObservableObject {
     /// Ata came to the front: pick up files changed in the meantime, and the queue.
     func becameActive() {
         queuePaused = false
+        CloudSync.shared.recheck()
         reload()
         pump()
     }
@@ -80,15 +84,29 @@ final class PhoneStore: ObservableObject {
         for m in StagingFolder.recoverLeftovers(except: recorder.folder) {
             NSLog("Ata: recovered an interrupted recording, \(m.id)")
         }
-        for var m in Library.loadAll() where m.status == .transcribing {
-            m.status = .pending
-            Library.save(m)
+        // Only this iPhone's own work: with the meetings in iCloud, the Mac's
+        // "transcribing" may be running right now.
+        for m in Library.loadAll() where m.status == .transcribing {
+            if let fixed = m.recovered() { Library.save(fixed) }
         }
     }
 
     func reload() {
         meetings = Library.loadAll()
         updateWidgets()
+    }
+
+    /// Nothing is recording or transcribing: the library can move between this
+    /// iPhone and iCloud.
+    var canMoveLibrary: Bool {
+        phase == .idle && transcribingID == nil
+    }
+
+    /// The library moved, or the Mac changed it: read it again, voices too.
+    func libraryChanged() {
+        reload()
+        PeopleModel.shared.reload()
+        pump()
     }
 
     // MARK: Recording
@@ -211,7 +229,8 @@ final class PhoneStore: ObservableObject {
 
     func retry(_ m: Meeting, with override: TranscribeOverride?) {
         var m = m
-        guard m.hasAudio, m.id != transcribingID else { return }
+        // Not while the Mac is transcribing it: its run would overwrite this one.
+        guard m.hasAudio, !m.isPlaceholder, m.id != transcribingID, m.canClaim() else { return }
         m.status = .pending
         m.error = nil
         m.override = override
@@ -257,8 +276,12 @@ final class PhoneStore: ObservableObject {
     /// Transcribes the next pending meeting (oldest first), one at a time, never
     /// while recording: the microphone and the engine would compete for the phone.
     private func pump() {
-        guard transcribingID == nil, !isRecording, phase == .idle, !queuePaused else { return }
-        guard var m = Library.loadAll().last(where: { $0.status == .pending }) else {
+        guard transcribingID == nil, !isRecording, phase == .idle, !queuePaused, !CloudSync.shared.copying else { return }
+        // With the meetings in iCloud, one the Mac has claimed is skipped, and so is
+        // one of the Mac's that this iPhone has no engine for: the Mac will do it.
+        let now = Date()
+        let waiting = Library.loadAll().filter { $0.awaitsTranscript(now: now) && ($0.isMine || $0.hasAudio) }
+        guard var m = waiting.last(where: { $0.isMine || Self.canRun(TranscribeOptions.current(for: $0)) }) else {
             waitingForEngine = false
             return
         }
@@ -273,6 +296,7 @@ final class PhoneStore: ObservableObject {
         transcribeProgress = 0
         m.status = .transcribing
         m.override = nil
+        m.claim = Claim(device: Device.current, at: Date())
         Library.save(m)
         reload()
         let queued = m
@@ -283,6 +307,8 @@ final class PhoneStore: ObservableObject {
         }
         job = Task {
             var m = queued
+            let heartbeat = renewClaim(of: queued.id)
+            defer { heartbeat.cancel() }
             do {
                 let outcome = try await Transcriber.transcribe(m, options: options) { p in
                     Task { @MainActor in
@@ -300,6 +326,7 @@ final class PhoneStore: ObservableObject {
                 m.transcriptions = history
                 m.status = .done
                 m.error = nil
+                m.claim = nil
                 Library.save(m)
                 await handleAudio(of: m)
                 Notifier.shared.transcriptReady(m)
@@ -312,6 +339,7 @@ final class PhoneStore: ObservableObject {
             } catch {
                 m.status = .failed
                 m.error = error.localizedDescription
+                m.claim = nil
                 Library.save(m)
                 Notifier.shared.transcriptFailed(m, error: error.localizedDescription)
                 background?.finish(success: false)
@@ -322,6 +350,20 @@ final class PhoneStore: ObservableObject {
             transcribeProgress = 0
             reload()
             pump()
+        }
+    }
+
+    /// Renews this iPhone's claim on the meeting being transcribed every few
+    /// minutes, so the Mac never takes a long run for an abandoned one.
+    private func renewClaim(of id: String) -> Task<Void, Never> {
+        Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 5 * 60 * 1_000_000_000)
+                guard !Task.isCancelled, transcribingID == id,
+                      var fresh = Library.load(id), fresh.status == .transcribing else { return }
+                fresh.claim = Claim(device: Device.current, at: Date())
+                Library.save(fresh)
+            }
         }
     }
 
@@ -337,8 +379,10 @@ final class PhoneStore: ObservableObject {
     }
 
     /// After a successful transcript: keep the audio (compressed, by default) or
-    /// delete it if you asked for that. The same rules as on the Mac.
+    /// delete it if you asked for that. The same rules as on the Mac, and like
+    /// there only for this iPhone's own recordings.
     private func handleAudio(of m: Meeting) async {
+        guard m.isMine else { return }
         await saveMergedAudio(of: m)?.value
         guard Pref.d.bool(forKey: Pref.keepAudio) else {
             try? FileManager.default.removeItem(at: m.micURL)
@@ -356,8 +400,9 @@ final class PhoneStore: ObservableObject {
     @discardableResult
     func saveMergedAudio(of m: Meeting) -> Task<Void, Never>? {
         if let running = mergeTasks[m.id] { return running }
+        // Another device's meeting is left to that device, which may be writing its own.
         guard Pref.d.bool(forKey: Pref.keepAudio), Pref.d.bool(forKey: Pref.saveMP3),
-              m.status != .recording, m.hasAudio, !m.hasMergedAudio else { return nil }
+              m.isMine, m.status != .recording, m.hasAudio, !m.hasMergedAudio else { return nil }
         let task = Task {
             let job = m
             do {

@@ -403,7 +403,6 @@
 "Recognise voices" = "Reconhecer vozes";
 "Tells the people in a conversation apart and learns their voices, so you name each one once. Fingerprints stay on this iPhone." = "Distingue as pessoas numa conversa e aprende as vozes delas, para dares nome a cada uma só uma vez. As impressões vocais ficam neste iPhone.";
 "Keep meetings in iCloud" = "Guardar as reuniões no iCloud";
-"Not available yet. When it is, your meetings appear in Ata on your Mac too, through iCloud Drive." = "Ainda não está disponível. Quando estiver, as tuas reuniões aparecem também na Ata do teu Mac, através do iCloud Drive.";
 "Version" = "Versão";
 "Source code" = "Código-fonte";
 "About" = "Sobre";
@@ -424,3 +423,28 @@
 "%@ saved on this iPhone" = "%@ poupados neste iPhone";
 "Apple's on-device speech doesn't support %@ yet." = "O reconhecimento de fala da Apple no dispositivo ainda não suporta %@.";
 "Needs Apple Intelligence turned on in Settings." = "Requer o Apple Intelligence ativado nas Definições.";
+
+/* iCloud */
+"iCloud" = "iCloud";
+"Checking iCloud…" = "A verificar o iCloud…";
+"Downloading from iCloud…" = "A descarregar do iCloud…";
+"Copying your meetings into iCloud… %d of %d" = "A copiar as tuas reuniões para o iCloud… %d de %d";
+"Originals on this Mac" = "Originais neste Mac";
+"They were copied into iCloud and checked. Remove them when you no longer need them." = "Foram copiados para o iCloud e verificados. Apaga-os quando já não precisares deles.";
+"The originals stay where they are. Ata moves to the copy once every meeting is in iCloud and checked." = "Os originais ficam onde estão. A Ata passa para a cópia quando todas as reuniões estiverem no iCloud e verificadas.";
+"Your meetings and voices are in iCloud Drive, and show up in Ata on your iPhone. Turned off, Ata goes back to the meetings on this Mac; what's in iCloud stays there." = "As tuas reuniões e vozes estão no iCloud Drive e aparecem na Ata do teu iPhone. Se desligares, a Ata volta às reuniões deste Mac; o que está no iCloud fica lá.";
+"Copies your meetings and voices into iCloud Drive, so Ata on your iPhone shows them too. The originals stay on this Mac." = "Copia as tuas reuniões e vozes para o iCloud Drive, para que a Ata do teu iPhone também as mostre. Os originais ficam neste Mac.";
+"Sign in to iCloud and turn on iCloud Drive in System Settings to use this." = "Inicia sessão no iCloud e ativa o iCloud Drive nas Definições do Sistema para usares isto.";
+"Turn on “Keep meetings in iCloud” in Ata on your iPhone first. This Mac then uses the same folder." = "Ativa primeiro “Guardar as reuniões no iCloud” na Ata do teu iPhone. Depois, este Mac usa a mesma pasta.";
+"Your meetings stay on this iPhone until their copy in iCloud is checked and uploaded." = "As tuas reuniões ficam neste iPhone até a cópia no iCloud estar verificada e carregada.";
+"Your meetings and voices are in iCloud Drive, and show up in Ata on your Mac too. Turned off, Ata goes back to the meetings on this iPhone; what's in iCloud stays there." = "As tuas reuniões e vozes estão no iCloud Drive e aparecem também na Ata do teu Mac. Se desligares, a Ata volta às reuniões deste iPhone; o que está no iCloud fica lá.";
+"Copies your meetings and voices into iCloud Drive, so Ata on your Mac shows them too." = "Copia as tuas reuniões e vozes para o iCloud Drive, para que a Ata do teu Mac também as mostre.";
+"Sign in to iCloud and turn on iCloud Drive for Ata in Settings to use this." = "Inicia sessão no iCloud e ativa o iCloud Drive para a Ata nas Definições para usares isto.";
+"iCloud stays off while Ata uses a development folder." = "O iCloud fica desligado enquanto a Ata usa uma pasta de desenvolvimento.";
+"%d items could not be copied into iCloud. Nothing was moved, and Ata tries again the next time it opens." = "Não foi possível copiar %d itens para o iCloud. Nada foi movido, e a Ata tenta de novo da próxima vez que abrir.";
+"The audio hasn't downloaded from iCloud yet. Try again when this device is online." = "O áudio ainda não foi descarregado do iCloud. Tenta de novo quando este dispositivo estiver online.";
+"The recording, the transcript and your notes are deleted from iCloud, on every device." = "A gravação, a transcrição e as tuas notas são apagadas do iCloud, em todos os dispositivos.";
+"Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay in your iCloud, with your meetings." = "A Ata consegue distinguir os outros participantes e aprender as vozes deles de reunião para reunião. As impressões vocais ficam no teu iCloud, com as tuas reuniões.";
+"%d voices learned, kept in your iCloud with your meetings." = "%d vozes aprendidas, guardadas no teu iCloud com as tuas reuniões.";
+"Voice fingerprints stay in your iCloud, with your meetings, and are never sent anywhere else. Turning this on downloads 21 MB of models once." = "As impressões de voz ficam no teu iCloud, com as tuas reuniões, e nunca são enviadas para mais lado nenhum. Ativar isto descarrega 21 MB de modelos, uma vez.";
+"Tells the people in a conversation apart and learns their voices, so you name each one once. Fingerprints stay in your iCloud, with your meetings." = "Distingue as pessoas numa conversa e aprende as vozes delas, para dares nome a cada uma só uma vez. As impressões vocais ficam no teu iCloud, com as tuas reuniões.";

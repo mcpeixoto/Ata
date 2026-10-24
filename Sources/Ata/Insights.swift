@@ -58,7 +58,7 @@ struct Insights: Equatable {
         }
 
         var appMinutes: [String: Double] = [:]
-        for m in all where m.status != .recording {
+        for m in all where m.status != .recording && !m.isPlaceholder {
             let seconds = m.duration ?? 0
             out.meetings += 1
             out.recordedSeconds += seconds

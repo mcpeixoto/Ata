@@ -206,7 +206,8 @@ Everyone else is split word by word and matched like the others on a call.
 
 Naming, merging or forgetting a voice re-renders every affected `transcript.md` from its
 `transcript.json` — no re-transcription, no new version. The library lives in
-`~/Library/Application Support/Ata/voices/` and never leaves the Mac: one `<id>.json` per voice
+`~/Library/Application Support/Ata/voices/` and never leaves the Mac, except into your own iCloud with
+the meetings when "Keep meetings in iCloud" is on: one `<id>.json` per voice
 beside its `<id>.m4a` sample, so two devices editing different voices never write the same file.
 `save` writes only the voices that changed and removes only files it read itself; a file it
 can't read is never written over. The `voices.json` of earlier versions is read once, written
@@ -231,6 +232,8 @@ copy fails, the original is put back.
 | Path | What |
 |---|---|
 | `~/Documents/Meetings/` | one folder per meeting (override with `ATA_MEETINGS_DIR`) |
+| `~/Library/Mobile Documents/iCloud~ai~interactive~ata/Documents/` | meetings and voices, with "Keep meetings in iCloud" on |
+| `~/Library/Application Support/Ata/icloud-copy.json` | what has been copied into iCloud |
 | `~/Library/Application Support/Ata/models/` | the Whisper and VAD models |
 | login keychain, service `ai.interactive.ata` | the OpenAI API key |
 | `~/Library/Application Support/Ata/voices/` | voice fingerprints and samples (override with `ATA_SUPPORT_DIR`) |
@@ -262,6 +265,39 @@ pins it with no traits, as `Package.swift` does, because an Xcode project can't 
 traits. CI's `ios` job builds the app and runs the tests on an iPhone simulator, unsigned.
 `scripts/release-ios.sh vX.Y.Z` archives the tagged source and uploads it to TestFlight from the
 maintainer's Mac.
+
+## iCloud sync — `CloudLibrary`, `CloudSync`
+
+"Keep meetings in iCloud" moves the library into Ata's iCloud container,
+`iCloud.ai.interactive.ata`, as `Documents/Meetings/` and `Documents/Voices/`, in the same format
+as on one device. `Paths.meetingsDir` and `Paths.voicesDir` follow `CloudLibrary.location`, which
+is decided at launch from the setting and the container's last known folder (never by asking
+iCloud on the main thread), and changes only through `CloudSync` while nothing is recording,
+transcribing or importing. `ATA_MEETINGS_DIR` and `ATA_SUPPORT_DIR` always win, so tests and
+development never touch iCloud. The iPhone has the iCloud entitlement; the Developer ID Mac build
+doesn't, so it reads and writes iCloud Drive's own folder for the container,
+`~/Library/Mobile Documents/iCloud~ai~interactive~ata/Documents`, once the iPhone has created it.
+
+Turning it on runs `CloudMigration`: each meeting folder is copied beside its final place under a
+hidden `.partial` name, compared with the original file by file (size, then every byte), and only
+then renamed into place. A ledger in Application Support records what was copied and each file's
+size and date, so an interrupted copy resumes, a meeting changed since its copy gets the changed
+files, and one deleted in iCloud isn't copied back. The setting turns on only when every meeting
+on this device is in iCloud as it is now. The Mac keeps its originals; the iPhone removes each one
+once its copy is checked, unchanged and uploaded.
+
+With the library in iCloud, writes of `meeting.json`, transcripts, notes, `speakers.json`, the
+waveform and voice files go through `NSFileCoordinator` (`Coordinated`). `CloudWatcher` follows
+the other device's changes with an `NSMetadataQuery` where the entitlement allows, and by looking
+at the folder every 15 s on the Mac, and asks for the small files as soon as they appear. Audio is
+downloaded when it's played (`MeetingPlayer`) or transcribed (`Transcriber`). A meeting whose
+`meeting.json` hasn't arrived is listed from its folder name as a placeholder that is never saved
+and never counts as this device's. Conflicts (`NSFileVersion`) keep the newest version, except
+`notes.md`, where every other version is saved beside it as `notes (other device).md`. Claims
+(`Meeting.claim`) keep the two devices from transcribing the same meeting, and only the device
+that recorded a meeting prunes, compresses or mixes its audio. Your name, language, summary engine
+and voice recognition go through `NSUbiquitousKeyValueStore` (`SettingsSync`), latest change wins,
+where the entitlement allows.
 
 ## Building and shipping
 

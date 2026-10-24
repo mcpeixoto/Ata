@@ -176,7 +176,9 @@ Layout:
 
 - Voices (2.3): `Diarization.swift` wraps FluidAudio (macOS 15+ only — a macOS 14 bug crashes
   it), `Voices.swift` holds the library, matching (≥ 0.65 cosine and a 0.1 lead, measured), and
-  the word-level speaker split; `People*.swift` is the UI. Fingerprints never leave the Mac.
+  the word-level speaker split; `People*.swift` is the UI. Fingerprints never leave the Mac,
+  except into the user's own iCloud with the meetings when iCloud sync is on
+  (`CloudLibrary.swift`, `CloudSync.swift`).
 - `Sources/Ata/` — the whole app. `AppStore` is the single `@MainActor` source of truth
   (recording, detection, the transcription queue, history); `Recorder` + `WavWriter` own
   capture; `Transcriber` coordinates and `LocalEngine` / `OpenAIEngine` do the work;

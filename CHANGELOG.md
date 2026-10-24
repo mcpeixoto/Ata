@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.7.0
+
+- **Keep meetings in iCloud.** A new switch in **Settings → iCloud**, on the Mac and the iPhone,
+  puts your meetings and voices in iCloud Drive, so a meeting recorded on one shows up on the
+  other, notes and names included. It's off until you turn it on.
+- **Nothing is moved until it's checked.** Turning it on copies every meeting into iCloud and
+  compares each file, byte for byte, before Ata switches to the copy. If the copy is cut short,
+  it carries on the next time Ata opens. On the Mac the originals stay in
+  `~/Documents/Meetings` until you remove them; Settings shows where. On the iPhone each one is
+  removed only once its copy has been uploaded.
+- **Only what you open is downloaded.** Transcripts and notes come down as soon as they appear;
+  a meeting's audio is downloaded when you play it or it's transcribed. A meeting still on its
+  way shows as "Downloading from iCloud…" instead of missing from the list.
+- **Two devices, one meeting.** Only one device transcribes a meeting, and only the device that
+  recorded it compresses or deletes its audio. Notes edited on both at once are both kept: the
+  newest as `notes.md`, the other as `notes (other device).md`.
+- Your name, language, summary engine and voice recognition follow you between devices too,
+  where iCloud's settings sync is available to Ata.
+- On the Mac, iCloud needs Ata on your iPhone to have turned it on first: the Mac then uses the
+  same iCloud Drive folder.
+
 ## 2.6.0
 
 - **Transcribe with Apple's speech recognition.** On macOS 26, **Settings → Transcription** has a

@@ -394,6 +394,7 @@ struct MeetingRow: View {
     private var isTranscribing: Bool { store.transcribingID == meeting.id }
 
     private var detail: String {
+        if meeting.isPlaceholder { return L("Downloading from iCloud…") }
         switch meeting.status {
         case .failed: return meeting.error ?? L("Failed")
         case .pending: return L("Queued") + " · \(meeting.subtitle)"
@@ -406,6 +407,7 @@ struct MeetingRow: View {
 
     private var icon: some View {
         let (symbol, color): (String, Color) = {
+            if meeting.isPlaceholder { return ("icloud.and.arrow.down", .secondary) }
             switch meeting.status {
             case .done: return ("doc.text.fill", .accentColor)
             case .failed: return ("exclamationmark.triangle.fill", .red)

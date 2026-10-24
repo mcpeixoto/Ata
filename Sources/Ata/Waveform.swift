@@ -67,7 +67,7 @@ struct Waveform: Equatable {
         withUnsafeBytes(of: UInt32(count).littleEndian) { data.append(contentsOf: $0) }
         data.append(contentsOf: me)
         data.append(contentsOf: others)
-        try data.write(to: url, options: .atomic)
+        try Coordinated.write(data, to: url)
     }
 
     static func read(from url: URL) -> Waveform? {

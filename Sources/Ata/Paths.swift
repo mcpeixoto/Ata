@@ -10,9 +10,14 @@ enum Paths {
 
     /// Each meeting gets its own folder: ~/Documents/Meetings/<date>/ on the Mac;
     /// on iPhone, Documents/Meetings inside the app, where the Files app shows it.
+    /// With "Keep meetings in iCloud" on, Meetings in Ata's iCloud container
+    /// instead; see `CloudLibrary`.
+    static var meetingsDir: URL { CloudLibrary.location.meetings }
+
+    /// The meetings folder on this device, whether or not iCloud is in use.
     /// `ATA_MEETINGS_DIR` points it elsewhere, for development and for the
     /// README screenshots, which must never show anyone's real meetings.
-    static let meetingsDir: URL = {
+    static let localMeetingsDir: URL = {
         if let custom = ProcessInfo.processInfo.environment["ATA_MEETINGS_DIR"], !custom.isEmpty {
             return URL(fileURLWithPath: custom, isDirectory: true)
         }
@@ -41,8 +46,16 @@ enum Paths {
     /// half-written file.
     static let stagingDir = supportDir.appendingPathComponent("Recording", isDirectory: true)
     static let modelsDir = supportDir.appendingPathComponent("models", isDirectory: true)
-    /// Voice fingerprints and samples. Never uploaded.
-    static let voicesDir = supportDir.appendingPathComponent("voices", isDirectory: true)
+    /// Voice fingerprints and samples: on this device, or with the meetings in
+    /// your iCloud when those are there. Never sent anywhere else.
+    static var voicesDir: URL { CloudLibrary.location.voices }
+    static let localVoicesDir = supportDir.appendingPathComponent("voices", isDirectory: true)
+
+    /// `ATA_MEETINGS_DIR` or `ATA_SUPPORT_DIR` is set: a development or test run,
+    /// which never touches iCloud.
+    static let overridden: Bool = ["ATA_MEETINGS_DIR", "ATA_SUPPORT_DIR"].contains {
+        !(ProcessInfo.processInfo.environment[$0] ?? "").isEmpty
+    }
 
     /// The selected local model; see `LocalModel` for the catalogue.
     static var whisperModel: URL { LocalModel.current.path }
@@ -110,7 +123,9 @@ enum Pref {
     static let menuIconPulse = "menuIconPulse"       // icon breathes while recording
     static let menuIconProgress = "menuIconProgress" // % next to the icon while transcribing
     static let recordingMode = "recordingMode"   // iPhone: RecordingMode.rawValue
-    static let iCloudSync = "iCloudSync"         // keep meetings in iCloud Drive (not wired up yet)
+    static let iCloudSync = "iCloudSync"         // meetings and voices are in iCloud; set once the copy is checked
+    static let iCloudMigrating = "iCloudMigrating" // copying into iCloud, to resume after a quit
+    static let iCloudDocuments = "iCloudDocuments" // the container's Documents folder, as last found
 
     static let defaultOpenAIModel = "whisper-1"
     static let defaultSummaryModel = "gpt-4o-mini"

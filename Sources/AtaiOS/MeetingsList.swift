@@ -56,7 +56,9 @@ struct MeetingsList: View {
                                 presenting: pendingDelete) { meeting in
                 Button(L("Delete"), role: .destructive) { store.delete(meeting) }
             } message: { _ in
-                Text("The recording, the transcript and your notes are deleted from this iPhone.")
+                Text(CloudLibrary.isActive
+                     ? L("The recording, the transcript and your notes are deleted from iCloud, on every device.")
+                     : L("The recording, the transcript and your notes are deleted from this iPhone."))
             }
         }
     }
@@ -81,6 +83,16 @@ private struct PhoneMeetingRow: View {
 
     @ViewBuilder
     private var status: some View {
+        if meeting.isPlaceholder {
+            Label("Downloading from iCloud…", systemImage: "icloud.and.arrow.down")
+                .font(.caption).foregroundStyle(.secondary)
+        } else {
+            statusLine
+        }
+    }
+
+    @ViewBuilder
+    private var statusLine: some View {
         switch meeting.status {
         case .pending:
             Text("Waiting to be transcribed…").font(.caption).foregroundStyle(.secondary)

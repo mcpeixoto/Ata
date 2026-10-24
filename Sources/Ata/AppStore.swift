@@ -48,6 +48,8 @@ final class AppStore: ObservableObject {
         Pref.registerDefaults()
         try? FileManager.default.createDirectory(at: Paths.meetingsDir, withIntermediateDirectories: true)
         setup.refresh()
+        CloudSync.shared.start(isIdle: { AppStore.shared.canMoveLibrary },
+                               changed: { AppStore.shared.libraryChanged() })
 
         recorder.onWarning = { [weak self] w in self?.warning = w }
         detector.onStart = { [weak self] app in self?.meetingStarted(app) }
@@ -83,6 +85,21 @@ final class AppStore: ObservableObject {
 
     func reload() {
         meetings = Library.loadAll()
+    }
+
+    /// Nothing is recording, transcribing or importing: the library can move
+    /// between this Mac's folder and iCloud. An MP3 being mixed doesn't hold it up:
+    /// it lands next to the original tracks, and the copy picks it up next time.
+    var canMoveLibrary: Bool {
+        phase == .idle && transcribingID == nil && importing == 0
+    }
+
+    /// The library moved, or another device changed it: read it again, voices
+    /// too, and pick up anything that is now waiting.
+    func libraryChanged() {
+        reload()
+        PeopleModel.shared.reload()
+        pump()
     }
 
     /// How much audio is being kept, for the Settings screen.
@@ -334,7 +351,7 @@ final class AppStore: ObservableObject {
     func retry(_ m: Meeting, with override: TranscribeOverride?) {
         var m = m
         // Not while another device is transcribing it: its run would overwrite this one.
-        guard m.hasAudio, m.id != transcribingID, m.id != current?.id, m.canClaim() else { return }
+        guard m.hasAudio, !m.isPlaceholder, m.id != transcribingID, m.id != current?.id, m.canClaim() else { return }
         m.status = .pending
         m.error = nil
         m.override = override
@@ -354,7 +371,8 @@ final class AppStore: ObservableObject {
     /// With the folder shared, a meeting another device has claimed is
     /// skipped, and so is another device's whose audio hasn't arrived yet.
     private func pump() {
-        guard transcribingID == nil else { return }
+        // Not while the library is being copied into iCloud: it moves once nothing uses it.
+        guard transcribingID == nil, !CloudSync.shared.copying else { return }
         let now = Date()
         guard var m = Library.loadAll().last(where: { $0.awaitsTranscript(now: now) && ($0.isMine || $0.hasAudio) })
         else { return }

@@ -5,6 +5,7 @@ struct SettingsView: View {
     @EnvironmentObject var store: AppStore
     @EnvironmentObject var setup: SetupModel
     @StateObject private var updater = Updater.shared
+    @StateObject private var cloud = CloudSync.shared
 
     @AppStorage(Pref.autoDetect) private var autoDetect = true
     @AppStorage(Pref.autoStart) private var autoStart = false
@@ -66,6 +67,7 @@ struct SettingsView: View {
                 transcriptionSection
                 if usesOpenAI || summaryUsesOpenAI { openAISection }
                 audioSection
+                iCloudSection
                 systemSection
                 aboutSection
             }
@@ -75,6 +77,7 @@ struct SettingsView: View {
         .frame(width: 540, height: height)
         .onAppear {
             setup.refresh()
+            cloud.recheck()
             apiKey = Keychain.has(Keychain.openAIKey) ? Self.keyPlaceholder : ""
         }
     }
@@ -285,6 +288,54 @@ struct SettingsView: View {
             LabeledContent("Kept on disk") {
                 Text(store.storageText)
             }
+        }
+    }
+
+    private var iCloudSection: some View {
+        Section("iCloud") {
+            Toggle("Keep meetings in iCloud", isOn: Binding(
+                get: { cloud.isOn || cloud.copying },
+                set: { on in
+                    if on { cloud.turnOn() } else { cloud.turnOff() }
+                }))
+                .disabled(!cloud.isOn && !cloud.copying && cloud.status != .available)
+            if cloud.copying && cloud.total > 0 {
+                ProgressView(value: Double(cloud.copied), total: Double(cloud.total)) {
+                    Text(L("Copying your meetings into iCloud… %d of %d", cloud.copied, cloud.total))
+                        .font(.system(size: 11))
+                }
+            }
+            Text(iCloudFootnote)
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let originals = cloud.originals {
+                LabeledContent("Originals on this Mac") {
+                    Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([originals]) }
+                }
+                Text("They were copied into iCloud and checked. Remove them when you no longer need them.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var iCloudFootnote: String {
+        if let problem = cloud.problem { return problem }
+        if cloud.copying {
+            return L("The originals stay where they are. Ata moves to the copy once every meeting is in iCloud and checked.")
+        }
+        if cloud.isOn {
+            return L("Your meetings and voices are in iCloud Drive, and show up in Ata on your iPhone. Turned off, Ata goes back to the meetings on this Mac; what's in iCloud stays there.")
+        }
+        switch cloud.status {
+        case .checking:
+            return L("Checking iCloud…")
+        case .available:
+            return L("Copies your meetings and voices into iCloud Drive, so Ata on your iPhone shows them too. The originals stay on this Mac.")
+        case .signedOut:
+            return L("Sign in to iCloud and turn on iCloud Drive in System Settings to use this.")
+        case .notOnThisMac:
+            return L("Turn on “Keep meetings in iCloud” in Ata on your iPhone first. This Mac then uses the same folder.")
         }
     }
 

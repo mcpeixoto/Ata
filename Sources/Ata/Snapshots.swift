@@ -30,6 +30,8 @@ enum Snapshots {
         Pref.registerDefaults()
         let store = AppStore.shared
         store.setup.applySnapshotFixture()
+        // A development folder, so iCloud shows as available and is never used.
+        CloudSync.shared.start(isIdle: { false }, changed: {})
 
         for appearance in [Look.light, Look.dark] {
             // Idle menu, with the queue transcribing in the background.
@@ -71,8 +73,8 @@ enum Snapshots {
 
             // Taller than the real window so the README shows every section
             // instead of a form cut off mid-scroll.
-            let settings = render(SettingsView(height: 1680).environmentObject(store).environmentObject(store.setup),
-                                  width: 540, height: 1680, appearance: appearance)
+            let settings = render(SettingsView(height: 1800).environmentObject(store).environmentObject(store.setup),
+                                  width: 540, height: 1800, appearance: appearance)
             write(frame(settings, appearance), to: out, name: "settings-\(appearance.name)")
 
             let onboarding = render(OnboardingView(height: 890).environmentObject(store).environmentObject(store.setup),
