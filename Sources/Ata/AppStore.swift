@@ -566,60 +566,6 @@ extension AppStore {
     }
 }
 
-/// Turns an audio file into a meeting: decoded into the 16 kHz mono track
-/// the engines read, in a new folder of its own.
-enum AudioImport {
-    enum Failure: LocalizedError {
-        case noAudio
-
-        var errorDescription: String? {
-            switch self {
-            case .noAudio: return L("There is no audio in this file.")
-            }
-        }
-    }
-
-    /// Anything the system can decode as audio.
-    static let types: [UTType] = [.audio]
-
-    static func accepts(_ url: URL) -> Bool {
-        guard url.isFileURL, let type = UTType(filenameExtension: url.pathExtension) else { return false }
-        return types.contains { type.conforms(to: $0) }
-    }
-
-    /// A new pending meeting made from `source`, named after the file and dated
-    /// when it was made. Decoded in staging, like a recording, then moved into
-    /// the meetings folder. A failure removes only the copy being written.
-    static func meeting(from source: URL) throws -> Meeting {
-        let values = try? source.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey])
-        // A copied file can be newer than the recording; the earliest date is the closest.
-        let date = [values?.creationDate, values?.contentModificationDate].compactMap { $0 }.min() ?? Date()
-        var m = try Meeting.new(app: label(for: source), at: date, staged: true)
-        do {
-            try AudioFiles.decodeToWAV(source, to: m.micURL)
-            guard WavWriter.duration(of: m.micURL) > 0 else { throw Failure.noAudio }
-        } catch {
-            try? FileManager.default.removeItem(at: m.dir)
-            throw error
-        }
-        let duration = WavWriter.duration(of: m.micURL)
-        m.duration = duration
-        m.endedAt = date.addingTimeInterval(duration)
-        m.status = .pending
-        Library.save(m)
-        return Library.publish(m)
-    }
-
-    /// The file's name, made safe for a folder name.
-    static func label(for source: URL) -> String {
-        let name = source.deletingPathExtension().lastPathComponent
-            .replacingOccurrences(of: "/", with: "-")
-            .replacingOccurrences(of: ":", with: "-")
-            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ".")))
-        return name.isEmpty ? L("Imported") : String(name.prefix(60))
-    }
-}
-
 enum AVAuthorization {
     static var micUndetermined: Bool {
         AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined

@@ -20,6 +20,12 @@ struct AtaPhoneApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active { store.becameActive() }
                 }
+                // "Open in Ata" from Files or another app: audio becomes a meeting.
+                .onOpenURL { url in
+                    guard url.isFileURL else { return }
+                    navigation.tab = .meetings
+                    store.importAudio([url])
+                }
         }
     }
 }

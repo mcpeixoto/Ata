@@ -32,15 +32,17 @@ for file in Resources/*.lproj/Localizable.strings; do
   compare "$base" "$file"
 done
 
-# The iPhone's own tables: Info.plist texts and Siri phrases. Each English table
-# needs its translations, with the same keys.
-for english in Resources/iOS/en.lproj/*.strings; do
+# The iPhone's own tables: Info.plist texts and Siri phrases, and those of its
+# extensions (Resources/iOS/Share). Each English table needs its translations,
+# with the same keys.
+for english in Resources/iOS/en.lproj/*.strings Resources/iOS/*/en.lproj/*.strings; do
   [ -e "$english" ] || continue
   plutil -lint "$english" >/dev/null
+  tables=$(dirname "$(dirname "$english")")
   for lproj in Resources/*.lproj; do
     lang=$(basename "$lproj")
     [ "$lang" = "en.lproj" ] && continue
-    file="Resources/iOS/$lang/$(basename "$english")"
+    file="$tables/$lang/$(basename "$english")"
     if [ ! -f "$file" ]; then
       echo "✗ $file is missing"; status=1; continue
     fi

@@ -16,6 +16,13 @@
 "Ata can only import audio files." = "A Ata só consegue importar ficheiros de áudio.";
 "Could not import %@: %@" = "Não foi possível importar %@: %@";
 "There is no audio in this file." = "Este ficheiro não tem áudio.";
+"Adding to Ata…" = "A adicionar à Ata…";
+"Added to Ata" = "Adicionado à Ata";
+"It will be transcribed when you open Ata." = "Vai ser transcrito quando abrires a Ata.";
+"They will be transcribed when you open Ata." = "Vão ser transcritos quando abrires a Ata.";
+"Could not add this to Ata" = "Não foi possível adicionar isto à Ata";
+"Ata could not reach its shared folder. Open Ata and import the file from there." = "A Ata não conseguiu aceder à sua pasta partilhada. Abre a Ata e importa o ficheiro a partir daí.";
+"Done" = "Concluído";
 "nothing" = "nada";
 "Grant microphone access to record." = "Dá acesso ao microfone para gravar.";
 "That model is not downloaded. Download it in Settings → Transcription." = "Esse modelo não está descarregado. Descarrega-o em Definições → Transcrição.";

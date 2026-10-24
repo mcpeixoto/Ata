@@ -22,6 +22,10 @@ final class PhoneStore: ObservableObject {
     @Published private(set) var waitingForEngine = false
     @Published private(set) var warning: String?
     @Published var lastError: String?
+    /// Audio files still being decoded into meetings.
+    @Published private(set) var importing = 0
+    /// Why the last import failed, until it's dismissed.
+    @Published var importError: String?
     @Published var mode: RecordingMode = .inPerson {
         didSet { Pref.d.set(mode.rawValue, forKey: Pref.recordingMode) }
     }
@@ -40,6 +44,7 @@ final class PhoneStore: ObservableObject {
     private var mergeTasks: [String: Task<Void, Never>] = [:]
     private var searchCache: [String: (stamp: Date?, text: String)] = [:]
     private var bootstrapped = false
+    private var drainingInbox = false
 
     private init() {}
 
@@ -67,6 +72,7 @@ final class PhoneStore: ObservableObject {
         if Pref.d.bool(forKey: Pref.onboarded) == false || AVAudioApplication.shared.recordPermission != .granted {
             PhoneNavigation.shared.showOnboarding()
         }
+        drainShareInbox()
         pump()
     }
 
@@ -75,6 +81,7 @@ final class PhoneStore: ObservableObject {
         queuePaused = false
         CloudSync.shared.recheck()
         reload()
+        drainShareInbox()
         pump()
     }
 
@@ -96,10 +103,10 @@ final class PhoneStore: ObservableObject {
         updateWidgets()
     }
 
-    /// Nothing is recording or transcribing: the library can move between this
-    /// iPhone and iCloud.
+    /// Nothing is recording, transcribing or importing: the library can move
+    /// between this iPhone and iCloud.
     var canMoveLibrary: Bool {
-        phase == .idle && transcribingID == nil
+        phase == .idle && transcribingID == nil && importing == 0
     }
 
     /// The library moved, or the Mac changed it: read it again, voices too.
@@ -260,6 +267,74 @@ final class PhoneStore: ObservableObject {
         let text = [m.title, m.subtitle, transcript].joined(separator: "\n").lowercased()
         searchCache[m.id] = (stamp, text)
         return text
+    }
+
+    // MARK: Import
+
+    /// Audio recorded elsewhere (a voice memo, a file someone sent) becomes a
+    /// meeting and goes through the same queue, as on the Mac. The files are only
+    /// read: one picked in Files or opened from another app is security-scoped,
+    /// and read while Ata has access to it.
+    func importAudio(_ urls: [URL]) {
+        let files = urls.filter(AudioImport.accepts)
+        guard !files.isEmpty else {
+            if !urls.isEmpty { importError = L("Ata can only import audio files.") }
+            return
+        }
+        importing += files.count
+        Task {
+            for url in files {
+                do {
+                    try await Task.detached(priority: .userInitiated) {
+                        let scoped = url.startAccessingSecurityScopedResource()
+                        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                        _ = try AudioImport.meeting(from: url)
+                    }.value
+                    if Self.isHandedOverCopy(url) { try? FileManager.default.removeItem(at: url) }
+                } catch {
+                    importError = L("Could not import %@: %@", url.lastPathComponent, error.localizedDescription)
+                }
+                importing -= 1
+                reload()
+            }
+            pump()
+        }
+    }
+
+    /// Some apps "open in Ata" by handing over a copy in Documents/Inbox, made
+    /// for Ata alone; the original stays in that app. Once its meeting exists the
+    /// copy has no use, and would only show up in Files.
+    private static func isHandedOverCopy(_ url: URL) -> Bool {
+        let inbox = URL.documentsDirectory.appendingPathComponent("Inbox", isDirectory: true)
+        return url.resolvingSymlinksInPath().deletingLastPathComponent().path
+            == inbox.resolvingSymlinksInPath().path
+    }
+
+    /// Audio shared to Ata from another app waits in the app group's inbox (see
+    /// `ShareInbox`). Each file becomes a meeting here; its copy is removed only
+    /// once that meeting exists, and one that fails stays for the next time.
+    func drainShareInbox() {
+        guard !drainingInbox, let folder = ShareInbox.folder else { return }
+        let entries = ShareInbox.pending(in: folder)
+        guard !entries.isEmpty else { return }
+        drainingInbox = true
+        importing += entries.count
+        Task {
+            let report = await Task.detached(priority: .userInitiated) {
+                ShareInbox.drain(entries) { entry in
+                    _ = try AudioImport.meeting(from: entry.audio, named: entry.item.originalName, at: entry.item.date)
+                }
+            }.value
+            if !report.failed.isEmpty {
+                importError = report.failed
+                    .map { L("Could not import %@: %@", $0.name, $0.message) }
+                    .joined(separator: "\n")
+            }
+            importing -= entries.count
+            drainingInbox = false
+            reload()
+            pump()
+        }
     }
 
     // MARK: Transcription queue
