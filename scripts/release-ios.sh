@@ -83,7 +83,13 @@ fi
 # ten-minute archive.
 build=$(date -u +%y%m%d%H%M)
 work=$(mktemp -d "/tmp/${SCHEME}-release-XXXXXX")
-cleanup() { git worktree remove --force "$work/src" 2>/dev/null || true; }
+# The worktree registration *and* the directory: `git worktree remove` leaves the parent
+# behind, and a run that is interrupted leaves a build in it, so /tmp collects a few
+# dozen megabytes per release that nothing ever clears.
+cleanup() {
+  git worktree remove --force "$work/src" 2>/dev/null || true
+  rm -rf "$work"
+}
 trap cleanup EXIT
 
 bold "$SCHEME $version ($build) — building $ref in $work"
@@ -96,6 +102,22 @@ bash "$root/scripts/stamp-ios-version.sh" "$version" "$build" "$IOS_DIR"
 if [ -n "${SWIFT_TEST_DIR:-}" ]; then
   bold "swift test in $SWIFT_TEST_DIR"
   ( cd "$SWIFT_TEST_DIR" && swift test )
+fi
+
+# The profiles the export names. Installed here too, not only on CI: a Mac that has never
+# run this app's setup script has no more of them than a runner does, and the failure is the
+# same one, ten minutes later.
+bold "profiles"
+if python3 -c 'import jwt' 2>/dev/null; then
+  ASC_KEY_PATH="$key" ASC_KEY_ID="$key_id" ASC_ISSUER="$issuer" \
+    IOS_DIR="$IOS_DIR" EXPORT_OPTIONS="$EXPORT_OPTIONS" \
+    python3 "$root/scripts/install-profiles.py"
+elif command -v uv >/dev/null; then
+  ASC_KEY_PATH="$key" ASC_KEY_ID="$key_id" ASC_ISSUER="$issuer" \
+    IOS_DIR="$IOS_DIR" EXPORT_OPTIONS="$EXPORT_OPTIONS" \
+    uv run --quiet --with "pyjwt[crypto]" python "$root/scripts/install-profiles.py"
+else
+  die "PyJWT is not available and neither is uv; install one so the profiles can be fetched"
 fi
 
 auth=(-allowProvisioningUpdates
