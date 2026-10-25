@@ -107,18 +107,26 @@ fi
 # The profiles the export names. Installed here too, not only on CI: a Mac that has never
 # run this app's setup script has no more of them than a runner does, and the failure is the
 # same one, ten minutes later.
+# Both python steps need PyJWT to sign an App Store Connect token, and a stock macOS
+# python3 does not have it. The workflow pip-installs it; here, uv supplies it per run.
+# Getting this wrong once cost three releases: the upload succeeded and the step that hands
+# the build to the testers died on `ModuleNotFoundError: No module named 'jwt'`, leaving a
+# build in App Store Connect that no tester could see.
+pyrun() {
+  local script="$1"; shift
+  if python3 -c 'import jwt' 2>/dev/null; then
+    python3 "$script" "$@"
+  elif command -v uv >/dev/null; then
+    uv run --quiet --with "pyjwt[crypto]" python "$script" "$@"
+  else
+    die "PyJWT is not available and neither is uv; install one of them"
+  fi
+}
+
 bold "profiles"
-if python3 -c 'import jwt' 2>/dev/null; then
-  ASC_KEY_PATH="$key" ASC_KEY_ID="$key_id" ASC_ISSUER="$issuer" \
-    IOS_DIR="$IOS_DIR" EXPORT_OPTIONS="$EXPORT_OPTIONS" \
-    python3 "$root/scripts/install-profiles.py"
-elif command -v uv >/dev/null; then
-  ASC_KEY_PATH="$key" ASC_KEY_ID="$key_id" ASC_ISSUER="$issuer" \
-    IOS_DIR="$IOS_DIR" EXPORT_OPTIONS="$EXPORT_OPTIONS" \
-    uv run --quiet --with "pyjwt[crypto]" python "$root/scripts/install-profiles.py"
-else
-  die "PyJWT is not available and neither is uv; install one so the profiles can be fetched"
-fi
+ASC_KEY_PATH="$key" ASC_KEY_ID="$key_id" ASC_ISSUER="$issuer" \
+  IOS_DIR="$IOS_DIR" EXPORT_OPTIONS="$EXPORT_OPTIONS" \
+  pyrun "$root/scripts/install-profiles.py"
 
 auth=(-allowProvisioningUpdates
       -authenticationKeyPath "$key"
@@ -168,6 +176,6 @@ xcrun altool --upload-app -f "$ipa" -t ios --apiKey "$key_id" --apiIssuer "$issu
 bold "distribute"
 ASC_KEY_PATH="$key" ASC_KEY_ID="$key_id" ASC_ISSUER="$issuer" \
   BUNDLE_ID="$BUNDLE_ID" BUILD_VERSION="$version" BUILD_NUMBER="$build" \
-  python3 "$root/scripts/distribute-build.py"
+  pyrun "$root/scripts/distribute-build.py"
 
 bold "$SCHEME $version ($build) is in TestFlight."
