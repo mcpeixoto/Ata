@@ -83,7 +83,13 @@ fi
 # ten-minute archive.
 build=$(date -u +%y%m%d%H%M)
 work=$(mktemp -d "/tmp/${SCHEME}-release-XXXXXX")
-cleanup() { git worktree remove --force "$work/src" 2>/dev/null || true; }
+# The worktree registration *and* the directory: `git worktree remove` leaves the parent
+# behind, and a run that is interrupted leaves a build in it, so /tmp collects a few
+# dozen megabytes per release that nothing ever clears.
+cleanup() {
+  git worktree remove --force "$work/src" 2>/dev/null || true
+  rm -rf "$work"
+}
 trap cleanup EXIT
 
 bold "$SCHEME $version ($build) — building $ref in $work"
