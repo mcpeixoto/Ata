@@ -10,7 +10,7 @@ job was green, because "uploaded" was the only thing anyone checked.
 Assigns the newest build to every internal group on the app. Internal groups only: an
 external group means beta review, which is a submission and a decision for a person.
 """
-import json, os, sys, time, urllib.request
+import json, os, sys, time, urllib.error, urllib.request
 
 API = "https://api.appstoreconnect.apple.com/v1/"
 
@@ -27,14 +27,23 @@ def token() -> str:
     )
 
 
-def call(tok, path, method="GET", body=None):
+def call(tok, path, method="GET", body=None, tolerate=()):
+    """One request. `tolerate` names HTTP codes to return as an error dict rather than raise,
+    because one of them is Apple saying "already done" and that is not a failure."""
     req = urllib.request.Request(
         API + path, method=method,
         headers={"Authorization": "Bearer " + tok, "Content-Type": "application/json"},
         data=json.dumps(body).encode() if body else None)
-    resp = urllib.request.urlopen(req)
-    raw = resp.read()
-    return json.loads(raw) if raw else {}
+    try:
+        raw = urllib.request.urlopen(req).read()
+        return json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as e:
+        if e.code in tolerate:
+            try:
+                return {"error": json.loads(e.read())}
+            except Exception:
+                return {"error": {"status": e.code}}
+        raise
 
 
 def main() -> int:
@@ -111,10 +120,25 @@ def main() -> int:
         return 1
 
     for g in groups:
-        call(tok, f'betaGroups/{g["id"]}/relationships/builds', "POST",
-             {"data": [{"type": "builds", "id": build["id"]}]})
-        print(f'build {num} -> {g["attributes"]["name"]}')
+        name = g["attributes"]["name"]
+        # A group with automatic distribution already has every build, and Apple refuses to
+        # be told so: the POST comes back 422 ENTITY_UNPROCESSABLE, "Builds cannot be
+        # assigned to this internal group." That is the group working as configured, not a
+        # release that failed — and it failed a green release on the first CI run to reach
+        # this step. Groups without it still need the explicit assignment.
+        if g["attributes"].get("hasAccessToAllBuilds"):
+            print(f"build {num} -> {name} (automatic distribution; nothing to assign)")
+            continue
+        res = call(tok, f'betaGroups/{g["id"]}/relationships/builds', "POST",
+                   {"data": [{"type": "builds", "id": build["id"]}]}, tolerate=(409, 422))
+        if "error" in res:
+            detail = json.dumps(res["error"])[:200]
+            print(f"::warning::assigning {num} to {name} was refused: {detail}. "
+                  "Checking whether it is there anyway.")
+        else:
+            print(f"build {num} -> {name}")
 
+    # The only claim that counts: what App Store Connect says the build belongs to.
     check = call(tok, f'builds/{build["id"]}?include=betaGroups')
     named = [i["attributes"]["name"] for i in check.get("included", [])
              if i["type"] == "betaGroups"]
