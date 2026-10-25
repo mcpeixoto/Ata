@@ -7,7 +7,18 @@ struct PhoneSettings: View {
     @AppStorage(Pref.language) private var language = "auto"
     @AppStorage(Pref.recogniseVoices) private var recogniseVoices = false
     @AppStorage(Pref.keepAudio) private var keepAudio = true
+    @AppStorage(Pref.summarize) private var summarize = true
     @StateObject private var cloud = CloudSync.shared
+
+    /// Why no summary will appear, when none will. Summaries are on by default on
+    /// the iPhone (`Pref.platformDefaults`), and before this they could silently
+    /// never arrive: Apple Intelligence off, and no way on the phone to see why.
+    private var summaryFootnote: String {
+        if let reason = AppleModel.unavailableReason {
+            return reason
+        }
+        return L("Ata writes a short summary of each meeting with Apple Intelligence, on this iPhone. Nothing leaves it.")
+    }
 
     private var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
@@ -44,16 +55,19 @@ struct PhoneSettings: View {
                 Section {
                     Picker("Language", selection: $language) {
                         Text("Automatic").tag("auto")
-                        Text("English").tag("en")
-                        Text("Português").tag("pt")
-                        Text("Español").tag("es")
-                        Text("Français").tag("fr")
-                        Text("Deutsch").tag("de")
-                        Text("Italiano").tag("it")
+                        ForEach(Pref.languageChoices, id: \.code) { choice in
+                            Text(choice.name).tag(choice.code)
+                        }
                     }
                     Toggle("Keep the audio after transcribing", isOn: $keepAudio)
                 } header: {
                     Text("Transcription")
+                }
+
+                Section {
+                    Toggle("Add an AI summary", isOn: $summarize)
+                } footer: {
+                    Text(summaryFootnote)
                 }
 
                 Section {

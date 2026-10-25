@@ -283,6 +283,9 @@ struct Bookmark: Codable, Equatable, Identifiable {
 struct TranscribeOverride: Codable, Equatable {
     var engine: String
     var model: String
+    /// The language for this one run ("pt", "en"…), when the user asked for a
+    /// language rather than the one in Settings. Nil means the setting.
+    var language: String? = nil
 }
 
 /// Reads and writes meeting metadata (meeting.json inside each folder).

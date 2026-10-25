@@ -1,5 +1,44 @@
 # Changelog
 
+## 2.8.0
+
+Ata on the iPhone catches up with the Mac, starting with the one thing it could never do:
+know which voice is yours.
+
+- **Tell Ata which voice is you.** In People, or on a meeting's speaker, mark a voice as
+  yourself — and take it back if you tapped the wrong one. From then on Ata knows you in a room
+  full of people: your lines are yours, and everyone else is told apart around you. A meeting
+  already transcribed keeps the names it was written with; "Transcribe again" redoes it now
+  that Ata knows your voice.
+
+  This was the gap behind "it doesn't recognise the voices" on the iPhone. The Mac learns your
+  voice from the microphone track of a call; an iPhone records one track, so it has no call to
+  learn from, and the in-person recognition deliberately refuses to learn a guess. With no
+  fingerprint of you it fell back to "whoever talked longest is you" — in a two-person meeting
+  where the other person talked more, that is the wrong person, and nothing could ever correct
+  it. Marking a voice once breaks the loop.
+- **Voices from a single meeting are listed.** Ata still waits until it has heard a voice in two
+  meetings before asking for a name, but a voice heard once is no longer invisible: it has its
+  own section, where you can name it — or say it's you. Before, one recording's voices showed up
+  in no section at all while the tab counted them, which read as "Ata recognised nobody".
+- **Transcribe again in another language** on the iPhone, from a meeting's menu. A transcript
+  that came out in the wrong language was unfixable on the phone before.
+- **Settings on the iPhone: AI summaries.** The toggle was missing, while summaries were on by
+  default — so with Apple Intelligence off, no summary ever appeared and nothing said why. The
+  switch is there now, and the reason underneath it when the model can't be used.
+- **First run asks your name.** A Mac reads it from your account; an iPhone can't, so every
+  transcript said "Me" until you found Settings. It also says, in one line, that Ata tells the
+  other people in the room apart.
+- Renaming, merging, forgetting and "this is me" are reachable on the iPhone: they were behind
+  a right-click, which a phone doesn't have. Each voice row now has a visible menu button, and
+  the buttons that only had a Mac tooltip have names VoiceOver can read.
+- Fixed: deleting a meeting on the iPhone offered to "Move to Trash" and promised you could get
+  it back. An iPhone has no Trash you can open. It now says what actually happens, as the
+  meetings list already did.
+- Fixed: the People tab could say "Needs macOS 15 or later" on an iPhone.
+- Fixed: the meeting screen on the iPhone left a gap below the navigation bar — room for a Mac
+  window's title bar, which a phone hasn't got.
+
 ## 2.7.1
 
 Fixes for iCloud sync. It is off unless you turned it on in **Settings → iCloud**, and only matters

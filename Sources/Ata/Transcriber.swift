@@ -105,7 +105,9 @@ struct TranscribeOptions {
     /// The current settings, with a meeting's one-off engine/model choice on top.
     static func current(for meeting: Meeting) -> TranscribeOptions {
         var o = current()
-        guard let override = meeting.override, let engine = Engine(rawValue: override.engine) else { return o }
+        guard let override = meeting.override else { return o }
+        if let language = override.language { o.language = language }
+        guard let engine = Engine(rawValue: override.engine) else { return o }
         o.engine = engine
         switch engine {
         case .local: o.localModel = override.model
@@ -189,6 +191,11 @@ enum Speakers {
             default:
                 if let id = map?.speakers.first(where: { $0.label == label })?.voiceID,
                    let voice = library?.voice(id) {
+                    // Not `myName` for a voice you marked as yourself: in the very
+                    // meeting where that mark matters, the "me" label is the guess
+                    // that got you wrong, and two labels would read as one person.
+                    // Marking a voice fixes the meetings after it; "Transcribe
+                    // again" fixes this one, now that Ata knows your voice.
                     return voice.displayName
                 }
                 return L("Speaker %@", String(label.drop { !$0.isNumber }))

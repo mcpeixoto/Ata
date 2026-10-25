@@ -82,11 +82,30 @@ final class PeopleModel: ObservableObject {
         persist()
     }
 
+    /// "This voice is me", or no longer me: the next meeting in the room knows
+    /// which of its speakers is you. Transcripts are redrawn because the voice
+    /// leaves, or rejoins, the people listed in them.
+    func setMe(_ voice: Voice, _ on: Bool) {
+        library.setMe(voice.id, on)
+        persist()
+        rerender(meetings: voice.meetingIDs)
+    }
+
     /// Leave this voice out of every transcript, or put it back; transcripts are redrawn.
     func setExcluded(_ voice: Voice, _ on: Bool) {
         library.setExcluded(voice.id, on)
         persist()
         rerender(meetings: voice.meetingIDs)
+    }
+
+    /// Unnamed voices heard only once, so not yet worth asking about. They are
+    /// still listed: before this, one meeting's voices showed up nowhere in the
+    /// tab, which read as "Ata didn't recognise anyone" — the more so on an
+    /// iPhone, where a first recording is usually the only one there is.
+    var heardOnce: [Voice] {
+        voices.filter { $0.name == nil && !$0.isMe && !$0.isDismissed && !$0.isExcluded
+            && $0.meetings < VoiceLibrary.askAfterMeetings }
+            .sorted { $0.lastSeen > $1.lastSeen }
     }
 
     /// Voices that are neither named nor asked about: dismissed, or left out.

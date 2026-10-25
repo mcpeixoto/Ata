@@ -3,11 +3,13 @@ import SwiftUI
 import UIKit
 import UserNotifications
 
-/// The first launch: the microphone, which Ata can't work without, and
-/// notifications, which tell you when a transcript is ready.
+/// The first launch: the microphone, which Ata can't work without, your name,
+/// which an iPhone app can't read for itself, and notifications, which tell you
+/// when a transcript is ready.
 struct PhoneOnboarding: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @AppStorage(Pref.myName) private var myName = ""
     @State private var mic = AVAudioApplication.shared.recordPermission
     @State private var notifications = UNAuthorizationStatus.notDetermined
 
@@ -35,6 +37,15 @@ struct PhoneOnboarding: View {
                 }
             }
             .padding(.horizontal, 4)
+
+            VStack(alignment: .leading, spacing: 6) {
+                TextField("Your name in the transcript", text: $myName, prompt: Text("Me"))
+                    .textContentType(.givenName)
+                    .textFieldStyle(.roundedBorder)
+                Text("Your lines are marked with this name. Ata also tells the other people in the room apart, and you name each voice once in People.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
 
             Spacer()
 

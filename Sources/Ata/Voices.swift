@@ -18,7 +18,9 @@ struct Voice: Codable, Equatable, Identifiable {
     var sample: String?
     var firstSeen: Date
     var lastSeen: Date
-    /// The person using this Mac, learned from the microphone track.
+    /// You. Learned from the microphone track of a call, or set by hand in the
+    /// People tab — the only way on an iPhone, which records one track and so
+    /// never has a call's microphone to learn you from.
     var isMe: Bool = false
     /// Stable "Voice 3" number, given when the voice is first heard, so an
     /// unnamed voice reads the same in every transcript and in the People tab.
@@ -458,6 +460,21 @@ final class VoiceLibrary {
         voices[i].edited = Voice.editStamp()
     }
 
+    /// "This voice is me", or no longer me. One voice at a time is yours by hand:
+    /// marking a second clears the first, so a mistaken tap can't leave two people
+    /// as you. Voices learned as you from the microphone of a call are left alone.
+    func setMe(_ id: UUID, _ on: Bool) {
+        guard let i = voices.firstIndex(where: { $0.id == id }) else { return }
+        if on {
+            for j in voices.indices where j != i && voices[j].isMe && voices[j].edited != nil {
+                voices[j].isMe = false
+                voices[j].edited = Voice.editStamp()
+            }
+        }
+        voices[i].isMe = on
+        voices[i].edited = Voice.editStamp()
+    }
+
     // MARK: - Two devices, one voice
 
     /// One version of a voice file that two devices changed before either saw the
@@ -510,7 +527,9 @@ final class VoiceLibrary {
         merged.sample = ordered.compactMap(\.sample).first
         merged.firstSeen = ordered.map(\.firstSeen).min() ?? newest.firstSeen
         merged.lastSeen = ordered.map(\.lastSeen).max() ?? newest.lastSeen
-        merged.isMe = ordered.contains(where: \.isMe)
+        // Learned from a call, "me" only ever turns on, so the union is right. Set by
+        // hand it can also turn off, and then the later edit decides — as a name does.
+        merged.isMe = byHand.edited == nil ? ordered.contains(where: \.isMe) : byHand.isMe
         merged.number = newest.number ?? ordered.compactMap(\.number).first
         return merged
     }

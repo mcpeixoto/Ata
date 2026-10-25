@@ -534,6 +534,14 @@ final class MeetingModel: ObservableObject {
         reload()
     }
 
+    /// "This speaker is me", or no longer me: the one way to tell Ata which voice
+    /// in the room is yours, and the only one on an iPhone.
+    func setMe(_ speaker: Speaker, _ on: Bool) {
+        guard let voice = speaker.voice else { return }
+        PeopleModel.shared.setMe(voice, on)
+        reload()
+    }
+
     /// Leaves this voice out of every transcript, this one included, or puts it back.
     func exclude(_ speaker: Speaker, _ on: Bool) {
         guard let voice = speaker.voice else { return }
