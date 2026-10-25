@@ -6,10 +6,16 @@
 # Runs on the maintainer's Mac. Internal testers get the build once App Store
 # Connect has processed it; nothing is submitted for App Store review.
 #
-# Signing is automatic, for the team in $ATA_TEAM_ID or ~/.appstoreconnect/team_id,
-# or else the team of the signing identity in your keychain. Xcode fetches the
-# certificates and profiles it needs with the App Store Connect API key, found the
-# same way scripts/release-local.sh finds it, so nothing is exported.
+# The team comes from $ATA_TEAM_ID or ~/.appstoreconnect/team_id, or else from the
+# signing identity in your keychain. The App Store Connect API key is found the same
+# way scripts/release-local.sh finds it, so nothing is exported.
+#
+# The archive signs automatically; the export does not. Xcode's automatic export
+# wants a cloud-managed distribution certificate, which only an Admin key may touch
+# ("Cloud signing permission error" on an App Manager key), so the export names the
+# four App Store profiles below instead and signs with the Apple Distribution
+# certificate already in the keychain. -allowProvisioningUpdates downloads the
+# profiles from the portal if this Mac does not have them yet.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -89,7 +95,20 @@ cat > "$WORK/ExportOptions.plist" <<PLIST
 	<key>teamID</key>
 	<string>$TEAM_ID</string>
 	<key>signingStyle</key>
-	<string>automatic</string>
+	<string>manual</string>
+	<key>signingCertificate</key>
+	<string>Apple Distribution</string>
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>ai.interactive.ata</key>
+		<string>Ata App Store</string>
+		<key>ai.interactive.ata.widgets</key>
+		<string>Ata Widgets App Store</string>
+		<key>ai.interactive.ata.share</key>
+		<string>Ata Share App Store</string>
+		<key>ai.interactive.ata.watchkitapp</key>
+		<string>Ata Watch App Store</string>
+	</dict>
 	<key>uploadSymbols</key>
 	<true/>
 	<key>manageAppVersionAndBuildNumber</key>
@@ -97,7 +116,10 @@ cat > "$WORK/ExportOptions.plist" <<PLIST
 </dict>
 </plist>
 PLIST
-xcodebuild -exportArchive \
+# Xcode packages the .ipa with rsync. A Homebrew rsync (3.x) ahead of Apple's on
+# PATH makes that step fail with "Copy failed", so put /usr/bin first for this one
+# command and nothing else.
+PATH="/usr/bin:$PATH" xcodebuild -exportArchive \
   -archivePath "$WORK/Ata.xcarchive" \
   -exportOptionsPlist "$WORK/ExportOptions.plist" \
   -exportPath "$WORK/export" \
