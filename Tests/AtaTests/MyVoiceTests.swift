@@ -233,8 +233,10 @@ final class VoiceListingTests: XCTestCase {
 
     /// The rule `PeopleModel.heardOnce` applies, on the library it reads.
     private func heardOnce(_ lib: VoiceLibrary) -> [Voice] {
-        lib.voices.filter { $0.name == nil && !$0.isMe && !$0.isDismissed && !$0.isExcluded
+        Array(lib.voices.filter { $0.name == nil && !$0.isMe && !$0.isDismissed && !$0.isExcluded
             && $0.meetings < VoiceLibrary.askAfterMeetings }
+            .sorted { $0.lastSeen > $1.lastSeen }
+            .prefix(PeopleModel.heardOnceShown))
     }
 
     func testAVoiceFromASingleMeetingIsListed() {
@@ -252,6 +254,16 @@ final class VoiceListingTests: XCTestCase {
 
         XCTAssertEqual(lib.worthAsking.count, 1)
         XCTAssertTrue(heardOnce(lib).isEmpty, "listed once, in one section at a time")
+    }
+
+    /// A Mac with years of meetings can have many one-off voices; the section is
+    /// for the meeting you just had, not for every stranger ever recorded.
+    func testOnlyTheMostRecentOneOffVoicesAreListed() {
+        let lib = VoiceLibrary(file: file)
+        for i in 0..<(PeopleModel.heardOnceShown + 3) {
+            lib.assign([speaker("S1", v(i))], meetingID: "m\(i)")
+        }
+        XCTAssertEqual(heardOnce(lib).count, PeopleModel.heardOnceShown)
     }
 
     func testYourOwnVoiceAndDismissedOnesAreNotListedAsHeardOnce() {

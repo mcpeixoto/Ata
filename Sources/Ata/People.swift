@@ -98,14 +98,20 @@ final class PeopleModel: ObservableObject {
         rerender(meetings: voice.meetingIDs)
     }
 
-    /// Unnamed voices heard only once, so not yet worth asking about. They are
-    /// still listed: before this, one meeting's voices showed up nowhere in the
-    /// tab, which read as "Ata didn't recognise anyone" — the more so on an
-    /// iPhone, where a first recording is usually the only one there is.
+    /// How many one-off voices the tab shows. A meeting or two is the point of
+    /// the section; a year of them would bury "Who's this?" under strangers.
+    static let heardOnceShown = 5
+
+    /// Unnamed voices heard only once, so not yet worth asking about, most
+    /// recent first. They are still listed: before this, one meeting's voices
+    /// showed up nowhere in the tab, which read as "Ata didn't recognise anyone"
+    /// — the more so on an iPhone, where a first recording is usually the only
+    /// one there is.
     var heardOnce: [Voice] {
-        voices.filter { $0.name == nil && !$0.isMe && !$0.isDismissed && !$0.isExcluded
+        Array(voices.filter { $0.name == nil && !$0.isMe && !$0.isDismissed && !$0.isExcluded
             && $0.meetings < VoiceLibrary.askAfterMeetings }
             .sorted { $0.lastSeen > $1.lastSeen }
+            .prefix(Self.heardOnceShown))
     }
 
     /// Voices that are neither named nor asked about: dismissed, or left out.
