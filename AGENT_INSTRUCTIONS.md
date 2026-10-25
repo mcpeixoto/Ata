@@ -319,6 +319,30 @@ secrets exist; without them it posts a notice and stops green. Setting them need
 `./scripts/setup-release-secrets.sh`, which exports the private key and therefore the keychain
 password — not available, so do not plan around CI publishing.
 
+### The iPhone half
+
+The same tag ships the phone app, and that pipeline is shared with every other app in this
+account — Polaris, Dr. Expenses, MealMind, Almanac, Cabin, DeepHealth — so that a fix to one
+is a fix to all:
+
+```bash
+./scripts/release-ios.sh v2.7.1      # archive, export, validate, upload, hand to the group
+./scripts/release-ios.sh --dry-run   # build HEAD and validate the .ipa, upload nothing
+```
+
+What is repo-specific lives in `scripts/ios-release.conf` and nowhere else;
+`.github/workflows/ios-release.yml` is byte-identical in every repo and reads the same file,
+so a diff between two copies of it is a bug rather than a local adaptation. The workflow
+needs the five secrets `scripts/ios-release-secrets.sh` reports, including the Apple
+Distribution `.p12` that cannot be exported here — until those exist the Mac script above is
+the route that works, and the workflow fails loudly rather than reporting a release that
+did not happen.
+
+Uploading is not distributing: `scripts/distribute-build.py` assigns the finished build to
+the internal TestFlight group, because a build with no group is VALID,
+READY_FOR_BETA_TESTING and invisible to every tester. Five Polaris builds sat in exactly
+that state for six weeks with every job green.
+
 ## Live check
 
 ```bash
