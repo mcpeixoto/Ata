@@ -5,7 +5,7 @@ import SwiftUI
 struct PhoneSettings: View {
     @AppStorage(Pref.myName) private var myName = ""
     @AppStorage(Pref.language) private var language = "auto"
-    @AppStorage(Pref.recogniseVoices) private var recogniseVoices = false
+    @AppStorage(Pref.recogniseVoices) private var recogniseVoices = true
     @AppStorage(Pref.keepAudio) private var keepAudio = true
     @AppStorage(Pref.summarize) private var summarize = true
     @StateObject private var cloud = CloudSync.shared

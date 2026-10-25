@@ -314,14 +314,23 @@ final class MeetingModel: ObservableObject {
 
         let map = MeetingVoices.load(for: m)
         let voices = PeopleModel.shared.voices
-        speakers = (map?.speakers ?? [])
-            .filter { $0.label != Speakers.me }
-            .sorted { Self.number($0.label) < Self.number($1.label) }
-            .map { s in
-                let voice = s.voiceID.flatMap { id in voices.first { $0.id == id } }
-                let longest = map?.turns.filter { $0.label == s.label }.max { ($0.end - $0.start) < ($1.end - $1.start) }
-                return Speaker(label: s.label, voice: voice, name: voice?.displayName ?? names(s.label),
-                               seconds: s.seconds, sampleStart: longest?.start)
+        // Every label the diarizer found, not only the ones that could be
+        // fingerprinted. A speaker Ata heard for a few seconds has no voice to
+        // match, but they did speak, and a row that says so beats a People tab
+        // insisting nobody else did while the transcript quotes them.
+        let known = Dictionary(uniqueKeysWithValues: (map?.speakers ?? []).map { ($0.label, $0) })
+        let labels = (map?.turns ?? []).map(\.label) + (map?.speakers ?? []).map(\.label)
+        speakers = Array(Set(labels))
+            .sorted { Self.number($0) < Self.number($1) }
+            .map { label in
+                let found = known[label]
+                let voice = found?.voiceID.flatMap { id in voices.first { $0.id == id } }
+                let turns = (map?.turns ?? []).filter { $0.label == label }
+                let longest = turns.max { ($0.end - $0.start) < ($1.end - $1.start) }
+                let seconds = found?.seconds
+                    ?? turns.reduce(0.0) { $0 + Double($1.end - $1.start) / 1000 }
+                return Speaker(label: label, voice: voice, name: voice?.displayName ?? names(label),
+                               seconds: seconds, sampleStart: longest?.start)
             }
 
         var people = [myName]

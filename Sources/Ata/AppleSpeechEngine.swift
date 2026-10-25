@@ -14,9 +14,13 @@ enum AppleSpeechEngine {
     /// What transcripts and version file names record as the model.
     static let modelID = "apple-speech"
 
+    /// The OS is new enough *and* this device has the speech-to-text models.
+    /// Apple ships them per device, not per OS version: asking the version alone
+    /// reported the engine as available on hardware that cannot run it, and since
+    /// this is the iPhone's default engine that left the default path failing.
     static var isAvailable: Bool {
-        if #available(macOS 26.0, iOS 26.0, *) { return true }
-        return false
+        guard #available(macOS 26.0, iOS 26.0, *) else { return false }
+        return SpeechTranscriber.isAvailable
     }
 
     /// `language` is Ata's setting: "auto" or a code like "pt". With "auto" and
@@ -107,7 +111,11 @@ enum AppleSpeechError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unavailable:
-            return L("Apple's on-device speech recognition needs macOS 26. Choose whisper.cpp in Settings → Transcription.")
+            #if os(iOS)
+            return L("This iPhone can't run Apple's on-device speech recognition.")
+            #else
+            return L("Apple's on-device speech recognition needs macOS 26 and a Mac that can run its models. Choose whisper.cpp in Settings → Transcription.")
+            #endif
         case .unsupported(let code):
             #if os(iOS)
             return L("Apple's on-device speech doesn't support %@ yet.", AppleSpeech.languageName(code))

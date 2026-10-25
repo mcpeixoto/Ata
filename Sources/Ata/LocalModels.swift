@@ -51,11 +51,12 @@ struct LocalModel: Identifiable, Equatable {
         return installed.first ?? preferred
     }
 
-    /// True when the app is running on an older model only because the
-    /// recommended one has not been downloaded yet.
-    static var betterAvailable: Bool {
-        Pref.d.string(forKey: Pref.localModel) == nil && current.id != defaultID
-    }
+    /// True when a more accurate model than the one in use exists. Said whether
+    /// the weaker model is in use by accident (the recommended one is not
+    /// downloaded) or on purpose: a choice made once, when Turbo was the default,
+    /// is otherwise never revisited, and Turbo's word error rate is a fifth worse.
+    /// Only ever shown as a suggestion — a deliberate choice is never overridden.
+    static var betterAvailable: Bool { current.id != defaultID }
 
     static var installed: [LocalModel] { all.filter(\.isInstalled) }
 }

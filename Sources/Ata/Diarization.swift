@@ -35,9 +35,22 @@ enum Diarization {
 struct FluidDiarizer: Diarizer {
     /// Speakers with less speech than this are labelled but not learned:
     /// a cough or a two-word reply makes a poor fingerprint.
-    static let minimumSecondsToLearn = 10.0
+    ///
+    /// Ten seconds — the floor until 2.9 — is a lot to ask of a whole meeting.
+    /// Someone who only answered a question, and every speaker of a short
+    /// meeting, got no fingerprint, so no row and no name anywhere: the
+    /// transcript said "Speaker 2" and the People tab said nobody else spoke.
+    /// Five still rules out a cough, and a weak fingerprint now costs much less
+    /// than it did, because the library no longer mints a duplicate whenever two
+    /// of its voices resemble each other (`VoiceLibrary.assign`).
+    static let minimumSecondsToLearn = 5.0
 
     func diarize(_ wav: URL) async throws -> (turns: [SpeakerTurn], embeddings: [String: [Float]]) {
+        try await diarize(wav, minimumSecondsToLearn: Self.minimumSecondsToLearn)
+    }
+
+    func diarize(_ wav: URL, minimumSecondsToLearn: Double) async throws
+        -> (turns: [SpeakerTurn], embeddings: [String: [Float]]) {
         let manager = OfflineDiarizerManager(config: OfflineDiarizerConfig())
         try await manager.prepareModels()
         let samples = try AudioConverter().resampleAudioFile(wav)
@@ -51,7 +64,7 @@ struct FluidDiarizer: Diarizer {
         var embeddings: [String: [Float]] = [:]
         for (id, e) in result.speakerDatabase ?? [:] {
             let seconds = result.segments.filter { $0.speakerId == id }.reduce(0.0) { $0 + Double($1.durationSeconds) }
-            if seconds >= Self.minimumSecondsToLearn { embeddings[id] = e }
+            if seconds >= minimumSecondsToLearn { embeddings[id] = e }
         }
         return (turns, embeddings)
     }
@@ -59,11 +72,15 @@ struct FluidDiarizer: Diarizer {
     /// On a call your microphone track is one speaker by construction, so the
     /// same pipeline's per-speaker embedding of its main speaker is your voice.
     /// In person it isn't, and the microphone is diarized instead; see `InPerson`.
-    func embed(_ wav: URL) async throws -> [Float]? {
-        let found = try await diarize(wav)
-        let main = Dictionary(grouping: found.turns, by: \.label)
+    /// The share says which of those two a track turned out to be.
+    func mainSpeaker(_ wav: URL, minimumSecondsToLearn: Double) async throws
+        -> (embedding: [Float], share: Double)? {
+        let found = try await diarize(wav, minimumSecondsToLearn: minimumSecondsToLearn)
+        let spoken = Dictionary(grouping: found.turns, by: \.label)
             .mapValues { $0.reduce(0) { $0 + ($1.end - $1.start) } }
-            .max { $0.value < $1.value }?.key
-        return main.flatMap { found.embeddings[$0] }
+        let total = spoken.values.reduce(0, +)
+        guard total > 0, let main = spoken.max { $0.value < $1.value },
+              let embedding = found.embeddings[main.key] else { return nil }
+        return (embedding, Double(main.value) / Double(total))
     }
 }

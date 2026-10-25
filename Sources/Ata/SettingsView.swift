@@ -245,7 +245,14 @@ struct SettingsView: View {
                     ForEach(Pref.openAIModels, id: \.self) { Text($0).tag($0) }
                 }
                 if openAIModel != "whisper-1" {
-                    Text("This model returns no timestamps, so the transcript has no per-line times and echo removal is skipped.")
+                    // Without timestamps there is nothing to hang a speaker on, so
+                    // `Transcriber` skips diarization altogether. That used to happen
+                    // in silence, and read as "Ata stopped recognising voices".
+                    Text("This model returns no timestamps, so the transcript has no per-line times, echo removal is skipped, and voices are not told apart.")
+                        .font(.system(size: 11)).foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text("The oldest of OpenAI's models, and the only one that returns timestamps. On this Mac, whisper.cpp with Large v3 is more accurate, free and private.")
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }

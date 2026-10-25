@@ -3,7 +3,7 @@ import SwiftUI
 /// The menu's third tab: voices Ata has learned, and the ones it would like a name for.
 struct PeopleView: View {
     @StateObject private var people = PeopleModel.shared
-    @AppStorage(Pref.recogniseVoices) private var enabled = false
+    @AppStorage(Pref.recogniseVoices) private var enabled = true
     @State private var confirmForgetAll = false
 
     private static func learnedLine(_ count: Int) -> String {
@@ -25,6 +25,19 @@ struct PeopleView: View {
         #endif
     }
 
+    /// Said when Ata already knows which voice is yours.
+    private static let youLine = L("Ata knows this voice is you, so it tells you apart from everyone else in the room.")
+
+    /// Said when it does not. On a phone this is the only way in: it records one
+    /// track, so there is never a call's microphone to learn you from.
+    private static var enrolLine: String {
+        #if os(iOS)
+        return L("Read one short paragraph and Ata knows your voice from then on — in a room full of people, from the very first meeting.")
+        #else
+        return L("Read one short paragraph and Ata knows your voice from then on, without waiting to learn it from a call.")
+        #endif
+    }
+
     private static var privacyLine: String {
         if CloudLibrary.isActive {
             return L("Voice fingerprints stay in your iCloud, with your meetings, and are never sent anywhere else. Turning this on downloads 21 MB of models once.")
@@ -40,14 +53,17 @@ struct PeopleView: View {
         VStack(alignment: .leading, spacing: 10) {
             if !enabled {
                 off
-            } else if people.voices.isEmpty {
-                waiting
             } else {
-                if let me = people.me {
-                    section(L("You"), footnote: L("Ata knows this voice is you, so it tells you apart from everyone else in the room.")) {
-                        YouRow(voice: me)
-                    }
+                // Always first, and always there. Your name and your voice are the
+                // one thing Ata cannot work out on its own, and everything else on
+                // this tab is told apart around them.
+                section(L("You"), footnote: people.me == nil ? Self.enrolLine : Self.youLine) {
+                    YouRow(voice: people.me)
                 }
+            }
+            if enabled, people.voices.isEmpty, people.me == nil {
+                waiting
+            } else if enabled {
                 if !people.worthAsking.isEmpty {
                     section(L("Who's this?"), footnote: L("Heard in several meetings. Play a sample, then type a name.")) {
                         ForEach(people.worthAsking) { VoiceRow(voice: $0, asking: true) }
@@ -259,37 +275,96 @@ private struct VoiceRow: View {
 
 /// Your own voice, once you have marked one — with the way back, because the
 /// first tap is a guess the user is allowed to take back.
+/// You: the name your lines carry, and the voice Ata tells you by.
 private struct YouRow: View {
     @StateObject private var people = PeopleModel.shared
-    let voice: Voice
+    @StateObject private var enrolment = VoiceEnrolment()
+    @AppStorage(Pref.myName) private var myName = ""
+    /// Nil until Ata knows which voice is yours.
+    let voice: Voice?
 
     var body: some View {
-        HStack(spacing: 8) {
-            Button { people.togglePlay(voice) } label: {
-                Image(systemName: people.playing == voice.id ? "stop.fill" : "play.fill")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 26, height: 26)
-                    .background(Circle().fill(voice.sample == nil ? AnyShapeStyle(Color.gray.opacity(0.4))
-                                                                   : AnyShapeStyle(Theme.brand)))
-            }
-            .buttonStyle(.plain)
-            .disabled(voice.sample == nil)
-            .help(L("Play a sample"))
-            .accessibilityLabel(L("Play a sample"))
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Button { if let voice { people.togglePlay(voice) } } label: {
+                    Image(systemName: playing ? "stop.fill" : "play.fill")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 26, height: 26)
+                        .background(Circle().fill(voice?.sample == nil ? AnyShapeStyle(Color.gray.opacity(0.4))
+                                                                       : AnyShapeStyle(Theme.brand)))
+                }
+                .buttonStyle(.plain)
+                .disabled(voice?.sample == nil)
+                .help(L("Play a sample"))
+                .accessibilityLabel(L("Play a sample"))
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(Pref.myNameOrDefault).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                TextField(L("Your name"), text: $myName, prompt: Text(L("Me")))
+                    .textFieldStyle(.roundedBorder)
+                    .controlSize(.small)
+                    .font(.system(size: 11))
+                    .frame(maxWidth: 160)
+                    .accessibilityLabel(L("Your name in the transcript"))
+
+                Spacer(minLength: 4)
+
+                if let voice {
+                    Button(L("Not me")) { people.setMe(voice, false) }
+                        .controlSize(.small)
+                }
+            }
+
+            if let voice {
                 Text(L("%d meetings · heard %@", voice.meetings,
                        voice.lastSeen.formatted(.relative(presentation: .named))))
                     .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
+                    .padding(.leading, 4)
             }
-            Spacer(minLength: 4)
-            Button(L("Not me")) { people.setMe(voice, false) }
-                .controlSize(.small)
+
+            enrol
         }
         .padding(.horizontal, 4)
         .padding(.vertical, 3)
+    }
+
+    private var playing: Bool { voice.map { people.playing == $0.id } ?? false }
+
+    /// Recording your voice: the paragraph to read, a countdown, and what came of it.
+    @ViewBuilder private var enrol: some View {
+        switch enrolment.phase {
+        case .recording:
+            VStack(alignment: .leading, spacing: 5) {
+                Text(VoiceEnrolment.prompt)
+                    .font(.system(size: 11))
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 8) {
+                    ProgressView(value: min(1, enrolment.seconds / VoiceEnrolment.targetSeconds))
+                        .frame(maxWidth: 120)
+                    Text(L("%d s left", Int((VoiceEnrolment.targetSeconds - enrolment.seconds).rounded(.up))))
+                        .font(.system(size: 10)).monospacedDigit().foregroundStyle(.secondary)
+                    Spacer(minLength: 4)
+                    Button(L("Stop")) { enrolment.cancel() }.controlSize(.small)
+                }
+            }
+            .padding(.horizontal, 4)
+        case .learning:
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text("Learning your voice…").font(.system(size: 10)).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 4)
+        case .failed(let why):
+            VStack(alignment: .leading, spacing: 4) {
+                Text(why).font(.system(size: 10)).foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(L("Try again")) { enrolment.start() }.controlSize(.small)
+            }
+            .padding(.horizontal, 4)
+        case .idle, .done:
+            Button(voice == nil ? L("Record my voice") : L("Record my voice again")) { enrolment.start() }
+                .controlSize(.small)
+                .padding(.leading, 4)
+        }
     }
 }
 
