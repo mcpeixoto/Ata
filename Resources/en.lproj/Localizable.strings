@@ -469,3 +469,16 @@
 "%d voices learned, kept in your iCloud with your meetings." = "%d voices learned, kept in your iCloud with your meetings.";
 "Voice fingerprints stay in your iCloud, with your meetings, and are never sent anywhere else. Turning this on downloads 21 MB of models once." = "Voice fingerprints stay in your iCloud, with your meetings, and are never sent anywhere else. Turning this on downloads 21 MB of models once.";
 "Tells the people in a conversation apart and learns their voices, so you name each one once. Fingerprints stay in your iCloud, with your meetings." = "Tells the people in a conversation apart and learns their voices, so you name each one once. Fingerprints stay in your iCloud, with your meetings.";
+"You" = "You";
+"This is me" = "This is me";
+"Not me" = "Not me";
+"Ata knows this voice is you, so it tells you apart from everyone else in the room." = "Ata knows this voice is you, so it tells you apart from everyone else in the room.";
+"Voices show up here after your next meetings are transcribed. Ata asks about a voice once it has heard it in at least two meetings. Mark your own voice as yours once, and every meeting in the room can tell you from everyone else." = "Voices show up here after your next meetings are transcribed. Ata asks about a voice once it has heard it in at least two meetings. Mark your own voice as yours once, and every meeting in the room can tell you from everyone else.";
+"Voice recognition isn't available on this iPhone." = "Voice recognition isn't available on this iPhone.";
+"The whole recording. Tap to jump." = "The whole recording. Tap to jump.";
+"Add an AI summary" = "Add an AI summary";
+"Ata writes a short summary of each meeting with Apple Intelligence, on this iPhone. Nothing leaves it." = "Ata writes a short summary of each meeting with Apple Intelligence, on this iPhone. Nothing leaves it.";
+"Your lines are marked with this name. Ata also tells the other people in the room apart, and you name each voice once in People." = "Your lines are marked with this name. Ata also tells the other people in the room apart, and you name each voice once in People.";
+"Transcribe again in" = "Transcribe again in";
+"Heard once" = "Heard once";
+"Ata asks for a name once it has heard a voice in two meetings. You can name one now anyway — or say it's you." = "Ata asks for a name once it has heard a voice in two meetings. You can name one now anyway — or say it's you.";

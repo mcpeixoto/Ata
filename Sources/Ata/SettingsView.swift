@@ -164,12 +164,9 @@ struct SettingsView: View {
             TextField("Your name in the transcript", text: $myName, prompt: Text("Me"))
             Picker("Language", selection: $language) {
                 Text("Automatic").tag("auto")
-                Text("English").tag("en")
-                Text("Português").tag("pt")
-                Text("Español").tag("es")
-                Text("Français").tag("fr")
-                Text("Deutsch").tag("de")
-                Text("Italiano").tag("it")
+                ForEach(Pref.languageChoices, id: \.code) { choice in
+                    Text(choice.name).tag(choice.code)
+                }
             }
             Toggle("Remove the others' voices from your microphone", isOn: $cancelEcho)
             Text("For calls without headphones: Ata takes what your Mac played out of your microphone before transcribing. The recording itself is not changed.")

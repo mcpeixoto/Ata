@@ -469,3 +469,16 @@
 "%d voices learned, kept in your iCloud with your meetings." = "%d vozes aprendidas, guardadas no teu iCloud com as tuas reuniões.";
 "Voice fingerprints stay in your iCloud, with your meetings, and are never sent anywhere else. Turning this on downloads 21 MB of models once." = "As impressões de voz ficam no teu iCloud, com as tuas reuniões, e nunca são enviadas para mais lado nenhum. Ativar isto descarrega 21 MB de modelos, uma vez.";
 "Tells the people in a conversation apart and learns their voices, so you name each one once. Fingerprints stay in your iCloud, with your meetings." = "Distingue as pessoas numa conversa e aprende as vozes delas, para dares nome a cada uma só uma vez. As impressões vocais ficam no teu iCloud, com as tuas reuniões.";
+"You" = "A tua voz";
+"This is me" = "Esta voz sou eu";
+"Not me" = "Não sou eu";
+"Ata knows this voice is you, so it tells you apart from everyone else in the room." = "A Ata sabe que esta voz és tu, por isso distingue-te de todas as outras pessoas na sala.";
+"Voices show up here after your next meetings are transcribed. Ata asks about a voice once it has heard it in at least two meetings. Mark your own voice as yours once, and every meeting in the room can tell you from everyone else." = "As vozes aparecem aqui depois de as tuas próximas reuniões serem transcritas. A Ata pergunta por uma voz quando já a ouviu em pelo menos duas reuniões. Marca a tua própria voz como tua uma vez, e todas as reuniões na sala passam a distinguir-te dos outros.";
+"Voice recognition isn't available on this iPhone." = "O reconhecimento de vozes não está disponível neste iPhone.";
+"The whole recording. Tap to jump." = "A gravação toda. Toca para saltar.";
+"Add an AI summary" = "Juntar um resumo de IA";
+"Ata writes a short summary of each meeting with Apple Intelligence, on this iPhone. Nothing leaves it." = "A Ata escreve um resumo curto de cada reunião com a Apple Intelligence, neste iPhone. Nada sai dele.";
+"Your lines are marked with this name. Ata also tells the other people in the room apart, and you name each voice once in People." = "As tuas falas são marcadas com este nome. A Ata também distingue as outras pessoas na sala, e dás nome a cada voz uma vez em Pessoas.";
+"Transcribe again in" = "Transcrever outra vez em";
+"Heard once" = "Ouvida uma vez";
+"Ata asks for a name once it has heard a voice in two meetings. You can name one now anyway — or say it's you." = "A Ata pede um nome quando já ouviu uma voz em duas reuniões. Podes dar nome a uma agora, se quiseres — ou dizer que és tu.";

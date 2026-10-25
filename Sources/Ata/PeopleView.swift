@@ -15,6 +15,16 @@ struct PeopleView: View {
         #endif
     }
 
+    /// Voice recognition needs macOS 15; every iPhone that runs Ata is new enough,
+    /// so this is a Mac sentence and must not say "macOS" on a phone.
+    private static var unsupportedLine: String {
+        #if os(iOS)
+        return L("Voice recognition isn't available on this iPhone.")
+        #else
+        return L("Needs macOS 15 or later.")
+        #endif
+    }
+
     private static var privacyLine: String {
         if CloudLibrary.isActive {
             return L("Voice fingerprints stay in your iCloud, with your meetings, and are never sent anywhere else. Turning this on downloads 21 MB of models once.")
@@ -30,12 +40,22 @@ struct PeopleView: View {
         VStack(alignment: .leading, spacing: 10) {
             if !enabled {
                 off
-            } else if people.voices.filter({ !$0.isMe }).isEmpty {
+            } else if people.voices.isEmpty {
                 waiting
             } else {
+                if let me = people.me {
+                    section(L("You"), footnote: L("Ata knows this voice is you, so it tells you apart from everyone else in the room.")) {
+                        YouRow(voice: me)
+                    }
+                }
                 if !people.worthAsking.isEmpty {
                     section(L("Who's this?"), footnote: L("Heard in several meetings. Play a sample, then type a name.")) {
                         ForEach(people.worthAsking) { VoiceRow(voice: $0, asking: true) }
+                    }
+                }
+                if !people.heardOnce.isEmpty {
+                    section(L("Heard once"), footnote: L("Ata asks for a name once it has heard a voice in two meetings. You can name one now anyway — or say it's you.")) {
+                        ForEach(people.heardOnce) { VoiceRow(voice: $0, asking: true) }
                     }
                 }
                 if !people.named.isEmpty {
@@ -86,7 +106,7 @@ struct PeopleView: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.regular)
             } else {
-                Text("Needs macOS 15 or later.")
+                Text(Self.unsupportedLine)
                     .font(.system(size: 11, weight: .semibold)).foregroundStyle(.orange)
             }
         }
@@ -95,12 +115,22 @@ struct PeopleView: View {
         .padding(.horizontal, 6)
     }
 
+    /// What happens next, and — on a phone, where Ata can never learn your voice
+    /// from a call's microphone — the one thing only you can tell it.
+    private static var waitingLine: String {
+        #if os(iOS)
+        return L("Voices show up here after your next meetings are transcribed. Ata asks about a voice once it has heard it in at least two meetings. Mark your own voice as yours once, and every meeting in the room can tell you from everyone else.")
+        #else
+        return L("Voices show up here after your next meetings are transcribed. Ata asks about a voice once it has heard it in at least two meetings.")
+        #endif
+    }
+
     private var waiting: some View {
         VStack(spacing: 8) {
             Image(systemName: "waveform.badge.magnifyingglass")
                 .font(.system(size: 26)).foregroundStyle(Theme.brand)
             Text("Listening for voices").font(.system(size: 13, weight: .semibold))
-            Text("Voices show up here after your next meetings are transcribed. Ata asks about a voice once it has heard it in at least two meetings.")
+            Text(Self.waitingLine)
                 .font(.system(size: 11)).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -143,6 +173,7 @@ private struct VoiceRow: View {
             .buttonStyle(.plain)
             .disabled(voice.sample == nil)
             .help(L("Play a sample"))
+            .accessibilityLabel(L("Play a sample"))
 
             VStack(alignment: .leading, spacing: 3) {
                 if asking {
@@ -173,30 +204,48 @@ private struct VoiceRow: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .help(L("Don't ask about this voice"))
+                .accessibilityLabel(L("Don't ask about this voice"))
             }
+            #if os(iOS)
+            Menu { actions } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 15))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel(L("More"))
+            #endif
         }
         .padding(.horizontal, 4)
         .padding(.vertical, 3)
-        .contextMenu {
-            if !asking {
-                Button(L("Rename…")) {
-                    name = voice.name ?? ""
-                    editing = true
-                    focused = true
-                }
+        .contextMenu { actions }
+    }
+
+    /// Everything you can do to a voice. A right-click finds these on the Mac;
+    /// on a phone there is no right-click, so the same list is behind the
+    /// visible button above.
+    @ViewBuilder private var actions: some View {
+        if !asking {
+            Button(L("Rename…")) {
+                name = voice.name ?? ""
+                editing = true
+                focused = true
             }
-            Menu(L("Same person as")) {
-                ForEach(people.voices.filter { $0.id != voice.id && $0.name != nil }) { other in
-                    Button(other.name ?? "") { people.merge(voice, into: other) }
-                }
-            }
-            if voice.name == nil {
-                Button(L("Don't ask about this voice")) { people.dismiss(voice) }
-            }
-            Button(L("Leave out of transcripts")) { people.setExcluded(voice, true) }
-            Divider()
-            Button(L("Forget this voice"), role: .destructive) { people.forget(voice) }
         }
+        Button(L("This is me")) { people.setMe(voice, true) }
+        Menu(L("Same person as")) {
+            ForEach(people.voices.filter { $0.id != voice.id && $0.name != nil }) { other in
+                Button(other.name ?? "") { people.merge(voice, into: other) }
+            }
+        }
+        if voice.name == nil {
+            Button(L("Don't ask about this voice")) { people.dismiss(voice) }
+        }
+        Button(L("Leave out of transcripts")) { people.setExcluded(voice, true) }
+        Divider()
+        Button(L("Forget this voice"), role: .destructive) { people.forget(voice) }
     }
 
     private func save() {
@@ -205,6 +254,42 @@ private struct VoiceRow: View {
         people.rename(voice, to: trimmed)
         name = ""
         editing = false
+    }
+}
+
+/// Your own voice, once you have marked one — with the way back, because the
+/// first tap is a guess the user is allowed to take back.
+private struct YouRow: View {
+    @StateObject private var people = PeopleModel.shared
+    let voice: Voice
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button { people.togglePlay(voice) } label: {
+                Image(systemName: people.playing == voice.id ? "stop.fill" : "play.fill")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 26, height: 26)
+                    .background(Circle().fill(voice.sample == nil ? AnyShapeStyle(Color.gray.opacity(0.4))
+                                                                   : AnyShapeStyle(Theme.brand)))
+            }
+            .buttonStyle(.plain)
+            .disabled(voice.sample == nil)
+            .help(L("Play a sample"))
+            .accessibilityLabel(L("Play a sample"))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(Pref.myNameOrDefault).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                Text(L("%d meetings · heard %@", voice.meetings,
+                       voice.lastSeen.formatted(.relative(presentation: .named))))
+                    .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 4)
+            Button(L("Not me")) { people.setMe(voice, false) }
+                .controlSize(.small)
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 3)
     }
 }
 
@@ -226,6 +311,7 @@ private struct HiddenVoiceRow: View {
             .buttonStyle(.plain)
             .disabled(voice.sample == nil)
             .help(L("Play a sample"))
+            .accessibilityLabel(L("Play a sample"))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(voice.displayName).font(.system(size: 12, weight: .medium)).lineLimit(1)

@@ -127,6 +127,14 @@ enum Pref {
     static let iCloudMigrating = "iCloudMigrating" // copying into iCloud, to resume after a quit
     static let iCloudDocuments = "iCloudDocuments" // the container's Documents folder, as last found
 
+    /// The languages Ata offers for transcription, by their own names: Settings on
+    /// both platforms, and "Transcribe again in" on the iPhone. Endonyms, so they
+    /// read the same whatever the app's language; "Automatic" is translated.
+    static let languageChoices: [(code: String, name: String)] = [
+        ("en", "English"), ("pt", "Português"), ("es", "Español"),
+        ("fr", "Français"), ("de", "Deutsch"), ("it", "Italiano"),
+    ]
+
     static let defaultOpenAIModel = "whisper-1"
     static let defaultSummaryModel = "gpt-4o-mini"
 

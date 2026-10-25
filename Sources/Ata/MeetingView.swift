@@ -83,16 +83,43 @@ struct MeetingView: View {
             }
         }
         .padding(.horizontal, 20)
+        #if os(macOS)
+        // Room for the window's title bar, which the header sits under.
         .padding(.top, 34)
+        #else
+        .padding(.top, 4)
+        #endif
         .padding(.bottom, 12)
         .confirmationDialog(L("Delete this meeting?"), isPresented: $confirmDelete) {
-            Button(L("Move to Trash"), role: .destructive) {
+            Button(Self.deleteButton, role: .destructive) {
                 store.delete(meeting)
                 WindowManager.shared.closeMeeting(meeting.id)
             }
         } message: {
-            Text("The whole folder goes to the Trash, so you can still get it back from there.")
+            Text(Self.deleteMessage)
         }
+    }
+
+    /// The Mac moves the folder to the Finder's Trash, where you can get it back.
+    /// An iPhone has no Trash you can open, so the same call just hides the folder
+    /// inside Ata's own container — promising it back would be a lie. The list
+    /// screen says it this way too.
+    private static var deleteButton: String {
+        #if os(iOS)
+        return L("Delete")
+        #else
+        return L("Move to Trash")
+        #endif
+    }
+
+    private static var deleteMessage: String {
+        #if os(iOS)
+        return CloudLibrary.isActive
+            ? L("The recording, the transcript and your notes are deleted from iCloud, on every device.")
+            : L("The recording, the transcript and your notes are deleted from this iPhone.")
+        #else
+        return L("The whole folder goes to the Trash, so you can still get it back from there.")
+        #endif
     }
 
     // MARK: Header
@@ -769,6 +796,9 @@ private struct SpeakerRow: View {
                     .help(L("Same person as"))
                 }
                 Menu {
+                    Button(voice.isMe ? L("Not me") : L("This is me")) {
+                        model.setMe(speaker, !voice.isMe)
+                    }
                     if voice.name == nil {
                         Button(voice.isDismissed ? L("Ask again") : L("Don't ask about this voice")) {
                             model.dismiss(speaker, !voice.isDismissed)
@@ -785,6 +815,7 @@ private struct SpeakerRow: View {
                 .menuIndicator(.hidden)
                 .fixedSize()
                 .help(L("More"))
+                .accessibilityLabel(L("More"))
             }
         }
         .padding(.horizontal, 4)
@@ -820,7 +851,18 @@ struct TranscribeAgainMenu: View {
         if meeting.hasAudio && meeting.status != .transcribing && meeting.status != .recording {
             Button("Transcribe again") { store.retry(meeting) }
             #if os(iOS)
-            // The phone has one engine: Apple's, on the device.
+            // The phone has one engine, Apple's, on the device, so there is no
+            // engine to choose — but a transcript in the wrong language is the
+            // usual reason to run one again, and that it can do.
+            Menu("Transcribe again in") {
+                ForEach(Pref.languageChoices, id: \.code) { choice in
+                    Button(choice.name) {
+                        store.retry(meeting, with: TranscribeOverride(engine: Engine.apple.rawValue,
+                                                                      model: AppleSpeechEngine.modelID,
+                                                                      language: choice.code))
+                    }
+                }
+            }
             #else
             Menu("Transcribe again with") {
                 Section("On this Mac") {
@@ -937,6 +979,18 @@ struct WaveformView: View {
             }
         }
         .frame(height: 40)
-        .help(L("You below, the others above. Click to jump."))
+        .help(Self.legend)
+        .accessibilityLabel(Self.legend)
+    }
+
+    /// A Mac records your microphone and the system's audio as two lanes. A phone
+    /// records one microphone, so everyone in the room is in the same lane and
+    /// there is no "others" to point at.
+    private static var legend: String {
+        #if os(iOS)
+        return L("The whole recording. Tap to jump.")
+        #else
+        return L("You below, the others above. Click to jump.")
+        #endif
     }
 }
