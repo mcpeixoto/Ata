@@ -104,6 +104,22 @@ if [ -n "${SWIFT_TEST_DIR:-}" ]; then
   ( cd "$SWIFT_TEST_DIR" && swift test )
 fi
 
+# The profiles the export names. Installed here too, not only on CI: a Mac that has never
+# run this app's setup script has no more of them than a runner does, and the failure is the
+# same one, ten minutes later.
+bold "profiles"
+if python3 -c 'import jwt' 2>/dev/null; then
+  ASC_KEY_PATH="$key" ASC_KEY_ID="$key_id" ASC_ISSUER="$issuer" \
+    IOS_DIR="$IOS_DIR" EXPORT_OPTIONS="$EXPORT_OPTIONS" \
+    python3 "$root/scripts/install-profiles.py"
+elif command -v uv >/dev/null; then
+  ASC_KEY_PATH="$key" ASC_KEY_ID="$key_id" ASC_ISSUER="$issuer" \
+    IOS_DIR="$IOS_DIR" EXPORT_OPTIONS="$EXPORT_OPTIONS" \
+    uv run --quiet --with "pyjwt[crypto]" python "$root/scripts/install-profiles.py"
+else
+  die "PyJWT is not available and neither is uv; install one so the profiles can be fetched"
+fi
+
 auth=(-allowProvisioningUpdates
       -authenticationKeyPath "$key"
       -authenticationKeyID "$key_id"

@@ -239,6 +239,23 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      # The profiles the export names, onto this runner.
+      #
+      # A manual-signing build fails with "No 'iOS App Store' profiles for team X matching
+      # 'Y' are installed" unless the profile is already on the machine, and
+      # -allowProvisioningUpdates does not fetch it: it makes Xcode-managed profiles, and a
+      # named profile is not one. On the maintainer's Mac they are there because a setup
+      # script installed them once — which is why an export works by hand and fails on a
+      # fresh runner, ten minutes into an archive.
+      - name: Install the App Store profiles
+        env:
+          ASC_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          ASC_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          python3 -m pip install --quiet --disable-pip-version-check pyjwt cryptography \
+            || python3 -m pip install --quiet --disable-pip-version-check --break-system-packages pyjwt cryptography
+          python3 scripts/install-profiles.py
+
       # The version, before the project is generated, because both keys are project
       # settings that the generate step bakes into Info.plist.
       #
