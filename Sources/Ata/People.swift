@@ -6,8 +6,21 @@ import SwiftUI
 protocol Diarizer {
     /// Speaker turns and one embedding per speaker label.
     func diarize(_ wav: URL) async throws -> (turns: [SpeakerTurn], embeddings: [String: [Float]])
-    /// One embedding for a single-speaker track (your microphone).
-    func embed(_ wav: URL) async throws -> [Float]?
+    /// The main speaker of a track, with the share of the track's speech that
+    /// speaker holds — 1.0 when the track really is one person, and much less
+    /// when it is a room. `minimumSecondsToLearn` is the speech a speaker must
+    /// have for a fingerprint worth keeping; a recording you made of yourself on
+    /// purpose needs no such floor, so it passes 0.
+    func mainSpeaker(_ wav: URL, minimumSecondsToLearn: Double) async throws
+        -> (embedding: [Float], share: Double)?
+}
+
+extension Diarizer {
+    /// One embedding for a track you know is a single speaker: a clip you
+    /// recorded of yourself, where whatever is there is your voice.
+    func embed(_ wav: URL) async throws -> [Float]? {
+        try await mainSpeaker(wav, minimumSecondsToLearn: 0)?.embedding
+    }
 }
 
 /// The voice library as the UI sees it: loaded once, saved on every change,
@@ -41,6 +54,23 @@ final class PeopleModel: ObservableObject {
         let out = library.assign(speakers, meetingID: meetingID)
         persist()
         return out
+    }
+
+    /// A clip you recorded of yourself becomes the voice that is you: marked,
+    /// named by `Pref.myName`, and linked to the voice already heard in meetings
+    /// when it is the same person. Every transcript that voice appears in is
+    /// drawn again.
+    /// Awaits the sample copy rather than spawning it: the caller deletes the
+    /// clip as soon as this returns, and a copy still reading it would find
+    /// nothing, leaving the voice with no sample to play back.
+    func enrolMe(embedding: [Float], clip: URL) async {
+        library = VoiceLibrary()
+        let voice = library.enrolMe(embedding: embedding)
+        persist()
+        if let sample = await VoiceSamples.keep(clip: clip, voice: voice.id) {
+            setSample(voice.id, file: sample)
+        }
+        rerender(meetings: voice.meetingIDs)
     }
 
     /// Your voice as the library knows it now, read fresh: an in-person meeting
@@ -190,6 +220,21 @@ final class PeopleModel: ObservableObject {
 
 /// Cuts a few seconds of one speaker out of a recording, for the play button.
 enum VoiceSamples {
+    /// An enrolment clip as that voice's sample, so the People tab can play back
+    /// what Ata learned you from. The clip itself is a temporary file the caller
+    /// deletes; this is a compressed copy.
+    static func keep(clip: URL, voice: UUID, maxSeconds: Double = 6) async -> String? {
+        try? FileManager.default.createDirectory(at: Paths.voicesDir, withIntermediateDirectories: true)
+        let name = "\(voice.uuidString).m4a"
+        let out = Paths.voicesDir.appendingPathComponent(name)
+        try? FileManager.default.removeItem(at: out)
+
+        let asset = AVURLAsset(url: clip)
+        guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetAppleM4A) else { return nil }
+        session.timeRange = CMTimeRange(start: .zero, duration: CMTime(seconds: maxSeconds, preferredTimescale: 1000))
+        return await AudioFiles.runExport(session, to: out) == nil ? name : nil
+    }
+
     /// The longest turn of `label`, up to `maxSeconds`, as an m4a in the voices folder.
     static func extract(label: String, turns: [SpeakerTurn], from audio: URL, voice: UUID,
                         maxSeconds: Double = 6) async -> String? {

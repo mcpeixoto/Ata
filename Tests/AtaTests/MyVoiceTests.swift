@@ -11,15 +11,23 @@ import XCTest
 /// only one, that it survives two devices, and that it reaches transcripts.
 final class MyVoiceTests: XCTestCase {
     private var file: URL!
+    private var savedThreshold: Float = 0
+    private var savedLead: Float = 0
 
     override func setUp() {
         super.setUp()
         file = FileManager.default.temporaryDirectory.appendingPathComponent("voices-\(UUID().uuidString).json")
+        // Put back on the way out: these are static, so leaving them moved made
+        // every later test class depend on which ran first.
+        savedThreshold = VoiceLibrary.matchThreshold
+        savedLead = VoiceLibrary.requiredLead
         VoiceLibrary.matchThreshold = 0.6
         VoiceLibrary.requiredLead = 0.1
     }
 
     override func tearDown() {
+        VoiceLibrary.matchThreshold = savedThreshold
+        VoiceLibrary.requiredLead = savedLead
         try? FileManager.default.removeItem(at: file)
         super.tearDown()
     }

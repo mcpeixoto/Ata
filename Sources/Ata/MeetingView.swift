@@ -666,7 +666,7 @@ private struct PeopleTab: View {
     @EnvironmentObject var store: AppStore
     @ObservedObject var model: MeetingModel
     let meeting: Meeting
-    @AppStorage(Pref.recogniseVoices) private var recognise = false
+    @AppStorage(Pref.recogniseVoices) private var recognise = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -714,7 +714,7 @@ private struct PeopleTab: View {
                 }
             } else {
                 Text("No voices for this meeting yet").font(.system(size: 13, weight: .semibold))
-                Text("Voices are found while a meeting is transcribed. This one was transcribed before voice recognition was on, or nobody else spoke.")
+                Text("Voices are found while a meeting is transcribed. This one was transcribed before voice recognition was on, or there was no speech to tell apart.")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -739,6 +739,17 @@ private struct SpeakerRow: View {
 
     private var named: Bool { speaker.voice?.name != nil }
 
+    /// This row is you — and Ata only guessed so, because the voice under it is
+    /// not marked as yours. Saying "This is me" once settles it for good.
+    private var guessedYou: Bool {
+        speaker.label == Speakers.me && speaker.voice?.isMe == false
+    }
+
+    /// You, as the library already knows you: nothing to confirm or correct.
+    private var knownYou: Bool {
+        speaker.label == Speakers.me && (speaker.voice == nil || speaker.voice?.isMe == true)
+    }
+
     var body: some View {
         HStack(spacing: 8) {
             Button { model.play(speaker) } label: {
@@ -757,7 +768,7 @@ private struct SpeakerRow: View {
                 if !editing {
                     Text(speaker.name).font(.system(size: 12, weight: .semibold)).lineLimit(1)
                 }
-                if speaker.voice != nil, !named || editing {
+                if speaker.voice != nil, speaker.label != Speakers.me, !named || editing {
                     TextField(L("Name"), text: $name, prompt: Text(L("Type their name…")))
                         .textFieldStyle(.roundedBorder)
                         .controlSize(.small)
@@ -771,7 +782,7 @@ private struct SpeakerRow: View {
             Spacer(minLength: 4)
             if !name.trimmingCharacters(in: .whitespaces).isEmpty {
                 Button(L("Save")) { save() }.controlSize(.small)
-            } else if named, !editing {
+            } else if named, !editing, speaker.label != Speakers.me {
                 Button(L("Rename…")) {
                     name = speaker.voice?.name ?? ""
                     editing = true
@@ -781,7 +792,7 @@ private struct SpeakerRow: View {
             }
             if let voice = speaker.voice {
                 let others = people.voices.filter { $0.id != voice.id && $0.name != nil }
-                if !others.isEmpty {
+                if !others.isEmpty, speaker.label != Speakers.me {
                     Menu {
                         ForEach(others) { other in
                             Button(other.name ?? "") { model.merge(speaker, into: other) }
@@ -799,13 +810,15 @@ private struct SpeakerRow: View {
                     Button(voice.isMe ? L("Not me") : L("This is me")) {
                         model.setMe(speaker, !voice.isMe)
                     }
-                    if voice.name == nil {
-                        Button(voice.isDismissed ? L("Ask again") : L("Don't ask about this voice")) {
-                            model.dismiss(speaker, !voice.isDismissed)
+                    if speaker.label != Speakers.me {
+                        if voice.name == nil {
+                            Button(voice.isDismissed ? L("Ask again") : L("Don't ask about this voice")) {
+                                model.dismiss(speaker, !voice.isDismissed)
+                            }
                         }
-                    }
-                    Button(voice.isExcluded ? L("Put back in transcripts") : L("Leave out of transcripts")) {
-                        model.exclude(speaker, !voice.isExcluded)
+                        Button(voice.isExcluded ? L("Put back in transcripts") : L("Leave out of transcripts")) {
+                            model.exclude(speaker, !voice.isExcluded)
+                        }
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
@@ -827,7 +840,14 @@ private struct SpeakerRow: View {
         if speaker.voice?.isExcluded == true { return L("Left out of transcripts") }
         let minutes = Int((speaker.seconds / 60).rounded())
         let talked = minutes < 1 ? L("<1 min") : L("%d min", minutes)
-        guard let voice = speaker.voice, voice.meetings > 1 else { return L("Talked for %@", talked) }
+        if guessedYou { return L("Talked for %@ · Ata's guess at which voice is yours", talked) }
+        if knownYou { return L("Talked for %@ · you", talked) }
+        guard let voice = speaker.voice else {
+            // No fingerprint: they spoke, but not long enough for Ata to learn
+            // their voice, so there is nothing to name or carry to the next meeting.
+            return L("Talked for %@ · too brief to learn this voice", talked)
+        }
+        guard voice.meetings > 1 else { return L("Talked for %@", talked) }
         return L("Talked for %@ · in %d meetings", talked, voice.meetings)
     }
 

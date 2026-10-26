@@ -81,6 +81,14 @@ final class VoiceLibrary {
     /// a coin-flip between two names.
     static var requiredLead: Float = 0.1
 
+    /// Cosine at or above which two fingerprints are taken to be one person
+    /// heard twice, rather than two people who sound alike. Stricter than
+    /// `matchThreshold`, because this one decides that an ambiguity is not an
+    /// ambiguity at all: measured, the same voice scored 0.95–0.96 across
+    /// recordings and 0.82–0.85 over a phone-quality copy, while different
+    /// voices never passed 0.49.
+    static var sameSpeakerThreshold: Float = 0.85
+
     /// An unnamed voice is worth asking about once it has turned up in this many meetings.
     static let askAfterMeetings = 2
 
@@ -328,7 +336,17 @@ final class VoiceLibrary {
                 .map { (v: $0.offset, sim: Self.cosine(speaker.embedding, $0.element.centroid)) }
                 .sorted { $0.sim > $1.sim }
             guard let best = scores.first, best.sim >= Self.matchThreshold else { continue }
-            if scores.count > 1, best.sim - scores[1].sim < Self.requiredLead { continue }
+            // The lead rule is here to stop a coin-flip between two different
+            // people. Two library voices that sound like *each other* are not two
+            // people: the diarizer hears one person as two often enough that the
+            // library holds duplicates of them, and asking for a lead between a
+            // voice and its own copy matched neither — it minted a third copy, and
+            // did it again every meeting, so a name the user had given stopped
+            // being used and "Who's this?" never filled up.
+            if scores.count > 1, best.sim - scores[1].sim < Self.requiredLead,
+               Self.cosine(voices[best.v].centroid, voices[scores[1].v].centroid) < Self.matchThreshold {
+                continue
+            }
             candidates.append((s, best.v, best.sim))
         }
         candidates.sort { $0.similarity > $1.similarity }
@@ -341,6 +359,12 @@ final class VoiceLibrary {
             result[c.speaker].voiceID = voices[c.voice].id
         }
 
+        // Two speakers of one meeting never share a voice: the diarizer says they
+        // are two people, and that invariant is what keeps a conversation from
+        // collapsing into one name. When it is wrong — one person heard as two —
+        // the library ends up with a near-identical pair, which the lead rule
+        // above now recognises as one person rather than minting a third copy of
+        // them every meeting after. "Same person as" merges the pair for good.
         for (s, speaker) in speakers.enumerated() where !takenSpeakers.contains(s) && !speaker.embedding.isEmpty {
             let next = (voices.compactMap(\.number).max() ?? 0) + 1
             let voice = Voice(id: UUID(), name: nil, centroid: Self.normalised(speaker.embedding), observations: 1,
@@ -363,7 +387,11 @@ final class VoiceLibrary {
         if !v.meetingIDs.contains(meetingID) { v.meetingIDs.append(meetingID) }
         v.lastSeen = max(v.lastSeen, date)
         v.model = Self.model
-        if speaker.label == "me" { v.isMe = true }
+        // Only an unnamed voice, or one already yours, is learned as you. Without
+        // headphones the microphone carries the others' voices back through the
+        // speaker, and echo removal is best-effort; one bad call would otherwise
+        // put "this is you" on a colleague you had named, for good.
+        if speaker.label == "me", v.name == nil || v.isMe { v.isMe = true }
         voices[i] = v
     }
 
@@ -458,6 +486,51 @@ final class VoiceLibrary {
         guard let i = voices.firstIndex(where: { $0.id == id }) else { return }
         voices[i].excluded = on ? true : nil
         voices[i].edited = Voice.editStamp()
+    }
+
+    /// Your voice, read into the microphone on purpose.
+    ///
+    /// A recording you made of yourself outranks anything the pipeline guessed:
+    /// it is the one fingerprint of you that cannot be a mistake. If a voice
+    /// already in the library sounds like it, that is you heard in past meetings
+    /// and it is marked rather than duplicated — so those meetings' speaker
+    /// becomes you too. Otherwise a new voice is added.
+    ///
+    /// Returns the voice that is now yours.
+    @discardableResult
+    func enrolMe(embedding: [Float], sample: String? = nil, at date: Date = Date()) -> Voice {
+        let fingerprint = Self.normalised(embedding)
+        let best = voices.enumerated()
+            .filter { Self.isCurrent($0.element) }
+            .map { (v: $0.offset, sim: Self.cosine(fingerprint, $0.element.centroid)) }
+            .max { $0.sim < $1.sim }
+
+        // Every by-hand mark is cleared: this is now the voice that is you.
+        for j in voices.indices where voices[j].isMe && voices[j].edited != nil {
+            voices[j].isMe = false
+            voices[j].edited = Voice.editStamp(date)
+        }
+
+        if let best, best.sim >= Self.matchThreshold {
+            var v = voices[best.v]
+            let n = Float(v.observations)
+            v.centroid = Self.normalised(zip(v.centroid, fingerprint).map { ($0 * n + $1) / (n + 1) })
+            v.observations += 1
+            v.isMe = true
+            v.lastSeen = max(v.lastSeen, date)
+            v.model = Self.model
+            if v.sample == nil { v.sample = sample }
+            v.edited = Voice.editStamp(date)
+            voices[best.v] = v
+            return v
+        }
+
+        let next = (voices.compactMap(\.number).max() ?? 0) + 1
+        let voice = Voice(id: UUID(), name: nil, centroid: fingerprint, observations: 1, meetingIDs: [],
+                          sample: sample, firstSeen: date, lastSeen: date, isMe: true, number: next,
+                          model: Self.model, edited: Voice.editStamp(date))
+        voices.append(voice)
+        return voice
     }
 
     /// "This voice is me", or no longer me. One voice at a time is yours by hand:
@@ -701,15 +774,35 @@ enum SpeakerRoute: Equatable {
     /// two must not turn a conversation in the room into a call.
     static let minimumSystemSeconds = 3.0
 
+    /// And it must be this much of the recording. Three seconds alone was enough
+    /// to call an hour in a meeting room a call — one played video, one ringtone,
+    /// one demo — and down that path the microphone is the whole room: everyone
+    /// in it got your name, and the loudest of them was learned as your voice.
+    /// The other side of a real call speaks for far more of it than a twentieth.
+    static let minimumSystemShare = 0.05
+
     /// Louder than −50 dBFS counts as sound; a process tap is digital silence
     /// while nothing plays.
     static let audibleLevel = Waveform.level(rms: pow(10, -50.0 / 20))
 
     /// `systemLevels` is the system track's waveform lane (`Waveform.levels`), nil
-    /// when there was no system track worth transcribing.
-    static func choose(systemLevels: [UInt8]?, hasMic: Bool) -> SpeakerRoute {
-        if let systemLevels, audibleSeconds(systemLevels) >= minimumSystemSeconds { return .call }
+    /// when there was no system track worth transcribing. `systemUnreadable` says
+    /// there was one but its levels could not be read.
+    static func choose(systemLevels: [UInt8]?, hasMic: Bool, systemUnreadable: Bool = false) -> SpeakerRoute {
+        if let systemLevels, isCall(systemLevels) { return .call }
+        // A track whose levels wouldn't read is a track all the same. Calling it
+        // silence sent real calls down the in-person path, where the microphone —
+        // your voice with the others' echo over it — was taken for a room.
+        if systemUnreadable { return .call }
         return hasMic ? .inPerson : .nobody
+    }
+
+    /// Enough sound, for long enough and for enough of the recording, to be the
+    /// other side of a call rather than something that played in the room.
+    static func isCall(_ levels: [UInt8]) -> Bool {
+        let heard = audibleSeconds(levels)
+        let whole = Double(levels.count) * Double(Waveform.bucketMs) / 1000
+        return heard >= max(minimumSystemSeconds, whole * minimumSystemShare)
     }
 
     static func audibleSeconds(_ levels: [UInt8]) -> Double {
@@ -751,13 +844,27 @@ enum InPerson {
     /// nearest to you. Nil only when nobody spoke.
     static func me(among clusters: [Cluster], fingerprints: [[Float]]) -> Me? {
         if !fingerprints.isEmpty {
-            let scores = clusters.compactMap { c -> (label: String, similarity: Float)? in
+            let scores = clusters.compactMap { c -> (label: String, embedding: [Float], similarity: Float)? in
                 guard let e = c.embedding, !e.isEmpty else { return nil }
-                return (c.label, fingerprints.map { VoiceLibrary.cosine(e, $0) }.max() ?? 0)
+                return (c.label, e, fingerprints.map { VoiceLibrary.cosine(e, $0) }.max() ?? 0)
             }.sorted { $0.similarity > $1.similarity }
-            if let best = scores.first, best.similarity >= VoiceLibrary.matchThreshold,
-               scores.count < 2 || best.similarity - scores[1].similarity >= VoiceLibrary.requiredLead {
-                return Me(label: best.label, recognised: true)
+            if let best = scores.first, best.similarity >= VoiceLibrary.matchThreshold {
+                if scores.count < 2 || best.similarity - scores[1].similarity >= VoiceLibrary.requiredLead {
+                    return Me(label: best.label, recognised: true)
+                }
+                // The lead rule separates two different people. When the two best
+                // candidates sound like *each other*, they are one person the
+                // diarizer split in two and either of them is you — so the answer
+                // is "the longer one", not "I don't know". Giving up here handed
+                // the meeting back to a guess, and the guess then put your name on
+                // whoever had talked most, which could be somebody else entirely.
+                if VoiceLibrary.cosine(scores[0].embedding, scores[1].embedding)
+                    >= VoiceLibrary.sameSpeakerThreshold {
+                    let tied = Set([scores[0].label, scores[1].label])
+                    let longest = clusters.filter { tied.contains($0.label) }
+                        .max { $0.seconds < $1.seconds }
+                    return Me(label: longest?.label ?? best.label, recognised: true)
+                }
             }
         }
         let most = clusters.max { a, b in a.seconds < b.seconds || (a.seconds == b.seconds && a.label > b.label) }
@@ -775,6 +882,21 @@ enum InPerson {
             out[t.label] = "S\(n)"
         }
         return out
+    }
+
+    /// The label a guessed "you" should hand over to.
+    ///
+    /// Ata falls back to "whoever spoke longest is you" when it has no
+    /// fingerprint of you or no clear match. If the library then recognises a
+    /// *different* speaker of the same meeting as you, the library is right and
+    /// the guess is not: the two labels swap, so the guess becomes an ordinary
+    /// participant instead of leaving two people under your name. Nil when the
+    /// guess stands — Ata recognised you outright, or nothing it found is you.
+    static func correction(guessed: Bool, assigned: [MeetingSpeaker], myVoices: Set<UUID>) -> String? {
+        guard guessed else { return nil }
+        return assigned.first { s in
+            s.label != Speakers.guessedMe && s.voiceID.map(myVoices.contains) == true
+        }?.label
     }
 
     /// Labels the library matched to your own voice after all: the diarizer

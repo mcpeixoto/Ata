@@ -171,6 +171,13 @@ enum Speakers {
     static let me = "me"
     static let others = "others"
 
+    /// The cluster Ata takes for you without recognising your voice. It reads as
+    /// you in the transcript, but the library is handed it under this label so it
+    /// is learned as an ordinary voice: marking a guess as "you" would put your
+    /// name on someone else for good, and dropping it — which is what Ata used to
+    /// do — left the person it mistook for you with no row to correct.
+    static let guessedMe = "me?"
+
     /// The labels in this meeting whose voice the user left out of transcripts.
     static func leftOut(for meeting: Meeting) -> Set<String> {
         guard let map = MeetingVoices.load(for: meeting) else { return [] }
@@ -461,10 +468,14 @@ enum Transcriber {
     private static func recogniseSpeakers(_ segments: [Segment], meeting: Meeting, diarizer: Diarizer,
                                           system: URL?, mic: URL?) async -> [Segment] {
         // The waveform was just drawn from these same tracks; read only if it wasn't.
-        let systemLevels: [UInt8]? = system.map { url in
-            Waveform.read(from: meeting.waveformURL)?.others ?? ((try? Waveform.levels(url)) ?? [])
+        // A read that fails says nothing about the track. Calling it silent sent a
+        // real call down the in-person path, where the microphone — your voice
+        // plus the others' echo — was diarized as a room.
+        let systemLevels: [UInt8]? = system.flatMap { url in
+            Waveform.read(from: meeting.waveformURL)?.others ?? (try? Waveform.levels(url))
         }
-        switch SpeakerRoute.choose(systemLevels: systemLevels, hasMic: mic != nil) {
+        switch SpeakerRoute.choose(systemLevels: systemLevels, hasMic: mic != nil,
+                                   systemUnreadable: system != nil && systemLevels == nil) {
         case .call:
             break
         case .inPerson:
@@ -502,16 +513,32 @@ enum Transcriber {
             }
         }
         // Learned as your voice (`Voice.isMe`), which is how a later meeting in the
-        // room knows which of its speakers is you.
-        if let mic, let e = try? await diarizer.embed(mic) {
-            speakers.append(MeetingSpeaker(label: Speakers.me, embedding: e, seconds: 0, voiceID: nil))
+        // room knows which of its speakers is you — but only when the microphone
+        // really was one person. Three seconds of anything playing is enough to
+        // route a meeting held in the room down this path, and there the
+        // microphone is the whole room: learning its loudest speaker as you put
+        // your name on a colleague and kept it.
+        if let mic, let main = try? await diarizer.mainSpeaker(mic, minimumSecondsToLearn: FluidDiarizer.minimumSecondsToLearn) {
+            if main.share >= Self.micIsOneVoiceShare {
+                speakers.append(MeetingSpeaker(label: Speakers.me, embedding: main.embedding, seconds: 0, voiceID: nil))
+            } else {
+                NSLog("Ata: the microphone held several voices (%.0f%% main speaker); not learned as yours",
+                      main.share * 100)
+            }
         }
-        guard !speakers.isEmpty else { return relabelled }
 
+        // Saved even when nobody could be fingerprinted. The turns are what split
+        // the lines and what the meeting screen lists its speakers from; throwing
+        // them away left a transcript full of "Speaker 1" beside a People tab
+        // claiming nobody else spoke, and "Transcribe again" as the only offer.
         let found = speakers
-        let assigned = await MainActor.run { PeopleModel.shared.assign(found, meetingID: meeting.id) }
-        try? MeetingVoices(speakers: assigned, turns: turns).save(for: meeting)
-        if let system { await cutSamples(for: assigned, turns: turns, from: system) }
+        let assigned = found.isEmpty
+            ? []
+            : await MainActor.run { PeopleModel.shared.assign(found, meetingID: meeting.id) }
+        if !assigned.isEmpty || !turns.isEmpty {
+            try? MeetingVoices(speakers: assigned, turns: turns).save(for: meeting)
+        }
+        if let system, !assigned.isEmpty { await cutSamples(for: assigned, turns: turns, from: system) }
         return relabelled
     }
 
@@ -533,11 +560,18 @@ enum Transcriber {
 
         let rename = InPerson.labels(found.turns, me: me.label)
         var turns = found.turns.map { SpeakerTurn(start: $0.start, end: $0.end, label: rename[$0.label] ?? $0.label) }
+
+        // Every speaker with a fingerprint goes to the library, you included. A
+        // guessed "you" goes under `Speakers.guessedMe` so it is learned as an
+        // ordinary voice rather than marked as yours: it then has a row in the
+        // meeting, and one tap corrects it. Dropping it — which is what Ata did
+        // before — is why the person it mistook for you could never be told
+        // apart, named, or marked, meeting after meeting.
         var speakers: [MeetingSpeaker] = []
         for c in clusters {
             guard let e = c.embedding, let label = rename[c.label] else { continue }
-            if label == Speakers.me && !me.recognised { continue }
-            speakers.append(MeetingSpeaker(label: label, embedding: e, seconds: c.seconds, voiceID: nil))
+            let learnAs = label == Speakers.me && !me.recognised ? Speakers.guessedMe : label
+            speakers.append(MeetingSpeaker(label: learnAs, embedding: e, seconds: c.seconds, voiceID: nil))
         }
 
         var assigned: [MeetingSpeaker] = []
@@ -545,6 +579,39 @@ enum Transcriber {
             let toAssign = speakers
             assigned = await MainActor.run { PeopleModel.shared.assign(toAssign, meetingID: meeting.id) }
             let myVoices = await MainActor.run { Set(PeopleModel.shared.voices.filter(\.isMe).map(\.id)) }
+
+            // The library beats the guess. When Ata fell back to "whoever spoke
+            // longest" and the library then recognised a *different* speaker as
+            // you, that speaker is you — and the two labels swap, so the guess
+            // becomes an ordinary participant instead of leaving two people
+            // under your name.
+            if let known = InPerson.correction(guessed: !me.recognised, assigned: assigned,
+                                               myVoices: myVoices) {
+                turns = turns.map { t in
+                    switch t.label {
+                    case Speakers.me: return SpeakerTurn(start: t.start, end: t.end, label: known)
+                    case known: return SpeakerTurn(start: t.start, end: t.end, label: Speakers.me)
+                    default: return t
+                    }
+                }
+                assigned = assigned.map { s in
+                    guard s.label == Speakers.guessedMe else { return s }
+                    var s = s
+                    s.label = known
+                    return s
+                }
+                assigned.removeAll { $0.label == known && $0.voiceID.map(myVoices.contains) == true }
+            } else {
+                // The guess stands: its row goes back under "me", so the meeting
+                // screen can show who Ata thinks you are and let you say otherwise.
+                assigned = assigned.map { s in
+                    guard s.label == Speakers.guessedMe else { return s }
+                    var s = s
+                    s.label = Speakers.me
+                    return s
+                }
+            }
+
             let alsoMe = InPerson.alsoMe(assigned, myVoices: myVoices)
             if !alsoMe.isEmpty {
                 turns = turns.map { alsoMe.contains($0.label) ? SpeakerTurn(start: $0.start, end: $0.end, label: Speakers.me) : $0 }
@@ -557,16 +624,28 @@ enum Transcriber {
             guard s.speaker == Speakers.me else { return [s] }
             return SpeakerAssignment.split(s, turns: turns)
         }
-        if !assigned.isEmpty {
+        // The turns are kept even when nobody could be fingerprinted: they are
+        // what the meeting screen lists its speakers from, and what tells a
+        // short meeting apart from one Ata heard nothing in.
+        if !assigned.isEmpty || !turns.isEmpty {
             try? MeetingVoices(speakers: assigned, turns: turns).save(for: meeting)
-            await cutSamples(for: assigned, turns: turns, from: mic)
         }
+        if !assigned.isEmpty { await cutSamples(for: assigned, turns: turns, from: mic) }
         return relabelled
     }
 
+    /// How much of a microphone track's speech its main speaker must hold for the
+    /// track to count as one person — you. Below it the track is a room, and
+    /// nothing on it is learned as your voice.
+    static let micIsOneVoiceShare = 0.8
+
     /// A few seconds of each new voice, so the user can hear who it is.
     private static func cutSamples(for assigned: [MeetingSpeaker], turns: [SpeakerTurn], from audio: URL) async {
-        for speaker in assigned where speaker.label != Speakers.me {
+        // Including the speaker Ata only guesses is you: correcting that guess
+        // means knowing whether it sounds like you, which means being able to
+        // play it. On a call the microphone has no turns of its own, so nothing
+        // is cut for it and the "me" row stays sampleless, as before.
+        for speaker in assigned {
             guard let id = speaker.voiceID else { continue }
             let hasSample = await MainActor.run { PeopleModel.shared.voices.first { $0.id == id }?.sample != nil }
             if hasSample { continue }

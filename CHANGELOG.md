@@ -1,5 +1,63 @@
 # Changelog
 
+## 2.9.0
+
+Voice recognition, gone over end to end. It was on in the app and off in practice: a
+meeting would come back with everyone under one name, or with no voices at all.
+
+- **Tell Ata your voice by reading a paragraph.** In People, "Record my voice" takes twenty
+  seconds and settles it: from the next meeting on, Ata knows you in a room full of people.
+  Until now your own voice could only be learned from the microphone track of a call, which
+  an iPhone never has — so on a phone it was never learned at all, and every in-person
+  meeting fell back to "whoever talked longest is you". Your name sits beside it in the same
+  place, so the two things only you can tell Ata are together.
+- **Voice recognition is on by default.** It was off unless you found the switch, which is
+  why a Mac that had never been told otherwise produced transcripts of "Me" and "Others".
+  Fingerprints still never leave the device, or your own iCloud.
+- **The speaker Ata guesses is you now has a row you can correct.** It used to be thrown
+  away: the person Ata had mistaken for you could never be told apart, named, or marked, and
+  the guess repeated itself every meeting. The meeting's People tab now shows that row, says
+  it is a guess, and one tap puts it right. If the library recognises a *different* speaker
+  as you, the library wins and the guess becomes an ordinary participant — before, both read
+  as you.
+- **One person is no longer learned twice over, and over.** When the diarizer heard someone
+  as two voices, the library held a near-identical pair — and then refused to match either,
+  because neither beat the other by enough, so it added a third copy. Every meeting added
+  one more, names stopped sticking, and "Who's this?" stayed empty because no copy was ever
+  heard twice. Two voices that sound like each other are now read as one person.
+- **A quiet participant is a person.** The bar for learning a voice was ten seconds of
+  speech across a whole meeting, so anyone who only answered a question — and everyone in a
+  short meeting — got no fingerprint, no row and no name: the transcript said "Speaker 2"
+  while the People tab said nobody else spoke. It is five seconds now, and every speaker the
+  recording found is listed either way, with the truth about why some cannot be named.
+- **Your microphone is only learned as you when it really is you.** Three seconds of
+  anything playing is enough to make Ata treat a meeting held in the room as a call, and
+  there the microphone is the whole room: its loudest speaker was learned as your voice. A
+  named colleague could be marked as you and your fingerprint averaged into theirs, with no
+  way back. Neither happens now.
+- **Something playing in the room is no longer a call.** Three seconds of audible system
+  audio was enough to make an hour in a meeting room count as a call — one video, one
+  ringtone, one demo — and down that path the microphone is the whole room: everyone in it
+  got your name. A call now has to be a share of the recording as well.
+- **A system track Ata cannot read is treated as a call, not as silence.** It was the other
+  way round, which sent real calls down the in-person path and diarized a microphone holding
+  your voice with everyone else's echo over it.
+- **Settings says what the OpenAI models cost you.** The model Ata defaults to, `whisper-1`,
+  is the oldest of them; the accurate ones return no timestamps, and without timestamps
+  voices are not told apart at all — which used to happen in silence. Both are now said
+  plainly, next to the choice.
+- Apple's speech recognition is offered only where the device can actually run its models,
+  not merely where the OS is new enough. An iPhone that cannot is told so, instead of being
+  pointed at whisper.cpp, which only the Mac has.
+- **Two clusters that are both you are no longer an ambiguity.** When the diarizer split
+  your own voice in two, neither half beat the other by the lead Ata asks for, so it gave up
+  and fell back to "whoever talked most" — who could be someone else entirely, and then two
+  people read as you in the same transcript. Two clusters that sound like each other are one
+  person, and the longer one is you.
+- A weaker transcription model you picked yourself is still mentioned once in Settings. The
+  nudge used to appear only if you had never chosen, so a choice made when Turbo was the
+  default was never revisited.
+
 ## 2.8.0
 
 Ata on the iPhone catches up with the Mac, starting with the one thing it could never do:

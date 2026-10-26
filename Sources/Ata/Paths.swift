@@ -113,7 +113,7 @@ enum Pref {
     static let summaryModel = "summaryModel"
     static let summaryEngine = "summaryEngine" // "auto" | SummaryEngine.rawValue
     static let audioRetentionDays = "audioRetentionDays" // 0 = keep forever
-    static let recogniseVoices = "recogniseVoices" // diarize and match voices; off by default
+    static let recogniseVoices = "recogniseVoices" // diarize and match voices
     static let cancelEcho = "cancelEcho"     // take the others out of the mic before transcribing
     static let autoUpdate = "autoUpdate"     // check GitHub for new releases
     static let updateFeed = "updateFeed"     // override the release feed (forks)
@@ -162,7 +162,12 @@ enum Pref {
             summaryEngine: "auto",
             autoUpdate: true,
             audioRetentionDays: 0,
-            recogniseVoices: false,
+            // On. Knowing who said what is the point of a transcript of a
+            // conversation, and a transcript where everyone is "Me" or "Them" is
+            // the complaint this default used to cause. Fingerprints never leave
+            // the device (or the user's own iCloud); the one cost is 21 MB of
+            // models, downloaded the first time a meeting is transcribed.
+            recogniseVoices: true,
             cancelEcho: true,
             iCloudSync: false,
         ]) { platform, _ in platform })
@@ -191,11 +196,10 @@ enum Pref {
         ]
         #else
         // The phone transcribes and summarizes with Apple's on-device models, which
-        // cost nothing, and an in-person recording needs voices told apart.
+        // cost nothing.
         return [
             engine: Engine.apple.rawValue,
             summarize: true,
-            recogniseVoices: true,
         ]
         #endif
     }
