@@ -75,6 +75,69 @@ final class SystemAudioTap: @unchecked Sendable {
     private var tapID = AudioObjectID(kAudioObjectUnknown)
     private var aggregateID = AudioObjectID(kAudioObjectUnknown)
     private var procID: AudioDeviceIOProcID?
+    private var formatListener: AudioObjectPropertyListenerBlock?
+    private var formats: FormatBox?
+
+    /// The tap's current format. Read on the audio thread for every buffer and
+    /// written by the property listener, so it needs a lock of its own.
+    final class FormatBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var _format: AVAudioFormat
+        init(_ format: AVAudioFormat) { _format = format }
+        var format: AVAudioFormat { lock.lock(); defer { lock.unlock() }; return _format }
+        func set(_ format: AVAudioFormat) { lock.lock(); _format = format; lock.unlock() }
+    }
+
+    /// What the tap says it is delivering, now.
+    private func readFormat() throws -> AVAudioFormat {
+        var asbd = AudioStreamBasicDescription()
+        let status = Self.get(tapID, kAudioTapPropertyFormat, &asbd)
+        guard status == noErr, let format = AVAudioFormat(streamDescription: &asbd) else {
+            throw SystemAudioError.coreAudio("read tap format", status)
+        }
+        return format
+    }
+
+    /// What a tap reports before it is put inside its aggregate device, and
+    /// after. They ought to match. When they do not, the difference is exactly
+    /// what used to be frozen into every buffer of a recording — so this is
+    /// printed by `--diagnose`, where it can be read off a real Mac rather than
+    /// reasoned about.
+    static func formatProbe() -> (before: String, after: String)? {
+        let tap = SystemAudioTap()
+        defer { tap.stop() }
+        let description = CATapDescription(stereoGlobalTapButExcludeProcesses: ownProcessObject().map { [$0] } ?? [])
+        description.uuid = UUID()
+        description.name = "Ata format probe"
+        description.isPrivate = true
+        description.muteBehavior = .unmuted
+        guard AudioHardwareCreateProcessTap(description, &tap.tapID) == noErr,
+              let before = try? tap.readFormat(),
+              let output = try? defaultOutputUID() else { return nil }
+
+        let aggregate: [String: Any] = [
+            kAudioAggregateDeviceNameKey: "Ata format probe",
+            kAudioAggregateDeviceUIDKey: "ai.interactive.ata.probe.\(UUID().uuidString)",
+            kAudioAggregateDeviceMainSubDeviceKey: output,
+            kAudioAggregateDeviceIsPrivateKey: true,
+            kAudioAggregateDeviceIsStackedKey: false,
+            kAudioAggregateDeviceTapAutoStartKey: true,
+            kAudioAggregateDeviceSubDeviceListKey: [[kAudioSubDeviceUIDKey: output]],
+            kAudioAggregateDeviceTapListKey: [[
+                kAudioSubTapDriftCompensationKey: true,
+                kAudioSubTapUIDKey: description.uuid.uuidString,
+            ]],
+        ]
+        guard AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &tap.aggregateID) == noErr,
+              let after = try? tap.readFormat() else { return nil }
+        func say(_ f: AVAudioFormat) -> String { "\(Int(f.sampleRate)) Hz × \(f.channelCount)" }
+        return (say(before), say(after))
+    }
+
+    /// The format the tap is delivering, for a recording that came out wrong.
+    var formatDescription: String? {
+        formats.map { "\(Int($0.format.sampleRate)) Hz × \($0.format.channelCount)" }
+    }
 
     /// Starts delivering buffers, with the host time of their first sample when known.
     func start(queue: DispatchQueue, onBuffer: @escaping @Sendable (AVAudioPCMBuffer, Double?) -> Void) throws {
@@ -85,12 +148,6 @@ final class SystemAudioTap: @unchecked Sendable {
         description.muteBehavior = .unmuted
 
         try check("create tap", AudioHardwareCreateProcessTap(description, &tapID))
-
-        var asbd = AudioStreamBasicDescription()
-        try check("read tap format", Self.get(tapID, kAudioTapPropertyFormat, &asbd))
-        guard let format = AVAudioFormat(streamDescription: &asbd) else {
-            throw SystemAudioError.coreAudio("read tap format", -1)
-        }
 
         let output = try Self.defaultOutputUID()
         let aggregate: [String: Any] = [
@@ -108,9 +165,38 @@ final class SystemAudioTap: @unchecked Sendable {
         ]
         try check("create aggregate device", AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &aggregateID))
 
+        // Read *after* the aggregate device exists, not before.
+        //
+        // A tap is clocked by the device it ends up inside. Asked before that
+        // device is built, it answers with a format it is not going to deliver —
+        // and the answer was being frozen into the callback for the whole
+        // recording. Every buffer then carried the wrong sample rate, so the
+        // converter resampled by the wrong ratio and the track came out at the
+        // wrong speed: unlistenable, and transcribed to nonsense, with nothing
+        // anywhere to say so. It only showed when the output device disagreed
+        // with the tap's first answer, which is why it came and went.
+        let box = FormatBox(try readFormat())
+        formats = box
+
+        // And it can still change under us — the output device switches when
+        // headphones go in. Follow it rather than trusting the first answer.
+        var formatAddress = Self.address(kAudioTapPropertyFormat)
+        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            guard let self, let now = try? self.readFormat() else { return }
+            if now != box.format {
+                NSLog("Ata: the system audio tap changed format: \(box.format.sampleRate) Hz × "
+                      + "\(box.format.channelCount) → \(now.sampleRate) Hz × \(now.channelCount)")
+                box.set(now)
+            }
+        }
+        if AudioObjectAddPropertyListenerBlock(tapID, &formatAddress, queue, listener) == noErr {
+            formatListener = listener
+        }
+
         try check("create IO proc", AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, queue) { _, input, time, _, _ in
             // The buffer only lives for this callback; the writer converts it before returning.
-            guard let pcm = AVAudioPCMBuffer(pcmFormat: format, bufferListNoCopy: input, deallocator: nil) else { return }
+            guard let pcm = AVAudioPCMBuffer(pcmFormat: box.format, bufferListNoCopy: input,
+                                             deallocator: nil) else { return }
             let t = time.pointee
             let host: Double? = t.mFlags.contains(.hostTimeValid) ? AVAudioTime.seconds(forHostTime: t.mHostTime) : nil
             onBuffer(pcm, host)
@@ -119,6 +205,11 @@ final class SystemAudioTap: @unchecked Sendable {
     }
 
     func stop() {
+        if let formatListener, tapID != kAudioObjectUnknown {
+            var addr = Self.address(kAudioTapPropertyFormat)
+            AudioObjectRemovePropertyListenerBlock(tapID, &addr, nil, formatListener)
+        }
+        formatListener = nil
         if aggregateID != kAudioObjectUnknown {
             AudioDeviceStop(aggregateID, procID)
             if let procID { AudioDeviceDestroyIOProcID(aggregateID, procID) }

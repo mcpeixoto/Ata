@@ -80,9 +80,14 @@ final class Recorder: NSObject {
     /// Stops everything, closes the files and returns the recorded duration (s).
     func stop() async -> Double {
         let duration = max(mic?.duration ?? 0, sys?.duration ?? 0)
+        formatsSeen = (mic?.inputFormats ?? []) + (sys?.inputFormats ?? [])
         await teardown()
         return duration
     }
+
+    /// The input formats the writers were handed, kept past teardown so the
+    /// caller can name them if the recording turns out to be the wrong length.
+    private(set) var formatsSeen: [String] = []
 
     private func teardown() async {
         running = false
@@ -116,7 +121,17 @@ final class Recorder: NSObject {
         let format = input.outputFormat(forBus: 0)
         guard format.channelCount > 0, format.sampleRate > 0 else { throw RecorderError.noMic }
 
-        input.installTap(onBus: 0, bufferSize: 4096, format: format, block: Self.makeTap(writer))
+        // `nil`, not the format read a moment ago. A cached format is a promise
+        // about hardware that may already have changed — and when the two
+        // disagree the engine still delivers, tagging every buffer with the
+        // format we asked for while the samples are at the device's real rate.
+        // The converter then resamples by the wrong ratio and the recording
+        // comes out at the wrong speed: unlistenable, transcribed to nonsense,
+        // and nothing anywhere says so. Passing nil means the node's own format
+        // comes with every buffer, which is the one thing that cannot be stale.
+        // The read above stays, but only to tell a missing microphone apart
+        // from a working one.
+        input.installTap(onBus: 0, bufferSize: 4096, format: nil, block: Self.makeTap(writer))
         engine.prepare()
         try engine.start()
         self.engine = engine

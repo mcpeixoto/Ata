@@ -24,6 +24,7 @@ final class WavWriter: @unchecked Sendable {
     private var closed = false
     private var _level: Float = 0
     private var _lastBufferAt = Date()
+    private var _inputFormats: [String] = []
 
     init(url: URL, startHostSeconds: Double) throws {
         self.url = url
@@ -42,6 +43,14 @@ final class WavWriter: @unchecked Sendable {
     }
 
     var lastBufferAt: Date { lock.lock(); defer { lock.unlock() }; return _lastBufferAt }
+
+    /// Every input format this writer was handed, in the order it saw them.
+    ///
+    /// Kept because a recording that came out at the wrong speed is almost
+    /// always a recording whose real format was not the one the engine
+    /// reported — and by the time anyone notices, the buffers are long gone and
+    /// the WAV is a valid WAV either way. This is the only trace left.
+    var inputFormats: [String] { lock.lock(); defer { lock.unlock() }; return _inputFormats }
     var duration: Double { lock.lock(); defer { lock.unlock() }; return Double(frames) / Self.sampleRate }
 
     /// Treats now as the last buffer time (avoids false watchdog alarms right after a restart).
@@ -61,6 +70,8 @@ final class WavWriter: @unchecked Sendable {
             converter = AVAudioConverter(from: buffer.format, to: Self.outFormat)
             converter?.downmix = true
             converterInput = buffer.format
+            let described = "\(Int(buffer.format.sampleRate)) Hz × \(buffer.format.channelCount)"
+            if _inputFormats.last != described { _inputFormats.append(described) }
         }
         guard let converter else { return }
 
