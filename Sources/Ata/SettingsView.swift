@@ -23,6 +23,9 @@ struct SettingsView: View {
     @AppStorage(Pref.summaryEngine) private var summaryEngine = "auto"
     @AppStorage(Pref.autoUpdate) private var autoUpdate = true
     @AppStorage(Pref.audioRetentionDays) private var audioRetentionDays = 0
+    @State private var recordShortcut: Shortcut? = Hotkey.current
+    @AppStorage(Pref.dockIcon) private var dockIcon = false
+    @AppStorage(Pref.menuBarIcon) private var menuBarIcon = true
     @AppStorage(Pref.menuIconSymbol) private var menuIconSymbol = MenuIcon.Symbol.dot.rawValue
     @AppStorage(Pref.menuIconTint) private var menuIconTint = MenuIcon.Tint.monochrome.rawValue
     @AppStorage(Pref.menuIconTimer) private var menuIconTimer = true
@@ -63,6 +66,7 @@ struct SettingsView: View {
             header
             Form {
                 recordingSection
+                presenceSection
                 menuBarSection
                 transcriptionSection
                 if usesOpenAI || summaryUsesOpenAI { openAISection }
@@ -115,6 +119,37 @@ struct SettingsView: View {
             .disabled(!autoDetect)
             Toggle("Stop on its own when the meeting ends", isOn: $autoStop)
                 .disabled(!autoDetect)
+        }
+    }
+
+    private var presenceSection: some View {
+        Section("Where Ata lives") {
+            Toggle("Show Ata in the Dock", isOn: Binding(
+                get: { dockIcon }, set: { Presence.setDockIcon($0) }))
+            // Only offered once the Dock icon can take its place: with no Dock
+            // icon this would be a switch that does nothing, and turning it off
+            // would leave Ata running with no way in.
+            if dockIcon {
+                Toggle("Keep the menu bar icon", isOn: $menuBarIcon)
+            }
+            Text("macOS decides which menu bar icons fit and hides the rest, and an app has no say in the order. In the Dock, Ata is also in ⌘-Tab and in Spotlight. Opening Ata when it is already running always brings this window up, however the icons are set.")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            LabeledContent("Record from anywhere") {
+                ShortcutField(shortcut: $recordShortcut) { new in
+                    Hotkey.set(new) { AppStore.shared.toggleRecording() }
+                }
+                .frame(width: 140, height: 22)
+            }
+            if recordShortcut != nil, !Hotkey.isRegistered {
+                Text("Another app already uses that combination. Try a different one.")
+                    .font(.system(size: 11)).foregroundStyle(.orange)
+            } else {
+                Text("Starts or stops recording without going near the icon, from whatever app you are in.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -529,8 +564,15 @@ struct UpdateControl: View {
         case .checking:
             HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Checking…").font(.system(size: 11)) }
         case .upToDate:
-            Label(L("Ata %@ is the latest", Updater.currentVersion), systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green).font(.system(size: 11))
+            // The button stays. Replacing it with the answer meant that once Ata
+            // had told you it was the latest, it went on saying so for the rest of
+            // the session — there was nothing left to click, and the only way to
+            // ask again was to quit the app.
+            HStack(spacing: 8) {
+                Label(L("Ata %@ is the latest", Updater.currentVersion), systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green).font(.system(size: 11))
+                Button("Check again") { updater.check() }.controlSize(.small)
+            }
         case .available(let version, _):
             Button(L("Install %@", version)) { updater.installUpdate() }
                 .buttonStyle(.borderedProminent)

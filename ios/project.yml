@@ -58,10 +58,12 @@ targets:
           - App.swift
           - AppStore.swift
           - Diagnostics.swift
+          - Hotkey.swift
           - MeetingDetector.swift
           - MenuIcon.swift
           - OnboardingView.swift
           - PopoverView.swift
+          - Presence.swift
           - Recorder.swift
           - SettingsView.swift
           - Snapshots.swift

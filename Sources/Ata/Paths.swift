@@ -117,6 +117,9 @@ enum Pref {
     static let cancelEcho = "cancelEcho"     // take the others out of the mic before transcribing
     static let autoUpdate = "autoUpdate"     // check GitHub for new releases
     static let updateFeed = "updateFeed"     // override the release feed (forks)
+    static let recordShortcut = "recordShortcut" // global key combination that starts or stops recording
+    static let dockIcon = "dockIcon"         // show Ata in the Dock and ⌘-Tab, like any other app
+    static let menuBarIcon = "menuBarIcon"   // keep the menu bar icon (the only way in, unless the Dock icon is on)
     static let menuIconSymbol = "menuIconSymbol"     // MenuIcon.Symbol while recording
     static let menuIconTint = "menuIconTint"         // MenuIcon.Tint while recording
     static let menuIconTimer = "menuIconTimer"       // elapsed time next to the icon
@@ -188,6 +191,12 @@ enum Pref {
     private static var platformDefaults: [String: Any] {
         #if os(macOS)
         return [
+            // Ata has always been a menu bar app, and stays one unless you say
+            // otherwise. The Dock icon is there for a menu bar too full to find
+            // it in — macOS gives an app no say in where its icon sits, and hides
+            // the ones that don't fit.
+            dockIcon: false,
+            menuBarIcon: true,
             menuIconSymbol: MenuIcon.Symbol.dot.rawValue,
             menuIconTint: MenuIcon.Tint.monochrome.rawValue,
             menuIconTimer: true,

@@ -500,3 +500,13 @@
 "Ata couldn't hear enough speech. Try again somewhere quieter." = "Ata couldn't hear enough speech. Try again somewhere quieter.";
 "No microphone to record from." = "No microphone to record from.";
 "Ata is recording a meeting. Try again when it has stopped." = "Ata is recording a meeting. Try again when it has stopped.";
+"Press keys…" = "Press keys…";
+"Click to set" = "Click to set";
+"Where Ata lives" = "Where Ata lives";
+"Show Ata in the Dock" = "Show Ata in the Dock";
+"Keep the menu bar icon" = "Keep the menu bar icon";
+"macOS decides which menu bar icons fit and hides the rest, and an app has no say in the order. In the Dock, Ata is also in ⌘-Tab and in Spotlight. Opening Ata when it is already running always brings this window up, however the icons are set." = "macOS decides which menu bar icons fit and hides the rest, and an app has no say in the order. In the Dock, Ata is also in ⌘-Tab and in Spotlight. Opening Ata when it is already running always brings this window up, however the icons are set.";
+"Record from anywhere" = "Record from anywhere";
+"Another app already uses that combination. Try a different one." = "Another app already uses that combination. Try a different one.";
+"Starts or stops recording without going near the icon, from whatever app you are in." = "Starts or stops recording without going near the icon, from whatever app you are in.";
+"Check again" = "Check again";
