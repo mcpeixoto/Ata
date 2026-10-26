@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.10.0
+
+Ata was only ever as reachable as its menu bar icon, and macOS hides the icons that
+don't fit. Three ways in that don't depend on finding it.
+
+- **Ata opens like any other app.** Open it from Spotlight, the Finder or the Dock while
+  it is already running and its window comes up. It used to do nothing at all, which left
+  a hidden icon as the only way in — and no way to reach Settings to fix that.
+- **Show Ata in the Dock.** A switch in Settings → Where Ata lives puts Ata in the Dock
+  and in ⌘-Tab, like a normal application. With the Dock icon on you can put the menu bar
+  icon away; with it off the menu bar icon stays, so Ata is never running with no way in.
+  macOS gives an app no say in where its menu bar icon sits or whether it is shown at all
+  — only you can move it, by ⌘-dragging it along the bar — so the fix is to be somewhere
+  else as well.
+- **Record from anywhere.** Set a key combination in Settings and it starts or stops
+  recording from whatever app you are in, without going near the icon. It needs no
+  Accessibility permission.
+- **"Check for updates" can be asked twice.** Once Ata had told you that you were on the
+  latest version, the answer replaced the button, so there was nothing left to click: a
+  release published an hour later could not be found without quitting the app. The button
+  stays now, and a check you ask for goes to the network rather than to a cached answer
+  from the minute before.
+
 ## 2.9.0
 
 Voice recognition, gone over end to end. It was on in the app and off in practice: a

@@ -58,7 +58,7 @@ final class Updater: ObservableObject {
     }
 
     func check(silent: Bool = false) {
-        guard state != .checking, !isDownloading else { return }
+        guard canCheck else { return }
         state = .checking
         Task {
             do {
@@ -82,6 +82,18 @@ final class Updater: ObservableObject {
         }
     }
 
+    /// Whether another check may start. Being up to date, or having failed, is
+    /// never a reason to refuse one: only a check already running, or an
+    /// install in progress, is.
+    var canCheck: Bool { Self.canCheck(in: state) }
+
+    static func canCheck(in state: State) -> Bool {
+        switch state {
+        case .checking, .downloading, .installing: return false
+        case .idle, .upToDate, .available, .failed: return true
+        }
+    }
+
     private var isDownloading: Bool {
         switch state {
         case .downloading, .installing: return true
@@ -97,6 +109,10 @@ final class Updater: ObservableObject {
 
     private func fetchLatest() async throws -> Release? {
         var req = URLRequest(url: feedURL)
+        // GitHub lets its release metadata be cached for a minute. Someone who
+        // clicks "check again" because a release just landed means now, so the
+        // cache is skipped rather than answering from it.
+        req.cachePolicy = .reloadIgnoringLocalCacheData
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         req.setValue("Ata/\(Self.currentVersion)", forHTTPHeaderField: "User-Agent")
         req.timeoutInterval = 30

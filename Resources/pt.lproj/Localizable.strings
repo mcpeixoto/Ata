@@ -500,3 +500,13 @@
 "Ata couldn't hear enough speech. Try again somewhere quieter." = "A Ata não ouviu fala suficiente. Tenta outra vez num sítio mais silencioso.";
 "No microphone to record from." = "Não há microfone para gravar.";
 "Ata is recording a meeting. Try again when it has stopped." = "A Ata está a gravar uma reunião. Tenta outra vez quando ela parar.";
+"Press keys…" = "Prime as teclas…";
+"Click to set" = "Clica para definir";
+"Where Ata lives" = "Onde a Ata vive";
+"Show Ata in the Dock" = "Mostrar a Ata na Dock";
+"Keep the menu bar icon" = "Manter o ícone na barra de menus";
+"macOS decides which menu bar icons fit and hides the rest, and an app has no say in the order. In the Dock, Ata is also in ⌘-Tab and in Spotlight. Opening Ata when it is already running always brings this window up, however the icons are set." = "O macOS decide que ícones cabem na barra de menus e esconde os restantes, e uma aplicação não tem voto na ordem. Na Dock, a Ata está também no ⌘-Tab e no Spotlight. Abrir a Ata quando já está a correr traz sempre esta janela à frente, estejam os ícones como estiverem.";
+"Record from anywhere" = "Gravar a partir de qualquer lado";
+"Another app already uses that combination. Try a different one." = "Outra aplicação já usa essa combinação. Experimenta outra.";
+"Starts or stops recording without going near the icon, from whatever app you are in." = "Começa ou pára a gravação sem passar pelo ícone, a partir de qualquer aplicação.";
+"Check again" = "Verificar outra vez";

@@ -5,9 +5,18 @@ import SwiftUI
 struct AtaApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var store = AppStore.shared
+    @AppStorage(Pref.dockIcon) private var dockIcon = false
+    @AppStorage(Pref.menuBarIcon) private var menuBarIcon = true
+
+    /// Hidden only when the Dock icon is there instead; `Presence` keeps that
+    /// invariant, and this reads it so the two settings can never leave Ata
+    /// running with no icon anywhere.
+    private var showsMenuBarIcon: Binding<Bool> {
+        Binding(get: { !dockIcon || menuBarIcon }, set: { menuBarIcon = $0 })
+    }
 
     var body: some Scene {
-        MenuBarExtra {
+        MenuBarExtra(isInserted: showsMenuBarIcon) {
             PopoverView()
                 .environmentObject(store)
                 .environmentObject(store.setup)
@@ -36,11 +45,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         Notifier.shared.setUp()
+        Presence.apply()
+        // Whatever app you are in, and whether or not the icon is reachable.
+        Hotkey.reload { AppStore.shared.toggleRecording() }
         let store = AppStore.shared
         store.bootstrap()
         if !Pref.d.bool(forKey: Pref.onboarded) || !store.setup.ready {
             WindowManager.shared.showOnboarding()
         }
+    }
+
+    /// Opening Ata while it is already running — from Spotlight, the Dock, the
+    /// Finder, or `open -a Ata` — shows its window. It used to do nothing at
+    /// all, which left a menu bar icon the system had hidden as the only way in.
+    /// This is the one route that works however the icons are set, so it is
+    /// wired up whether or not Ata is in the Dock.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        if !hasVisibleWindows { WindowManager.shared.showMain() }
+        return true
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -87,6 +109,7 @@ final class WindowManager {
     static let shared = WindowManager()
     private var onboarding: NSWindow?
     private var settings: NSWindow?
+    private var main: NSWindow?
     private var meetings: [String: (window: NSWindow, model: MeetingModel, closing: NSObjectProtocol)] = [:]
 
     func showOnboarding() {
@@ -99,6 +122,16 @@ final class WindowManager {
 
     func closeOnboarding() {
         onboarding?.close()
+    }
+
+    /// Ata's own window: the same thing the menu bar shows, in a window you can
+    /// reach from the Dock, from ⌘-Tab and from Spotlight.
+    func showMain() {
+        main = present(main, title: L("Ata"), size: NSSize(width: 350, height: 620)) {
+            PopoverView()
+                .environmentObject(AppStore.shared)
+                .environmentObject(AppStore.shared.setup)
+        }
     }
 
     func showSettings() {
