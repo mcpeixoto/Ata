@@ -31,6 +31,11 @@ enum Diagnostics {
         say("microphone permission: \(["notDetermined", "restricted", "denied", "authorized"][mic.rawValue])")
         say("system audio permission: \(SystemAudioPermission.status) (can ask: \(SystemAudioPermission.canAsk))")
         say("output device: \(SystemAudioTap.defaultOutputDevice().map { "#\($0)" } ?? "none")")
+        if let probe = SystemAudioTap.formatProbe() {
+            let agrees = probe.before == probe.after
+            say("system tap format: \(probe.before) before its device, \(probe.after) after"
+                + (agrees ? " — agree" : "  ← THESE MUST MATCH"))
+        }
         say("whisper-cli: \(Paths.whisperCLI()?.path ?? "not installed")")
         say("local model: \(LocalModel.current.id) \(LocalModel.current.isInstalled ? "installed" : "not downloaded")")
         say("voice recognition: \(Diarization.isSupported ? "supported" : "needs macOS 15")")

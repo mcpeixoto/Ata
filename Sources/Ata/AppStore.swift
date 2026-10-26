@@ -256,6 +256,18 @@ final class AppStore: ObservableObject {
             m.duration = duration
             m.status = m.hasAudio ? .pending : .failed
             if !m.hasAudio { m.error = L("Empty recording") }
+            // Two numbers from two different places: samples counted, and the
+            // clock. They disagree only when something converted the audio by
+            // the wrong ratio, and nothing else in Ata would ever notice — the
+            // file is a valid WAV either way, it just plays at the wrong speed
+            // and transcribes to nonsense.
+            if let began = startedAt {
+                let ran = Date().timeIntervalSince(began)
+                if AudioCheck.isSuspect(audioSeconds: duration, elapsed: ran) {
+                    NSLog("%@", AudioCheck.report(audioSeconds: duration, elapsed: ran,
+                                                  formats: recorder.formatsSeen))
+                }
+            }
             Library.save(m)
             m = Library.publish(m)
             current = nil

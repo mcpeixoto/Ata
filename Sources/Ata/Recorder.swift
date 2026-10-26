@@ -80,9 +80,14 @@ final class Recorder: NSObject {
     /// Stops everything, closes the files and returns the recorded duration (s).
     func stop() async -> Double {
         let duration = max(mic?.duration ?? 0, sys?.duration ?? 0)
+        formatsSeen = (mic?.inputFormats ?? []) + (sys?.inputFormats ?? [])
         await teardown()
         return duration
     }
+
+    /// The input formats the writers were handed, kept past teardown so the
+    /// caller can name them if the recording turns out to be the wrong length.
+    private(set) var formatsSeen: [String] = []
 
     private func teardown() async {
         running = false
