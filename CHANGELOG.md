@@ -35,6 +35,10 @@ meeting would come back with everyone under one name, or with no voices at all.
   there the microphone is the whole room: its loudest speaker was learned as your voice. A
   named colleague could be marked as you and your fingerprint averaged into theirs, with no
   way back. Neither happens now.
+- **Something playing in the room is no longer a call.** Three seconds of audible system
+  audio was enough to make an hour in a meeting room count as a call — one video, one
+  ringtone, one demo — and down that path the microphone is the whole room: everyone in it
+  got your name. A call now has to be a share of the recording as well.
 - **A system track Ata cannot read is treated as a call, not as silence.** It was the other
   way round, which sent real calls down the in-person path and diarized a microphone holding
   your voice with everyone else's echo over it.
@@ -45,6 +49,11 @@ meeting would come back with everyone under one name, or with no voices at all.
 - Apple's speech recognition is offered only where the device can actually run its models,
   not merely where the OS is new enough. An iPhone that cannot is told so, instead of being
   pointed at whisper.cpp, which only the Mac has.
+- **Two clusters that are both you are no longer an ambiguity.** When the diarizer split
+  your own voice in two, neither half beat the other by the lead Ata asks for, so it gave up
+  and fell back to "whoever talked most" — who could be someone else entirely, and then two
+  people read as you in the same transcript. Two clusters that sound like each other are one
+  person, and the longer one is you.
 - A weaker transcription model you picked yourself is still mentioned once in Settings. The
   nudge used to appear only if you had never chosen, so a choice made when Turbo was the
   default was never revisited.

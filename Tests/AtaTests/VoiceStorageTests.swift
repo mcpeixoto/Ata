@@ -371,9 +371,21 @@ final class InPersonTests: XCTestCase {
         XCTAssertEqual(InPerson.me(among: clusters, fingerprints: [mine]), InPerson.Me(label: "B", recognised: false))
     }
 
-    func testTwoClustersEquallyLikeYouFallBackToMostSpeech() {
-        // Both clear the threshold, but neither by the lead the library asks for.
+    /// Changed in 2.9: this used to expect a guess. Both clusters clear the
+    /// threshold and neither beats the other by the required lead — but they also
+    /// sound like each other, which means one person the diarizer split in two.
+    /// Either of them is you, so the longer one is, and it is recognised rather
+    /// than guessed. Treating it as unknown handed the meeting to "whoever talked
+    /// most", who could be somebody else entirely.
+    func testTwoClustersThatAreBothYouAreRecognisedAsTheLongerOne() {
         let clusters = [cluster("A", [0.9, 0.3, 0, 0], 100), cluster("B", [0.9, 0, 0.35, 0], 250)]
+        XCTAssertEqual(InPerson.me(among: clusters, fingerprints: [mine]), InPerson.Me(label: "B", recognised: true))
+    }
+
+    /// The lead rule still holds where it was meant to: two people who happen to
+    /// resemble you, but not each other, are still an ambiguity worth refusing.
+    func testTwoDifferentPeopleWhoBothResembleYouAreStillAGuess() {
+        let clusters = [cluster("A", [0.8, 0.6, 0, 0], 100), cluster("B", [0.8, 0, 0.6, 0], 250)]
         XCTAssertEqual(InPerson.me(among: clusters, fingerprints: [mine]), InPerson.Me(label: "B", recognised: false))
     }
 
@@ -449,9 +461,23 @@ final class SpeakerRouteTests: XCTestCase {
         XCTAssertEqual(SpeakerRoute.choose(systemLevels: [], hasMic: true), .inPerson)
     }
 
-    func testANotificationChimeDoesNotMakeACall() {
+    /// Changed in 2.9: three seconds of sound in an hour used to be a call. One
+    /// played video in a meeting room was enough, and down the call path the
+    /// microphone is the whole room — everyone in it got your name, and the
+    /// loudest of them was learned as your voice. A call is now a share of the
+    /// recording as well as a number of seconds.
+    func testSomethingPlayedInTheRoomDoesNotMakeACall() {
         XCTAssertEqual(SpeakerRoute.choose(systemLevels: levels(sound: 1.5, of: 3_600), hasMic: true), .inPerson)
-        XCTAssertEqual(SpeakerRoute.choose(systemLevels: levels(sound: 3, of: 3_600), hasMic: true), .call)
+        XCTAssertEqual(SpeakerRoute.choose(systemLevels: levels(sound: 3, of: 3_600), hasMic: true), .inPerson)
+        XCTAssertEqual(SpeakerRoute.choose(systemLevels: levels(sound: 120, of: 3_600), hasMic: true), .inPerson,
+                       "a two-minute video in an hour is still a meeting in the room")
+    }
+
+    func testTheOtherSideOfACallSpeaksForEnoughOfIt() {
+        XCTAssertEqual(SpeakerRoute.choose(systemLevels: levels(sound: 600, of: 3_600), hasMic: true), .call)
+        // The floor still holds for a short recording, where a share alone is tiny.
+        XCTAssertEqual(SpeakerRoute.choose(systemLevels: levels(sound: 2, of: 30), hasMic: true), .inPerson)
+        XCTAssertEqual(SpeakerRoute.choose(systemLevels: levels(sound: 12, of: 30), hasMic: true), .call)
     }
 
     func testQuietNoiseIsNotSound() {

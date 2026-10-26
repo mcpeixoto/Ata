@@ -81,6 +81,14 @@ final class VoiceLibrary {
     /// a coin-flip between two names.
     static var requiredLead: Float = 0.1
 
+    /// Cosine at or above which two fingerprints are taken to be one person
+    /// heard twice, rather than two people who sound alike. Stricter than
+    /// `matchThreshold`, because this one decides that an ambiguity is not an
+    /// ambiguity at all: measured, the same voice scored 0.95–0.96 across
+    /// recordings and 0.82–0.85 over a phone-quality copy, while different
+    /// voices never passed 0.49.
+    static var sameSpeakerThreshold: Float = 0.85
+
     /// An unnamed voice is worth asking about once it has turned up in this many meetings.
     static let askAfterMeetings = 2
 
@@ -766,6 +774,13 @@ enum SpeakerRoute: Equatable {
     /// two must not turn a conversation in the room into a call.
     static let minimumSystemSeconds = 3.0
 
+    /// And it must be this much of the recording. Three seconds alone was enough
+    /// to call an hour in a meeting room a call — one played video, one ringtone,
+    /// one demo — and down that path the microphone is the whole room: everyone
+    /// in it got your name, and the loudest of them was learned as your voice.
+    /// The other side of a real call speaks for far more of it than a twentieth.
+    static let minimumSystemShare = 0.05
+
     /// Louder than −50 dBFS counts as sound; a process tap is digital silence
     /// while nothing plays.
     static let audibleLevel = Waveform.level(rms: pow(10, -50.0 / 20))
@@ -774,12 +789,20 @@ enum SpeakerRoute: Equatable {
     /// when there was no system track worth transcribing. `systemUnreadable` says
     /// there was one but its levels could not be read.
     static func choose(systemLevels: [UInt8]?, hasMic: Bool, systemUnreadable: Bool = false) -> SpeakerRoute {
-        if let systemLevels, audibleSeconds(systemLevels) >= minimumSystemSeconds { return .call }
+        if let systemLevels, isCall(systemLevels) { return .call }
         // A track whose levels wouldn't read is a track all the same. Calling it
         // silence sent real calls down the in-person path, where the microphone —
         // your voice with the others' echo over it — was taken for a room.
         if systemUnreadable { return .call }
         return hasMic ? .inPerson : .nobody
+    }
+
+    /// Enough sound, for long enough and for enough of the recording, to be the
+    /// other side of a call rather than something that played in the room.
+    static func isCall(_ levels: [UInt8]) -> Bool {
+        let heard = audibleSeconds(levels)
+        let whole = Double(levels.count) * Double(Waveform.bucketMs) / 1000
+        return heard >= max(minimumSystemSeconds, whole * minimumSystemShare)
     }
 
     static func audibleSeconds(_ levels: [UInt8]) -> Double {
@@ -821,13 +844,27 @@ enum InPerson {
     /// nearest to you. Nil only when nobody spoke.
     static func me(among clusters: [Cluster], fingerprints: [[Float]]) -> Me? {
         if !fingerprints.isEmpty {
-            let scores = clusters.compactMap { c -> (label: String, similarity: Float)? in
+            let scores = clusters.compactMap { c -> (label: String, embedding: [Float], similarity: Float)? in
                 guard let e = c.embedding, !e.isEmpty else { return nil }
-                return (c.label, fingerprints.map { VoiceLibrary.cosine(e, $0) }.max() ?? 0)
+                return (c.label, e, fingerprints.map { VoiceLibrary.cosine(e, $0) }.max() ?? 0)
             }.sorted { $0.similarity > $1.similarity }
-            if let best = scores.first, best.similarity >= VoiceLibrary.matchThreshold,
-               scores.count < 2 || best.similarity - scores[1].similarity >= VoiceLibrary.requiredLead {
-                return Me(label: best.label, recognised: true)
+            if let best = scores.first, best.similarity >= VoiceLibrary.matchThreshold {
+                if scores.count < 2 || best.similarity - scores[1].similarity >= VoiceLibrary.requiredLead {
+                    return Me(label: best.label, recognised: true)
+                }
+                // The lead rule separates two different people. When the two best
+                // candidates sound like *each other*, they are one person the
+                // diarizer split in two and either of them is you — so the answer
+                // is "the longer one", not "I don't know". Giving up here handed
+                // the meeting back to a guess, and the guess then put your name on
+                // whoever had talked most, which could be somebody else entirely.
+                if VoiceLibrary.cosine(scores[0].embedding, scores[1].embedding)
+                    >= VoiceLibrary.sameSpeakerThreshold {
+                    let tied = Set([scores[0].label, scores[1].label])
+                    let longest = clusters.filter { tied.contains($0.label) }
+                        .max { $0.seconds < $1.seconds }
+                    return Me(label: longest?.label ?? best.label, recognised: true)
+                }
             }
         }
         let most = clusters.max { a, b in a.seconds < b.seconds || (a.seconds == b.seconds && a.label > b.label) }
