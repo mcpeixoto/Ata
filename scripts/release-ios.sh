@@ -104,21 +104,29 @@ if [ -n "${SWIFT_TEST_DIR:-}" ]; then
   ( cd "$SWIFT_TEST_DIR" && swift test )
 fi
 
+# Runs one of the App Store Connect scripts, which sign an ES256 JWT with PyJWT.
+# A Mac that has never run this app's setup has no PyJWT; uv supplies it without
+# touching the system Python. Both callers go through here: the distribute step
+# used plain python3, so on such a Mac the upload succeeded and the build was
+# then left with no beta group — VALID, READY_FOR_BETA_TESTING and invisible to
+# every tester, which is exactly the failure the distribute step exists to stop.
+asc_python() {
+  if python3 -c 'import jwt' 2>/dev/null; then
+    python3 "$@"
+  elif command -v uv >/dev/null; then
+    uv run --quiet --with "pyjwt[crypto]" python "$@"
+  else
+    die "PyJWT is not available and neither is uv; install one so $1 can reach App Store Connect"
+  fi
+}
+
 # The profiles the export names. Installed here too, not only on CI: a Mac that has never
 # run this app's setup script has no more of them than a runner does, and the failure is the
 # same one, ten minutes later.
 bold "profiles"
-if python3 -c 'import jwt' 2>/dev/null; then
-  ASC_KEY_PATH="$key" ASC_KEY_ID="$key_id" ASC_ISSUER="$issuer" \
-    IOS_DIR="$IOS_DIR" EXPORT_OPTIONS="$EXPORT_OPTIONS" \
-    python3 "$root/scripts/install-profiles.py"
-elif command -v uv >/dev/null; then
-  ASC_KEY_PATH="$key" ASC_KEY_ID="$key_id" ASC_ISSUER="$issuer" \
-    IOS_DIR="$IOS_DIR" EXPORT_OPTIONS="$EXPORT_OPTIONS" \
-    uv run --quiet --with "pyjwt[crypto]" python "$root/scripts/install-profiles.py"
-else
-  die "PyJWT is not available and neither is uv; install one so the profiles can be fetched"
-fi
+ASC_KEY_PATH="$key" ASC_KEY_ID="$key_id" ASC_ISSUER="$issuer" \
+  IOS_DIR="$IOS_DIR" EXPORT_OPTIONS="$EXPORT_OPTIONS" \
+  asc_python "$root/scripts/install-profiles.py"
 
 auth=(-allowProvisioningUpdates
       -authenticationKeyPath "$key"
@@ -168,6 +176,6 @@ xcrun altool --upload-app -f "$ipa" -t ios --apiKey "$key_id" --apiIssuer "$issu
 bold "distribute"
 ASC_KEY_PATH="$key" ASC_KEY_ID="$key_id" ASC_ISSUER="$issuer" \
   BUNDLE_ID="$BUNDLE_ID" BUILD_VERSION="$version" BUILD_NUMBER="$build" \
-  python3 "$root/scripts/distribute-build.py"
+  asc_python "$root/scripts/distribute-build.py"
 
 bold "$SCHEME $version ($build) is in TestFlight."
