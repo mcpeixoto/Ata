@@ -641,7 +641,11 @@ enum Transcriber {
 
     /// A few seconds of each new voice, so the user can hear who it is.
     private static func cutSamples(for assigned: [MeetingSpeaker], turns: [SpeakerTurn], from audio: URL) async {
-        for speaker in assigned where speaker.label != Speakers.me {
+        // Including the speaker Ata only guesses is you: correcting that guess
+        // means knowing whether it sounds like you, which means being able to
+        // play it. On a call the microphone has no turns of its own, so nothing
+        // is cut for it and the "me" row stays sampleless, as before.
+        for speaker in assigned {
             guard let id = speaker.voiceID else { continue }
             let hasSample = await MainActor.run { PeopleModel.shared.voices.first { $0.id == id }?.sample != nil }
             if hasSample { continue }

@@ -493,7 +493,7 @@
 "Record my voice" = "Gravar a minha voz";
 "Record my voice again" = "Gravar a minha voz outra vez";
 "This model returns no timestamps, so the transcript has no per-line times, echo removal is skipped, and voices are not told apart." = "Este modelo não devolve tempos, por isso a transcrição fica sem horas em cada linha, o eco não é removido e as vozes não são distinguidas.";
-"The oldest of OpenAI's models, and the only one that returns timestamps. On this Mac, whisper.cpp with Large v3 is more accurate, free and private." = "O mais antigo dos modelos da OpenAI, e o único que devolve tempos. Neste Mac, o whisper.cpp com o Large v3 é mais exacto, gratuito e privado.";
+"The oldest of OpenAI's models, and the only one that returns timestamps. On this Mac, whisper.cpp with Large v3 is more accurate, free and private." = "O mais antigo dos modelos da OpenAI, e o único que devolve tempos. Neste Mac, o whisper.cpp com o Large v3 é mais preciso, gratuito e privado.";
 "Ata is listening to the way I speak, so it can tell my voice from everyone else's in a meeting. I talk at my normal pace, in my normal voice, until this is done." = "A Ata está a ouvir a forma como eu falo, para distinguir a minha voz de todas as outras numa reunião. Falo ao meu ritmo normal, com a minha voz normal, até isto terminar.";
 "Ata needs the microphone to hear your voice." = "A Ata precisa do microfone para ouvir a tua voz.";
 "Voice recognition isn't available on this device." = "O reconhecimento de vozes não está disponível neste dispositivo.";
