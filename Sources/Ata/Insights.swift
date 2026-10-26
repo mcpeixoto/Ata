@@ -62,7 +62,13 @@ struct Insights: Equatable {
             let seconds = m.duration ?? 0
             out.meetings += 1
             out.recordedSeconds += seconds
-            appMinutes[m.title, default: 0] += seconds / 60
+            // By app, not by `m.title`. Now that a title can be a calendar
+            // event's, grouping by it would give one bar per meeting — "Weekly
+            // sync", "1:1 with Rita", "Design review" — instead of one per app,
+            // which is the whole point of this chart. The fallback is what
+            // `title` used to give a meeting with no app, so nothing recorded
+            // before this moves bucket.
+            appMinutes[m.app ?? L("Meeting"), default: 0] += seconds / 60
 
             if let week = cal.dateInterval(of: .weekOfYear, for: m.startedAt)?.start,
                let i = out.weeks.firstIndex(where: { $0.start == week }) {

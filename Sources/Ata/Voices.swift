@@ -33,6 +33,14 @@ struct Voice: Codable, Equatable, Identifiable {
     /// The embedding model the centroid came from (`Diarization.embeddingModel`). Nil for
     /// voices learned before Ata 2.6, all of them by `Diarization.untaggedEmbeddingModel`.
     var model: String? = nil
+    /// Other names this person goes by: the name a merge did not keep, and any
+    /// the user typed by hand. `name` is the one every transcript uses; these
+    /// are only ever matched against — a calendar invitation saying "Rita Alves"
+    /// still finding the voice named "Rita". Nil rather than `[]` when there are
+    /// none, so a voice file only grows the key once there is something in it.
+    ///
+    /// Deliberately not covered by `edited`: see `addAlias`.
+    var aliases: [String]? = nil
     /// When you last named this voice, or said not to ask or to leave it out. Two
     /// devices that changed it at once keep these from the later edit; see
     /// `VoiceLibrary.merge(versions:)`. Nil until an Ata that records it is the one
@@ -49,6 +57,9 @@ struct Voice: Codable, Equatable, Identifiable {
 
     /// The name, or "Voice 3" until it has one.
     var displayName: String { name ?? L("Voice %d", number ?? 0) }
+
+    /// Every name this voice answers to, the one transcripts use first.
+    var allNames: [String] { ([name] + (aliases ?? [])).compactMap { $0 } }
     var isDismissed: Bool { dismissed == true }
     var isExcluded: Bool { excluded == true }
 }
@@ -448,12 +459,56 @@ final class VoiceLibrary {
         }
         merged.meetingIDs = Array(Set(a.meetingIDs + b.meetingIDs)).sorted()
         merged.name = b.name ?? a.name
+        // Both names survive. Folding "Rita Alves" into "Rita" used to throw
+        // "Rita Alves" away, and with it the one string that would have matched
+        // her on the next invitation — so the merge made Ata worse at knowing
+        // exactly the person the user had just identified.
+        merged.aliases = Self.aliases(keeping: merged.name, from: [a, b])
         merged.sample = b.sample ?? a.sample
         merged.firstSeen = min(a.firstSeen, b.firstSeen)
         merged.lastSeen = max(a.lastSeen, b.lastSeen)
         merged.isMe = a.isMe || b.isMe
         voices[t] = merged
         voices.remove(at: s)
+    }
+
+    /// Every name a set of voices answers to, except the one that is kept: both
+    /// alias lists, plus whichever name was not chosen. De-duplicated by
+    /// `Names.normalise`, so a chain of merges does not stack "Rita", "rita" and
+    /// "Rita ". Nil when empty, so merging two unnamed voices does not start
+    /// writing a key into a voice file for nothing.
+    static func aliases(keeping name: String?, from voices: [Voice]) -> [String]? {
+        var seen = Set<String>()
+        if let name { seen.insert(Names.normalise(name)) }
+        var out: [String] = []
+        for candidate in voices.flatMap(\.allNames) {
+            let key = Names.normalise(candidate)
+            guard !key.isEmpty, seen.insert(key).inserted else { continue }
+            out.append(candidate)
+        }
+        return out.isEmpty ? nil : out
+    }
+
+    /// Another name this person goes by. Never shown as a speaker — `name` is.
+    ///
+    /// `edited` is deliberately left alone. `merge(versions:)` takes the name,
+    /// "don't ask" and "leave out" from whichever version was edited last, so
+    /// stamping here would let an alias added on the iPhone carry that iPhone's
+    /// stale name over a rename made on the Mac. Aliases are unioned instead,
+    /// and need no stamp to survive.
+    func addAlias(_ id: UUID, _ alias: String) {
+        let trimmed = alias.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let i = voices.firstIndex(where: { $0.id == id }) else { return }
+        let key = Names.normalise(trimmed)
+        guard !key.isEmpty, !voices[i].allNames.contains(where: { Names.normalise($0) == key }) else { return }
+        voices[i].aliases = (voices[i].aliases ?? []) + [trimmed]
+    }
+
+    func removeAlias(_ id: UUID, _ alias: String) {
+        guard let i = voices.firstIndex(where: { $0.id == id }) else { return }
+        let key = Names.normalise(alias)
+        voices[i].aliases = voices[i].aliases?.filter { Names.normalise($0) != key }
+        if voices[i].aliases?.isEmpty == true { voices[i].aliases = nil }
     }
 
     /// A meeting was deleted: it no longer counts for any voice, and voices only
@@ -604,6 +659,14 @@ final class VoiceLibrary {
         // hand it can also turn off, and then the later edit decides — as a name does.
         merged.isMe = byHand.edited == nil ? ordered.contains(where: \.isMe) : byHand.isMe
         merged.number = newest.number ?? ordered.compactMap(\.number).first
+        // A union, not the version edited last. Aliases are the one field an
+        // older Ata silently drops — it decodes the file, ignores the key it
+        // does not know, and re-encodes without it — so last-writer-wins would
+        // hand the loss to whichever device upgraded first. A union can only
+        // ever bring back an alias the user removed, which is the cheaper of
+        // the two mistakes; `name`, which transcripts actually use, is still
+        // decided by `edited` exactly as before.
+        merged.aliases = aliases(keeping: merged.name, from: ordered)
         return merged
     }
 

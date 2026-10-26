@@ -206,6 +206,7 @@ private struct VoiceRow: View {
                         .onSubmit { save() }
                         .onExitCommand { editing = false; name = "" }
                 }
+                if asking { suggestions }
                 Text(L("%d meetings · heard %@", voice.meetings,
                        voice.lastSeen.formatted(.relative(presentation: .named))))
                     .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
@@ -262,6 +263,51 @@ private struct VoiceRow: View {
         Button(L("Leave out of transcripts")) { people.setExcluded(voice, true) }
         Divider()
         Button(L("Forget this voice"), role: .destructive) { people.forget(voice) }
+    }
+
+    /// Who the calendar says this might be.
+    ///
+    /// One tap names the voice, down the same path as typing it, so every
+    /// transcript is redrawn. The reason is on the row rather than in a
+    /// tooltip: a name Ata guessed and the user did not check is the one thing
+    /// this must never produce, so the evidence is always in front of them.
+    @ViewBuilder private var suggestions: some View {
+        let offered = Array(people.suggestions(for: voice).prefix(3))
+        if !offered.isEmpty {
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(offered) { candidate in
+                    HStack(spacing: 6) {
+                        Button(candidate.name) {
+                            if candidate.matchesExistingVoice >= .reordered,
+                               let other = people.voices.first(where: { other in
+                                   other.id != voice.id && other.allNames.contains {
+                                       Names.compare($0, candidate.name) >= .reordered
+                                   }
+                               }) {
+                                // Already a voice with that name: the user wants
+                                // these two folded together, not a second copy.
+                                people.merge(voice, into: other)
+                            } else {
+                                people.accept(candidate, for: voice)
+                            }
+                        }
+                        .controlSize(.small)
+                        Text(Self.reason(candidate))
+                            .font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                }
+            }
+            .padding(.top, 1)
+        }
+    }
+
+    /// Why this name is being offered, in a few words.
+    private static func reason(_ c: VoiceSuggestions.Candidate) -> String {
+        if c.matchesExistingVoice >= .reordered { return L("already a voice — same person?") }
+        if c.isOnlyOther { return L("the only other person invited") }
+        if c.isUnanimous && c.heardInEvents > 1 { return L("invited to all %d", c.heardInEvents) }
+        if c.isUnanimous { return L("invited to it") }
+        return L("invited to %d of %d", c.shared, c.heardInEvents)
     }
 
     private func save() {

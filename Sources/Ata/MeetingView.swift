@@ -124,6 +124,21 @@ struct MeetingView: View {
 
     // MARK: Header
 
+    /// "Invited: Rita Alves, João Dias and 3 others", or nil when the meeting
+    /// did not come from a calendar event.
+    static func invited(_ event: MeetingEvent?) -> String? {
+        guard let event else { return nil }
+        let others = event.others
+        guard !others.isEmpty else { return nil }
+        let shown = others.prefix(4).map(\.name).joined(separator: ", ")
+        // `attendeeTotal` counts everyone on the invitation, you included, and
+        // only exists when the list was cut short.
+        let total = (event.attendeeTotal ?? event.attendees.count) - (event.attendees.count - others.count)
+        let hidden = max(0, total - min(4, others.count))
+        guard hidden > 0 else { return L("Invited: %@", shown) }
+        return L("Invited: %@ and %d others", shown, hidden)
+    }
+
     private func header(_ meeting: Meeting) -> some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
@@ -132,6 +147,12 @@ struct MeetingView: View {
                 if model.participants.count > 1 {
                     Text(model.participants.joined(separator: ", "))
                         .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(2)
+                }
+                // Who was asked, as against who Ata heard. Worth saying
+                // separately: the difference is often the point.
+                if let invited = Self.invited(meeting.event) {
+                    Text(invited)
+                        .font(.system(size: 11)).foregroundStyle(.tertiary).lineLimit(2)
                 }
             }
             Spacer()

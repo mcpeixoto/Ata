@@ -117,6 +117,10 @@ enum Pref {
     static let cancelEcho = "cancelEcho"     // take the others out of the mic before transcribing
     static let autoUpdate = "autoUpdate"     // check GitHub for new releases
     static let updateFeed = "updateFeed"     // override the release feed (forks)
+    static let calendarPrompt = "calendarPrompt"           // offer to record before a calendar meeting starts
+    static let calendarLeadMinutes = "calendarLeadMinutes" // how long before it starts
+    static let calendarPeopleOnly = "calendarPeopleOnly"   // only events with other people invited
+    static let calendarIDs = "calendarIDs"                 // EKCalendar identifiers to watch; absent = all
     static let recordShortcut = "recordShortcut" // global key combination that starts or stops recording
     static let dockIcon = "dockIcon"         // show Ata in the Dock and ⌘-Tab, like any other app
     static let menuBarIcon = "menuBarIcon"   // keep the menu bar icon (the only way in, unless the Dock icon is on)
@@ -195,6 +199,16 @@ enum Pref {
             // otherwise. The Dock icon is there for a menu bar too full to find
             // it in — macOS gives an app no say in where its icon sits, and hides
             // the ones that don't fit.
+            // Off until the user has both granted calendar access and asked for
+            // this: Ata never requests a permission it was not asked to use.
+            calendarPrompt: false,
+            // What was asked for. Long enough to answer, short enough that it is
+            // still about this meeting.
+            calendarLeadMinutes: 1,
+            // A block on your own calendar with nobody else on it is not a
+            // meeting. This is also what keeps holidays and birthdays out
+            // without making the user curate a list of calendars.
+            calendarPeopleOnly: true,
             dockIcon: false,
             menuBarIcon: true,
             menuIconSymbol: MenuIcon.Symbol.dot.rawValue,
