@@ -192,7 +192,7 @@ final class VoiceEnrolment: ObservableObject {
                 phase = .failed(L("Ata couldn't hear enough speech. Try again somewhere quieter."))
                 return
             }
-            PeopleModel.shared.enrolMe(embedding: embedding, clip: clip)
+            await PeopleModel.shared.enrolMe(embedding: embedding, clip: clip)
             cleanUp()
             phase = .done
         } catch {

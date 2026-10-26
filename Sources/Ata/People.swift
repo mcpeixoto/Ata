@@ -60,14 +60,15 @@ final class PeopleModel: ObservableObject {
     /// named by `Pref.myName`, and linked to the voice already heard in meetings
     /// when it is the same person. Every transcript that voice appears in is
     /// drawn again.
-    func enrolMe(embedding: [Float], clip: URL) {
+    /// Awaits the sample copy rather than spawning it: the caller deletes the
+    /// clip as soon as this returns, and a copy still reading it would find
+    /// nothing, leaving the voice with no sample to play back.
+    func enrolMe(embedding: [Float], clip: URL) async {
         library = VoiceLibrary()
         let voice = library.enrolMe(embedding: embedding)
         persist()
-        Task { @MainActor in
-            if let sample = await VoiceSamples.keep(clip: clip, voice: voice.id) {
-                self.setSample(voice.id, file: sample)
-            }
+        if let sample = await VoiceSamples.keep(clip: clip, voice: voice.id) {
+            setSample(voice.id, file: sample)
         }
         rerender(meetings: voice.meetingIDs)
     }
