@@ -26,6 +26,24 @@ called, and who was asked.
   all-day event, one you declined, or one that was called off. None of them prompt.
 - Insights still counts your time per app, not per meeting title.
 
+Also in this release, after a report of transcripts coming out as nonsense and recordings
+playing back sounding sped up:
+
+- **Changing microphone mid-call no longer risks the recording.** Both the microphone and the
+  system-audio tap were set up with a sample-rate format read a moment earlier and then held
+  for the whole recording. Plug in AirPods, unplug a dock, let the output device switch, and
+  that cached answer stops being true — but audio keeps arriving and gets labelled with it
+  anyway, so every sample is converted by the wrong ratio. The result is a recording at the
+  wrong speed: unlistenable, transcribed to nonsense, and with nothing anywhere to say so.
+  The format now comes with each buffer from the engine itself, and the system tap follows
+  its device's format for the life of the recording.
+- **And it can no longer be silent.** At the end of every recording Ata compares the audio it
+  wrote against the time that passed. Those numbers come from unrelated places and only
+  disagree when something converted by the wrong ratio; past a tenth Ata writes what happened
+  to the log, in plain words, naming the microphone formats it was handed.
+- `Ata --diagnose` reports the system tap's format, so a Mac where this goes wrong can be
+  asked directly.
+
 Two things worth knowing. Calendar access on macOS has no read-only tier — reading events
 requires full access, which also permits writing; Ata asks for it only when you turn the
 feature on, and there is no write call anywhere in its code. And if your Mac and your iPhone

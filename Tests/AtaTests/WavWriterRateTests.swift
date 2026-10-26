@@ -176,3 +176,48 @@ extension WavWriterRateTests {
         XCTAssertEqual(writer.inputFormats, ["48000 Hz × 2", "16000 Hz × 1"])
     }
 }
+
+/// The microphone changing in the middle of a call.
+///
+/// AirPods go in, a dock is unplugged, Ata restarts the engine and the next
+/// buffer arrives in a different format entirely. The recording has to carry
+/// straight on: same timeline, same speed, with the dead time in between kept
+/// as silence rather than closed up — closing it up would slide every later
+/// word out of step with the other track, and the speaker split reads both.
+extension WavWriterRateTests {
+    func testSwappingTheMicrophoneMidRecordingKeepsOneTimeline() throws {
+        let url = dir.appendingPathComponent("mic.wav")
+        let writer = try WavWriter(url: url, startHostSeconds: 0)
+
+        // Two seconds on the built-in microphone…
+        var at = 0.0
+        for buffer in try tap(rate: 48_000, channels: 2, buffers: 24) {
+            writer.append(buffer, hostSeconds: at)
+            at += 4_096 / 48_000
+        }
+        // …a second and a half while the engine restarts on the new device…
+        at += 1.5
+        // …then AirPods, at a different rate and channel count.
+        for buffer in try tap(rate: 24_000, channels: 1, buffers: 12) {
+            writer.append(buffer, hostSeconds: at)
+            at += 4_096 / 24_000
+        }
+        writer.close()
+
+        XCTAssertEqual(WavWriter.duration(of: url), at, accuracy: 0.05,
+                       "the file has to be as long as the call, gap included")
+        XCTAssertEqual(writer.inputFormats, ["48000 Hz × 2", "24000 Hz × 1"])
+    }
+
+    /// A device that comes back as the same format it left is not a change.
+    func testAnEngineRestartOnTheSameDeviceIsNotTreatedAsAChange() throws {
+        let url = dir.appendingPathComponent("mic.wav")
+        let writer = try WavWriter(url: url, startHostSeconds: 0)
+        for buffer in try tap(rate: 48_000, channels: 1, buffers: 10) { writer.append(buffer, hostSeconds: nil) }
+        for buffer in try tap(rate: 48_000, channels: 1, buffers: 10) { writer.append(buffer, hostSeconds: nil) }
+        writer.close()
+        XCTAssertEqual(writer.inputFormats, ["48000 Hz × 1"], "one format, named once")
+        let expected = Double(20 * 4_096) / 48_000
+        XCTAssertEqual(WavWriter.duration(of: url), expected, accuracy: expected * 0.01)
+    }
+}
