@@ -39,6 +39,30 @@ The meeting counts as over once nobody has used the microphone for about sixteen
 then, an automatic stop waits until the system audio has also been quiet for ten seconds, so
 muting yourself doesn't end the recording.
 
+## 1b. Knowing about it beforehand — the calendar
+
+Microphone detection can only ever notice a meeting that has already started. Since 2.11 Ata
+also reads the calendar, which knows an hour ahead.
+
+`CalendarStore` is the only file that imports EventKit; it turns `EKEvent`s into
+`MeetingEvent`s — title, start, attendees with their addresses parsed out of each
+participant's `mailto:` URL. `CalendarSchedule` is pure and decides what deserves a prompt:
+no all-day events, nothing cancelled or declined, nothing marked free, and (by default)
+nothing with no other people on it, which is what focus blocks and birthdays look like.
+
+`CalendarWatcher` schedules one notification per occurrence through
+`UNCalendarNotificationTrigger`. **The wall-clock wait is the system's, not a `Timer`'s** — a
+`Timer` does not fire while the Mac sleeps, and the prompt Ata most needs to deliver is the
+one for the ten o'clock on a Mac that was asleep at 09:59. The watcher only ever reconciles:
+at launch, on `EKEventStoreChanged`, on wake, on a time-zone change, and every fifteen
+minutes. The notification's identifier is the occurrence key, and adding a request with an
+existing identifier replaces it, so one meeting can only ever have one prompt.
+
+Tapping **Record** calls `AppStore.startRecording(event:)`, which re-reads the event in case
+it was renamed since, and the title then names the folder, the window and the transcript.
+The attendees stay in `meeting.json`, and `VoiceSuggestions` offers them as answers to
+"Who's this?" — ranked, with the reason shown, and never applied without a tap.
+
 ## 2. Capturing two tracks — `Recorder` and `WavWriter`
 
 The microphone (via `AVAudioEngine`) and the Mac's output (via a Core Audio process tap) are

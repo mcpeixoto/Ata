@@ -126,6 +126,12 @@ final class AppStore: ObservableObject {
         }
     }
 
+    /// The calendar settings or the grant changed: the scheduled prompts have
+    /// to match what the user just asked for.
+    func calendarChanged() {
+        CalendarWatcher.shared.start()
+    }
+
     func setAutoDetect(_ on: Bool) {
         Pref.d.set(on, forKey: Pref.autoDetect)
         if on { detector.start() } else { detector.stop(); detectedApp = nil }
@@ -136,6 +142,14 @@ final class AppStore: ObservableObject {
     private func meetingStarted(_ app: String) {
         detectedApp = app
         pendingAutoStop = false
+        // Already recording because the calendar said so, and only now is Zoom
+        // on the microphone: the meeting keeps the event's title and gains the
+        // app, so Insights' "Where" chart still has something to group it under.
+        if phase == .recording, var m = current, m.app == nil {
+            m.app = app
+            current = m
+            Library.save(m)
+        }
         guard phase == .idle else { return }
         if Pref.d.bool(forKey: Pref.autoStart) && setup.ready {
             autoStarted = true
@@ -175,7 +189,19 @@ final class AppStore: ObservableObject {
         }
     }
 
-    func startRecording(app: String?) {
+    /// Starts recording a meeting Ata knows the calendar event for: the event
+    /// names the folder, the window and the transcript, and its attendees are
+    /// the names "Who's this?" will offer for the voices heard in it.
+    ///
+    /// Re-read from the calendar first where it can be. A prompt scheduled an
+    /// hour ago may be quoting a title that has since changed — and it never
+    /// refuses, because the user tapped Record.
+    func startRecording(event: MeetingEvent?) {
+        let fresh = event.flatMap { CalendarStore.shared.refresh($0) } ?? event
+        startRecording(app: detectedApp, event: fresh)
+    }
+
+    func startRecording(app: String?, event: MeetingEvent? = nil) {
         guard phase == .idle else { return }
         // An auto-stop armed for an earlier meeting must never end this one.
         pendingAutoStop = false
@@ -193,7 +219,7 @@ final class AppStore: ObservableObject {
             do {
                 // Written in staging and moved into the meetings folder when it stops,
                 // so a synced folder never holds a half-written WAV.
-                let m = try Meeting.new(app: app, staged: true)
+                let m = try Meeting.new(app: app, event: event, staged: true)
                 Library.save(m)
                 bookmarkCount = 0
                 current = m

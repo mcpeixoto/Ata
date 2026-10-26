@@ -20,7 +20,15 @@ final class SetupModel: ObservableObject {
     @Published private(set) var whisper = false
     @Published private(set) var model = false
     @Published private(set) var notifications = false
+    /// Permission to read the calendar. Optional, like notifications: Ata has
+    /// to stay fully usable without it, so it is deliberately not part of `ready`.
+    @Published private(set) var calendar = false
+    @Published private(set) var calendarStatus = CalendarAccess.Status.notDetermined
     @Published private(set) var launchAtLogin = false
+
+    /// Refused, or granted only enough to add events. macOS will not ask again
+    /// either way, so the only route back is the settings pane.
+    var calendarDenied: Bool { calendarStatus == .denied || calendarStatus == .writeOnly }
 
     @Published private(set) var downloadProgress: Double? // nil = no download running
     @Published private(set) var downloadError: String?
@@ -79,6 +87,8 @@ final class SetupModel: ObservableObject {
         model = Paths.hasWhisperModel
         usesOpenAI = Engine.current == .openAI
         hasOpenAIKey = Keychain.has(Keychain.openAIKey)
+        calendarStatus = CalendarAccess.status
+        calendar = calendarStatus == .authorized
         launchAtLogin = SMAppService.mainApp.status == .enabled
         Task {
             let s = await UNUserNotificationCenter.current().notificationSettings()
@@ -90,11 +100,28 @@ final class SetupModel: ObservableObject {
     func applySnapshotFixture() {
         mic = true; systemAudio = true; systemAudioStatus = .authorized; whisper = true; model = true
         notifications = true; launchAtLogin = true
+        calendar = true; calendarStatus = .authorized
         usesOpenAI = false; hasOpenAIKey = true
         Self.frozen = true
     }
 
     // MARK: Permissions
+
+    /// Shows the system prompt the first time; after a refusal macOS will not
+    /// ask again, so this opens the settings pane instead. The microphone's
+    /// shape, not system audio's: EventKit honours a grant in the process that
+    /// is already running, so there is nothing to restart.
+    func requestCalendar() {
+        Task {
+            if CalendarAccess.status == .notDetermined {
+                _ = await CalendarAccess.request()
+            } else if !CalendarAccess.isAuthorized {
+                Self.openPrivacy("Privacy_Calendars")
+            }
+            refresh()
+            AppStore.shared.calendarChanged()
+        }
+    }
 
     func requestMic() {
         Task {

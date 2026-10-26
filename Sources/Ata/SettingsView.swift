@@ -23,6 +23,9 @@ struct SettingsView: View {
     @AppStorage(Pref.summaryEngine) private var summaryEngine = "auto"
     @AppStorage(Pref.autoUpdate) private var autoUpdate = true
     @AppStorage(Pref.audioRetentionDays) private var audioRetentionDays = 0
+    @AppStorage(Pref.calendarPrompt) private var calendarPrompt = false
+    @AppStorage(Pref.calendarLeadMinutes) private var calendarLeadMinutes = 1
+    @AppStorage(Pref.calendarPeopleOnly) private var calendarPeopleOnly = true
     @State private var recordShortcut: Shortcut? = Hotkey.current
     @AppStorage(Pref.dockIcon) private var dockIcon = false
     @AppStorage(Pref.menuBarIcon) private var menuBarIcon = true
@@ -66,6 +69,7 @@ struct SettingsView: View {
             header
             Form {
                 recordingSection
+                calendarSection
                 presenceSection
                 menuBarSection
                 transcriptionSection
@@ -120,6 +124,56 @@ struct SettingsView: View {
             Toggle("Stop on its own when the meeting ends", isOn: $autoStop)
                 .disabled(!autoDetect)
         }
+    }
+
+    private var calendarSection: some View {
+        Section("Calendar") {
+            Toggle("Offer to record meetings on my calendar", isOn: Binding(
+                get: { calendarPrompt },
+                set: { on in
+                    calendarPrompt = on
+                    if on, !setup.calendar { setup.requestCalendar() } else { store.calendarChanged() }
+                }))
+            if calendarPrompt {
+                Picker("How long before", selection: $calendarLeadMinutes) {
+                    ForEach([1, 2, 5, 10, 15], id: \.self) { minutes in
+                        Text(minutes == 1 ? L("A minute") : L("%d minutes", minutes)).tag(minutes)
+                    }
+                }
+                .onChange(of: calendarLeadMinutes) { _, _ in store.calendarChanged() }
+                Toggle("Only events with other people invited", isOn: $calendarPeopleOnly)
+                    .onChange(of: calendarPeopleOnly) { _, _ in store.calendarChanged() }
+                if !setup.calendar {
+                    LabeledContent(L("Access")) {
+                        Button(L("Allow")) { setup.requestCalendar() }
+                    }
+                }
+            }
+            Text(calendarFootnote)
+                .font(.system(size: 11))
+                .foregroundStyle(calendarPrompt && !setup.calendar ? .orange : .secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// What this will actually do, given everything else that is switched on. A
+    /// setting that quietly does nothing is worse than one that says why.
+    private var calendarFootnote: String {
+        if calendarPrompt, !setup.calendar {
+            return setup.calendarDenied
+                ? L("Ata cannot read your calendar. Turn it on under Calendars in System Settings → Privacy & Security.")
+                : L("Ata needs permission to read your calendar.")
+        }
+        if calendarPrompt, !setup.notifications {
+            return L("Turn on notifications for Ata and the prompt arrives there. Until then the next meeting shows in Ata's window.")
+        }
+        if calendarPrompt, autoStart {
+            return L("Recording starts on its own when the meeting does, because \"When a meeting is detected\" is set to start recording.")
+        }
+        if calendarPrompt {
+            return L("A notification before the meeting, with a Record button. The recording is filed under the event's title, and the people invited are what Ata offers when it asks whose voice it heard.")
+        }
+        return L("Ata reads the calendars already in Calendar.app, your Google account included. Nothing leaves your Mac, and Ata never writes to a calendar.")
     }
 
     private var presenceSection: some View {

@@ -8,6 +8,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sen
 
     private enum ID {
         static let detected = "MEETING_DETECTED"
+        static let soon = "MEETING_SOON"
         static let recording = "RECORDING"
         static let ready = "TRANSCRIPT_READY"
         static let record = "RECORD"
@@ -27,6 +28,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sen
         let install = UNNotificationAction(identifier: ID.install, title: L("Update"), options: [.foreground])
         center.setNotificationCategories([
             UNNotificationCategory(identifier: ID.detected, actions: [record], intentIdentifiers: [], options: []),
+            UNNotificationCategory(identifier: ID.soon, actions: [record], intentIdentifiers: [], options: []),
             UNNotificationCategory(identifier: ID.recording, actions: [stop], intentIdentifiers: [], options: []),
             UNNotificationCategory(identifier: ID.ready, actions: [open], intentIdentifiers: [], options: []),
             UNNotificationCategory(identifier: ID.update, actions: [install], intentIdentifiers: [], options: []),
@@ -65,14 +67,55 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sen
     }
 
     private func post(id: String, category: String, title: String, body: String,
-                      info: [String: String], sound: Bool = true) {
+                      info: [String: String], sound: Bool = true,
+                      trigger: UNNotificationTrigger? = nil) {
         let c = UNMutableNotificationContent()
         c.title = title
         c.body = body
         c.categoryIdentifier = category
         c.userInfo = info
         if sound { c.sound = .default }
-        center.add(UNNotificationRequest(identifier: id, content: c, trigger: nil)) { _ in }
+        center.add(UNNotificationRequest(identifier: id, content: c, trigger: trigger)) { _ in }
+    }
+
+    // MARK: Meetings on the calendar
+
+    /// Makes the pending prompts match `wanted`, keyed by occurrence.
+    ///
+    /// Adding a request whose identifier already exists replaces it, so one
+    /// meeting can only ever have one prompt — and anything no longer on the
+    /// calendar is withdrawn. Ata's first scheduled notifications: everything
+    /// else it posts fires immediately.
+    func scheduleMeetings(_ wanted: [String: (event: MeetingEvent, fire: Date)], leadMinutes: Int) {
+        center.getPendingNotificationRequests { pending in
+            let stale = pending.filter { $0.content.categoryIdentifier == ID.soon && wanted[$0.identifier] == nil }
+            Task { @MainActor in
+                self.center.removePendingNotificationRequests(withIdentifiers: stale.map(\.identifier))
+                for (key, due) in wanted { self.scheduleMeeting(due.event, key: key, at: due.fire,
+                                                                leadMinutes: leadMinutes) }
+            }
+        }
+    }
+
+    private func scheduleMeeting(_ event: MeetingEvent, key: String, at fire: Date, leadMinutes: Int) {
+        // Date components in the current zone, so a prompt scheduled before a
+        // flight and fired after it is not an hour out.
+        let when = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: fire)
+        let title = leadMinutes <= 1
+            ? L("%@ starts in a minute", event.title)
+            : L("%@ starts in %d minutes", event.title, leadMinutes)
+        post(id: key, category: ID.soon, title: title, body: L("Record and transcribe it?"),
+             info: ["event": MeetingEventCoding.json(event) ?? ""],
+             trigger: UNCalendarNotificationTrigger(dateMatching: when, repeats: false))
+    }
+
+    /// Withdraws every scheduled meeting prompt — the feature was turned off,
+    /// or access was taken away.
+    func clearScheduledMeetings() {
+        center.getPendingNotificationRequests { pending in
+            let ours = pending.filter { $0.content.categoryIdentifier == ID.soon }.map(\.identifier)
+            Task { @MainActor in self.center.removePendingNotificationRequests(withIdentifiers: ours) }
+        }
     }
 
     // MARK: UNUserNotificationCenterDelegate
@@ -94,6 +137,12 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sen
             MainActor.assumeIsolated {
                 let store = AppStore.shared
                 switch (category, action) {
+                #if os(macOS)
+                // The calendar prompt is the Mac's: the iPhone does not watch a
+                // calendar, and its store has no such entry point.
+                case (ID.soon, ID.record), (ID.soon, UNNotificationDefaultActionIdentifier):
+                    store.startRecording(event: MeetingEventCoding.event(info["event"] as? String))
+                #endif
                 case (ID.detected, ID.record), (ID.detected, UNNotificationDefaultActionIdentifier):
                     store.startRecording(app: app)
                 case (ID.recording, ID.stop):

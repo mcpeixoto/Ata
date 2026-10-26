@@ -1,5 +1,38 @@
 # Changelog
 
+## 2.11.0
+
+Ata learns a meeting is happening from the microphone, four seconds after it starts — and
+knows nothing about it. Your calendar knows all of it an hour ahead: when, what it is
+called, and who was asked.
+
+- **Ata offers to record before the meeting starts.** A notification with a Record button,
+  as long before as you like. It reads the calendars already in Calendar.app, your Google
+  account among them — no account to connect, nothing sent anywhere, and it never writes to
+  a calendar. Off until you turn it on in Settings → Calendar.
+- **Meetings are filed under their own name.** `~/Documents/Meetings/2026-10-26 10.00.00
+  Weekly sync/`, and the window, the transcript and the share filename all say the same. A
+  recording Ata started from the microphone is still filed under the app, as before.
+- **Who was invited is kept with the recording**, and shown at the top of the meeting.
+- **"Who's this?" offers the people who were there.** Instead of typing a name, tap one —
+  with the reason beside it: the only other person invited, invited to all three meetings
+  you heard this voice in, and so on. Ata never names a voice on its own; every suggestion
+  waits for you.
+- **One person can have more than one name.** Folding "Rita Alves" into "Rita" used to throw
+  "Rita Alves" away, taking with it the one string that would have matched her on the next
+  invitation — so the merge made Ata worse at knowing the person you had just identified.
+  Both names are kept now, and only the one you chose is ever written in a transcript.
+- A block on your own calendar with nobody else on it is not a meeting, and nor is an
+  all-day event, one you declined, or one that was called off. None of them prompt.
+- Insights still counts your time per app, not per meeting title.
+
+Two things worth knowing. Calendar access on macOS has no read-only tier — reading events
+requires full access, which also permits writing; Ata asks for it only when you turn the
+feature on, and there is no write call anywhere in its code. And if your Mac and your iPhone
+end up on different versions for a while, the older one will quietly drop the extra names a
+voice has learned when it next touches that voice; they come back from the other device.
+Nothing else is lost, and a voice's own name is never affected.
+
 ## 2.10.0
 
 Ata was only ever as reachable as its menu bar icon, and macOS hides the icons that

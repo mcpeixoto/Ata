@@ -38,6 +38,14 @@ struct OnboardingView: View {
                                  optional: true) {
                             Button("Allow") { setup.requestNotifications() }
                         }
+                        Divider()
+                        CheckRow(ok: setup.calendar, title: L("Calendar"),
+                                 detail: setup.calendarDenied
+                                    ? L("Turn Ata on under Calendars in the settings that open.")
+                                    : L("So Ata can offer to record a meeting before it starts, and file it under the event's title. Read only — Ata never changes a calendar."),
+                                 optional: true) {
+                            Button("Allow") { setup.requestCalendar() }
+                        }
                     }
 
                     section(L("Transcription")) {

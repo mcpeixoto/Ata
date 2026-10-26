@@ -48,6 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Presence.apply()
         // Whatever app you are in, and whether or not the icon is reachable.
         Hotkey.reload { AppStore.shared.toggleRecording() }
+        CalendarWatcher.shared.start()
         let store = AppStore.shared
         store.bootstrap()
         if !Pref.d.bool(forKey: Pref.onboarded) || !store.setup.ready {

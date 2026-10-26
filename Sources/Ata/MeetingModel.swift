@@ -134,9 +134,11 @@ enum MeetingSharing {
     static func name(for m: Meeting) -> String {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd HH.mm"
+        // Through the same sanitiser the folder name uses. This hand-rolled its
+        // own two replacements, which was enough while a title was an app name
+        // from the system; a calendar event's title is the user's own text.
         let raw = "\(m.title) \(f.string(from: m.startedAt))"
-        // App names come from the system; keep them from making a path.
-        return raw.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+        return FolderNames.safe(raw) ?? f.string(from: m.startedAt)
     }
 
     /// The meeting's audio as one MP3 at `destination`: meeting.mp3 when there

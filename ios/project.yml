@@ -57,6 +57,9 @@ targets:
         excludes:
           - App.swift
           - AppStore.swift
+          - CalendarAccess.swift
+          - CalendarStore.swift
+          - CalendarWatcher.swift
           - Diagnostics.swift
           - Hotkey.swift
           - MeetingDetector.swift
@@ -145,6 +148,8 @@ targets:
       - path: Tests
       - path: ../Sources/AtaiOS/RecorderState.swift
       - path: ../Sources/Ata/FolderNames.swift
+      # FolderNames names a meeting after its calendar event, so it needs the type.
+      - path: ../Sources/Ata/MeetingEvent.swift
       - path: ../Sources/AtaShare/Shared/ShareInbox.swift
     settings:
       base:

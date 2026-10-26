@@ -43,9 +43,55 @@ final class PeopleModel: ObservableObject {
     }
     var me: Voice? { voices.first(where: \.isMe) }
 
+    /// The calendar event of each meeting that has one, for the suggestions
+    /// below. Built from the meeting.json files `Library.loadAll` reads anyway.
+    /// A meeting still on its way down from iCloud comes back as a placeholder
+    /// with no event — read, never waited for.
+    private var eventsByMeeting: [String: MeetingEvent] = [:]
+
     func reload() {
         library = VoiceLibrary()
         voices = library.voices
+        eventsByMeeting = Dictionary(uniqueKeysWithValues:
+            Library.loadAll().compactMap { m in m.event.map { (m.id, $0) } })
+    }
+
+    /// Who the calendar says this voice might be, best first. Suggestions only:
+    /// nothing here names anything until the user taps one.
+    func suggestions(for voice: Voice) -> [VoiceSuggestions.Candidate] {
+        VoiceSuggestions.candidates(for: voice, events: events(of: voice),
+                                    otherVoices: voices.filter { $0.id != voice.id },
+                                    myName: Pref.myNameOrDefault)
+    }
+
+    /// Voices the calendar says this one is probably the same person as.
+    func sameAs(_ voice: Voice) -> [Voice] {
+        VoiceSuggestions.sameAs(voice, events: events(of: voice), voices: voices)
+    }
+
+    private func events(of voice: Voice) -> [MeetingEvent] {
+        voice.meetingIDs.compactMap { eventsByMeeting[$0] }
+    }
+
+    /// The user tapped a name the calendar offered. The old name, if there was
+    /// one, is kept as an alias — so the next invitation still finds them.
+    func accept(_ suggestion: VoiceSuggestions.Candidate, for voice: Voice) {
+        let previous = voice.name
+        library.rename(voice.id, to: suggestion.name)
+        if let previous, !previous.isEmpty { library.addAlias(voice.id, previous) }
+        if let email = suggestion.email { library.addAlias(voice.id, email) }
+        persist()
+        rerender(meetings: voice.meetingIDs)
+    }
+
+    func addAlias(_ voice: Voice, _ alias: String) {
+        library.addAlias(voice.id, alias)
+        persist()
+    }
+
+    func removeAlias(_ voice: Voice, _ alias: String) {
+        library.removeAlias(voice.id, alias)
+        persist()
     }
 
     /// Called by the transcription queue with the speakers of a finished meeting.

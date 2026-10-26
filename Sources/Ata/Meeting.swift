@@ -25,6 +25,12 @@ struct Meeting: Codable, Identifiable, Equatable {
     /// both do. Cleared when the run ends.
     var claim: Claim? = nil
     /// Moments marked while recording.
+    /// The calendar event this meeting was recorded for, when it started from
+    /// one. Its title names the folder, the window and the transcript, and its
+    /// attendees are the names "Who's this?" offers for a voice heard here.
+    /// Nil for every meeting from before Ata 2.11, and for every one started by
+    /// hand, by the hotkey, by meeting detection or by an import.
+    var event: MeetingEvent? = nil
     var bookmarks: [Bookmark]? = nil
     /// Never written: set on a meeting whose meeting.json is still in iCloud, listed
     /// from its folder name until the file arrives. See `Library.placeholder`.
@@ -106,7 +112,11 @@ struct Meeting: Codable, Identifiable, Equatable {
             + Paths.fileSize(mergedAudioURL)
     }
 
-    var title: String { app ?? L("Meeting") }
+    /// What this meeting is called: the calendar event's title when it came from
+    /// one, otherwise the app that was on the microphone.
+    ///
+    /// `Insights` must not group by this — see the comment where it groups.
+    var title: String { event?.title ?? app ?? L("Meeting") }
 
     var subtitle: String {
         var parts = [Self.dayFormatter.string(from: startedAt)]
@@ -128,15 +138,18 @@ struct Meeting: Codable, Identifiable, Equatable {
 
     /// A new meeting folder, made by this device. `staged` puts it in the
     /// staging folder, for a recording or an import still being written.
-    static func new(app: String?, at date: Date = Date(), staged: Bool = false) throws -> Meeting {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd HH.mm.ss"
-        var name = f.string(from: date)
-        if let app { name += " \(app)" }
+    static func new(app: String?, event: MeetingEvent? = nil,
+                    at date: Date = Date(), staged: Bool = false) throws -> Meeting {
+        // Through FolderNames, not an inline formatter. An event's title is the
+        // user's own text and may hold a slash, a colon, a newline or two hundred
+        // characters, none of which may reach a path component — and having two
+        // formatters is how one of them came to forget the sanitising.
+        let name = FolderNames.name(startedAt: date, app: app, event: event)
         let id = try Library.makeFolder(named: name, staged: staged)
         var m = Meeting(id: id, startedAt: date, endedAt: nil, duration: nil,
                         app: app, status: .recording, error: nil)
         m.origin = Device.current
+        m.event = event
         return m
     }
 
@@ -357,6 +370,15 @@ enum Library {
     }
 
     /// "2026-10-23 14.02.05 Zoom" is its date and "Zoom".
+    ///
+    /// Since 2.11 that second part is the calendar event's title for a meeting
+    /// that came from one ("Weekly sync"), because the folder is named after
+    /// whatever the meeting is called. A folder name cannot say which it is, so
+    /// `placeholder` puts it in `app`: a meeting still on its way down from
+    /// iCloud then reads right in the list, and its event arrives with
+    /// meeting.json. `Insights` skips placeholders, so this never reaches the
+    /// "Where" chart. It also means the folder name is the durable copy of a
+    /// meeting's title — `load` already trusts the folder over the JSON.
     static func folderName(_ id: String) -> (date: Date?, app: String?) {
         guard id.count >= 19, let date = folderDates.date(from: String(id.prefix(19))) else { return (nil, nil) }
         let rest = id.dropFirst(19).trimmingCharacters(in: .whitespaces)
