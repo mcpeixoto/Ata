@@ -5,6 +5,11 @@
     <!-- Microphone and ScreenCaptureKit audio. -->
     <key>com.apple.security.device.audio-input</key><true/>
 
+    <!-- The calendar. The hardened runtime will not let macOS show the
+         permission dialog without this: tccd refuses the request outright and
+         the app is told no, with nothing on screen to say why. -->
+    <key>com.apple.security.personal-information.calendars</key><true/>
+
     <!-- whisper-cli and the install/update helpers run as child processes, which
          the hardened runtime otherwise blocks for a notarized build. -->
     <key>com.apple.security.cs.allow-jit</key><true/>

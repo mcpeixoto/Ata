@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.11.1
+
+- **"Allow" under Settings → Calendar now actually asks.** It did nothing at all in 2.11.0:
+  macOS will not show the calendar dialog for a notarized app that does not ask for the
+  calendar in its entitlements, and it refuses in silence — the button was dead and the
+  footnote still said Ata needed permission. If macOS stays silent anyway, Ata now opens
+  System Settings → Privacy & Security → Calendars and says so, instead of looking broken.
+- `Ata --diagnose` reports the calendar permission.
+
 ## 2.11.0
 
 Ata learns a meeting is happening from the microphone, four seconds after it starts — and

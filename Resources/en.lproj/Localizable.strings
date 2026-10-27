@@ -530,6 +530,7 @@
 "Only events with other people invited" = "Only events with other people invited";
 "Access" = "Access";
 "Ata cannot read your calendar. Turn it on under Calendars in System Settings → Privacy & Security." = "Ata cannot read your calendar. Turn it on under Calendars in System Settings → Privacy & Security.";
+"macOS did not ask. Turn Ata on under Calendars in System Settings → Privacy & Security." = "macOS did not ask. Turn Ata on under Calendars in System Settings → Privacy & Security.";
 "Ata needs permission to read your calendar." = "Ata needs permission to read your calendar.";
 "Turn on notifications for Ata and the prompt arrives there. Until then the next meeting shows in Ata's window." = "Turn on notifications for Ata and the prompt arrives there. Until then the next meeting shows in Ata's window.";
 "Recording starts on its own when the meeting does, because \"When a meeting is detected\" is set to start recording." = "Recording starts on its own when the meeting does, because \"When a meeting is detected\" is set to start recording.";

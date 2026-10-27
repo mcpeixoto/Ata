@@ -39,6 +39,20 @@ enum Diagnostics {
         say("whisper-cli: \(Paths.whisperCLI()?.path ?? "not installed")")
         say("local model: \(LocalModel.current.id) \(LocalModel.current.isInstalled ? "installed" : "not downloaded")")
         say("voice recognition: \(Diarization.isSupported ? "supported" : "needs macOS 15")")
+        say("calendar permission: \(CalendarAccess.status)")
+
+        // Asks for calendar access and reports what came back, so a prompt that
+        // never appears can be told from one that was answered. Behind an
+        // environment variable because `--diagnose` must not change anything.
+        if ProcessInfo.processInfo.environment["ATA_DIAG_ASK_CALENDAR"] == "1" {
+            say("asking for calendar access…")
+            Task { @MainActor in
+                let granted = await CalendarAccess.request()
+                say("answer: \(granted ? "allowed" : "refused"); status now \(CalendarAccess.status)")
+                exit(0)
+            }
+            return
+        }
 
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ata-diagnose-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

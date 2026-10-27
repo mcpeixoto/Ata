@@ -24,6 +24,10 @@ final class SetupModel: ObservableObject {
     /// to stay fully usable without it, so it is deliberately not part of `ready`.
     @Published private(set) var calendar = false
     @Published private(set) var calendarStatus = CalendarAccess.Status.notDetermined
+    /// Ata asked for the calendar and macOS showed nothing — see
+    /// `CalendarAccess.NextStep`. Settings says so, because otherwise the only
+    /// evidence is a dialog that never appeared.
+    @Published private(set) var calendarAskWasSilent = false
     @Published private(set) var launchAtLogin = false
 
     /// Refused, or granted only enough to add events. macOS will not ask again
@@ -89,6 +93,7 @@ final class SetupModel: ObservableObject {
         hasOpenAIKey = Keychain.has(Keychain.openAIKey)
         calendarStatus = CalendarAccess.status
         calendar = calendarStatus == .authorized
+        if calendar { calendarAskWasSilent = false }
         launchAtLogin = SMAppService.mainApp.status == .enabled
         Task {
             let s = await UNUserNotificationCenter.current().notificationSettings()
@@ -113,9 +118,11 @@ final class SetupModel: ObservableObject {
     /// is already running, so there is nothing to restart.
     func requestCalendar() {
         Task {
-            if CalendarAccess.status == .notDetermined {
-                _ = await CalendarAccess.request()
-            } else if !CalendarAccess.isAuthorized {
+            let before = CalendarAccess.status
+            if before == .notDetermined { _ = await CalendarAccess.request() }
+            let after = CalendarAccess.status
+            calendarAskWasSilent = CalendarAccess.wasSilent(before: before, after: after)
+            if CalendarAccess.nextStep(before: before, after: after) == .openSettings {
                 Self.openPrivacy("Privacy_Calendars")
             }
             refresh()

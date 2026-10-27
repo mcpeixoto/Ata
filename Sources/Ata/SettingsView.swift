@@ -159,6 +159,9 @@ struct SettingsView: View {
     /// What this will actually do, given everything else that is switched on. A
     /// setting that quietly does nothing is worse than one that says why.
     private var calendarFootnote: String {
+        if calendarPrompt, !setup.calendar, setup.calendarAskWasSilent {
+            return L("macOS did not ask. Turn Ata on under Calendars in System Settings → Privacy & Security.")
+        }
         if calendarPrompt, !setup.calendar {
             return setup.calendarDenied
                 ? L("Ata cannot read your calendar. Turn it on under Calendars in System Settings → Privacy & Security.")

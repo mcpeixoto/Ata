@@ -530,6 +530,7 @@
 "Only events with other people invited" = "Só eventos com outras pessoas convidadas";
 "Access" = "Acesso";
 "Ata cannot read your calendar. Turn it on under Calendars in System Settings → Privacy & Security." = "A Ata não consegue ler o teu calendário. Liga-a em Calendários nas Definições do Sistema → Privacidade e Segurança.";
+"macOS did not ask. Turn Ata on under Calendars in System Settings → Privacy & Security." = "O macOS não perguntou. Liga a Ata em Calendários nas Definições do Sistema → Privacidade e Segurança.";
 "Ata needs permission to read your calendar." = "A Ata precisa de permissão para ler o teu calendário.";
 "Turn on notifications for Ata and the prompt arrives there. Until then the next meeting shows in Ata's window." = "Liga as notificações da Ata e o aviso chega aí. Até lá, a próxima reunião aparece na janela da Ata.";
 "Recording starts on its own when the meeting does, because \"When a meeting is detected\" is set to start recording." = "A gravação começa sozinha quando a reunião começa, porque \"Quando é detetada uma reunião\" está em começar a gravar.";

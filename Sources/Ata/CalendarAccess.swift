@@ -36,6 +36,36 @@ enum CalendarAccess {
 
     static var isAuthorized: Bool { status == .authorized }
 
+    /// What to do after asking — because asking does not always ask.
+    ///
+    /// A hardened-runtime app needs the
+    /// `com.apple.security.personal-information.calendars` entitlement for
+    /// macOS to show the dialog at all, and even with it, `tccd` stays silent
+    /// when the process responsible for Ata's launch has no such right — Ata
+    /// started from a terminal, or by another app. The request then returns
+    /// false with the status unchanged and nothing appears on screen. A button
+    /// that does nothing is the worst possible answer, so that case opens the
+    /// settings pane instead.
+    enum NextStep: Equatable {
+        /// Granted, or just refused by the user — who does not need to be sent
+        /// to System Settings a second after saying no.
+        case nothing
+        /// macOS never asked, or had already been answered: the pane is the
+        /// only route left.
+        case openSettings
+    }
+
+    static func nextStep(before: Status, after: Status) -> NextStep {
+        if after == .authorized { return .nothing }
+        if before == .notDetermined, after != .notDetermined { return .nothing }
+        return .openSettings
+    }
+
+    /// Whether a request went by without macOS asking anything.
+    static func wasSilent(before: Status, after: Status) -> Bool {
+        before == .notDetermined && after == .notDetermined
+    }
+
     /// Shows the system prompt. Returns whether Ata may now read the calendar.
     static func request() async -> Bool {
         let store = EKEventStore()
