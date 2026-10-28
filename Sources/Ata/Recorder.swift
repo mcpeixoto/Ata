@@ -45,6 +45,10 @@ final class Recorder: NSObject {
     private var outputWatcher: AudioObjectPropertyListenerBlock?
     nonisolated private let sysQueue = DispatchQueue(label: "ai.interactive.ata.system-audio", qos: .userInitiated)
     private var running = false
+    private var startedAt = Date()
+    /// The "we cannot hear the other side" warning is showing: it clears
+    /// itself if their side ever arrives, and never repeats within a call.
+    private var silentSystemWarned = false
     private var observers: [NSObjectProtocol] = []
     private var watchdog: Timer?
     private var micRetry = 0
@@ -63,6 +67,8 @@ final class Recorder: NSObject {
         guard await AVCaptureDevice.requestAccess(for: .audio) else { throw RecorderError.micDenied }
 
         let t0 = Self.hostNow()
+        startedAt = Date()
+        silentSystemWarned = false
         mic = try WavWriter(url: dir.appendingPathComponent("mic.wav"), startHostSeconds: t0)
         sysBox.writer = try WavWriter(url: dir.appendingPathComponent("system.wav"), startHostSeconds: t0)
         running = true
@@ -111,6 +117,31 @@ final class Recorder: NSObject {
 
     var micLevel: Float { mic?.level ?? 0 }
     var systemLevel: Float { sys?.level ?? 0 }
+
+    /// Buffers arriving is not the same as a side being captured: a tap pointed
+    /// at an output the call is not using delivers silence with perfect
+    /// attendance, the watchdog above never fires, and the meeting is filed
+    /// with the other side of the call missing from it. Nobody finds that out
+    /// until they read the transcript.
+    ///
+    /// So: half a minute in, if you have clearly been heard and their side has
+    /// never risen above digital silence, say so while the call can still be
+    /// saved. Their side arriving clears it again. (Levels are on the writer's
+    /// ≈ −50 dB…0 dB scale, where silence is 0.)
+    private func checkForASilentSide() {
+        guard let mic, let sys else { return }
+        if sys.peakLevel >= 0.01 {
+            if silentSystemWarned {
+                silentSystemWarned = false
+                onWarning?(nil)
+            }
+            return
+        }
+        guard !silentSystemWarned, !sysRestarting,
+              Date().timeIntervalSince(startedAt) > 30, mic.peakLevel >= 0.05 else { return }
+        silentSystemWarned = true
+        onWarning?(L("Ata can't hear the other side — check the call's output device"))
+    }
 
     // MARK: - Microphone
 
@@ -263,6 +294,7 @@ final class Recorder: NSObject {
                 if !self.sysRestarting, let sys = self.sys, Date().timeIntervalSince(sys.lastBufferAt) > 6 {
                     self.restartSystem()
                 }
+                self.checkForASilentSide()
             }
         }
     }

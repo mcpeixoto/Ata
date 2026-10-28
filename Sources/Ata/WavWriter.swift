@@ -23,6 +23,7 @@ final class WavWriter: @unchecked Sendable {
     private var lastHeaderUpdate = Date()
     private var closed = false
     private var _level: Float = 0
+    private var _peakLevel: Float = 0
     private var _lastBufferAt = Date()
     private var _inputFormats: [String] = []
 
@@ -44,6 +45,12 @@ final class WavWriter: @unchecked Sendable {
 
     var lastBufferAt: Date { lock.lock(); defer { lock.unlock() }; return _lastBufferAt }
 
+    /// The loudest buffer since the recording started. A capture can deliver
+    /// buffers forever and still hold nothing — a tap pointed at the wrong
+    /// output is digital silence with perfect attendance — and only the peak
+    /// tells that apart from a side that simply has not spoken yet.
+    var peakLevel: Float { lock.lock(); defer { lock.unlock() }; return _peakLevel }
+
     /// Every input format this writer was handed, in the order it saw them.
     ///
     /// Kept because a recording that came out at the wrong speed is almost
@@ -64,6 +71,7 @@ final class WavWriter: @unchecked Sendable {
         guard !closed, buffer.frameLength > 0, buffer.format.sampleRate > 0 else { return }
 
         _level = Self.meterLevel(buffer)
+        if _level > _peakLevel { _peakLevel = _level }
         _lastBufferAt = Date()
 
         if converterInput != buffer.format {

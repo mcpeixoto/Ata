@@ -112,6 +112,8 @@ enum Pref {
     static let summarize = "summarize"       // append an AI summary
     static let summaryModel = "summaryModel"
     static let summaryEngine = "summaryEngine" // "auto" | SummaryEngine.rawValue
+    static let summaryTemplate = "summaryTemplate" // SummaryTemplate.rawValue
+    static let dictionary = "dictionary"       // the user's own names and words, as typed
     static let audioRetentionDays = "audioRetentionDays" // 0 = keep forever
     static let recogniseVoices = "recogniseVoices" // diarize and match voices
     static let cancelEcho = "cancelEcho"     // take the others out of the mic before transcribing

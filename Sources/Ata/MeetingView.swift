@@ -65,6 +65,17 @@ struct MeetingView: View {
                 .padding(10)
                 .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.orange.opacity(0.10)))
             }
+            if let healthWarning = model.healthWarning {
+                // Not dismissable: it is a fact about this recording, and it is
+                // at the top of its transcript.md too.
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "waveform.slash").foregroundStyle(.orange)
+                    Text(healthWarning).font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
+                    Spacer()
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.orange.opacity(0.10)))
+            }
             Picker("", selection: $tab) {
                 Text("Notes").tag(Tab.notes)
                 Text("Transcript").tag(Tab.transcript)
@@ -442,6 +453,10 @@ private struct NotesTab: View {
                 .lineSpacing(3)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
+            Button { model.copyFollowUp() } label: {
+                Label("Copy follow-up draft", systemImage: "envelope")
+            }
+            .controlSize(.small)
         } else if model.writingNotes {
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)

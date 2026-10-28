@@ -213,6 +213,8 @@ final class MeetingModel: ObservableObject {
     @Published private(set) var lines: [Line] = []
     @Published private(set) var coarse = false
     @Published private(set) var summary: String?
+    /// A side of the recording held no sound; see `TrackHealth`.
+    @Published private(set) var healthWarning: String?
     /// transcript.md, for meetings transcribed before transcript.json existed.
     @Published private(set) var markdown: String?
     @Published private(set) var hasStoredTranscript = false
@@ -301,6 +303,7 @@ final class MeetingModel: ObservableObject {
             }
             coarse = stored.coarse
             summary = stored.summary
+            healthWarning = stored.health.flatMap(TrackHealth.init(rawValue:))?.warning
             markdown = nil
             transcriptDownloading = false
         } else {
@@ -308,6 +311,7 @@ final class MeetingModel: ObservableObject {
             lines = []
             coarse = false
             summary = nil
+            healthWarning = nil
             let markdownHere = !m.transcriptFiles.contains { CloudFiles.readable($0) == nil }
             let file = storedHere && markdownHere ? m.existingTranscriptURL : nil
             markdown = file.flatMap { try? String(contentsOf: $0, encoding: .utf8) }
@@ -577,6 +581,14 @@ final class MeetingModel: ObservableObject {
     func copyNotes() {
         guard !notesText.isEmpty else { return }
         copy(notesText)
+    }
+
+    /// A follow-up email drafted from the summary, on the clipboard: subject,
+    /// the overview as the body, the action items as next steps.
+    func copyFollowUp() {
+        guard let meeting, let summary, !summary.isEmpty else { return }
+        copy(FollowUp.draft(summary: summary, meetingTitle: meeting.title, myName: Pref.myNameOrDefault))
+        message = L("Follow-up draft copied — paste it into your email.")
     }
 
     private func copy(_ text: String) {

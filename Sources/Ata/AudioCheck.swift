@@ -45,3 +45,68 @@ enum AudioCheck {
                       + "Microphone format(s) seen: %@", audioSeconds, elapsed, speed, seen)
     }
 }
+
+/// Whether each side of a recording actually held any sound.
+///
+/// A process tap that is pointed at nothing — the call went to headphones Ata
+/// could not follow, the permission lapsed, the output device changed under
+/// it — delivers perfect digital silence, forever. Every check Ata had was
+/// satisfied by it: buffers arrive, the file is the right length, the WAV is
+/// valid. The meeting "succeeds" and only later does anyone notice the other
+/// side of the call is simply not in the transcript.
+///
+/// This is the check that notices. It reads the waveform lanes Ata already
+/// computes (50 ms levels per track), so it costs nothing, and its verdict is
+/// written into the transcript rather than a log nobody reads.
+enum TrackHealth: String, Equatable {
+    /// Both sides held sound.
+    case fine
+    /// The system track is digital silence while you were talking: the other
+    /// side of the call was never captured.
+    case othersNotCaptured
+    /// Your microphone track is digital silence while the others were talking.
+    case youNotCaptured
+
+    /// Less sound than this on a track is no sound. A tap is digital silence
+    /// while nothing plays; a real side of a call crosses this in seconds.
+    static let silentBelowSeconds = 1.0
+    /// Shorter than this, an empty side proves nothing: people join late,
+    /// and a false alarm here teaches people to ignore the real one.
+    static let minimumMeetingSeconds = 60.0
+    /// You have to have been heard for this long before your side counts as
+    /// "your side was captured" — otherwise a silent room would warn too.
+    static let minimumSpeechSeconds = 5.0
+
+    /// `micAudible`/`systemAudible`: seconds above the waveform's own
+    /// audibility floor, per track (see `SpeakerRoute.audibleSeconds`).
+    /// `systemPresent` is false for a meeting in the room, where there is no
+    /// other side to lose and a silent system track is expected.
+    static func judge(duration: Double, micAudible: Double, systemAudible: Double,
+                      systemPresent: Bool) -> TrackHealth {
+        guard duration >= minimumMeetingSeconds else { return .fine }
+        if systemPresent, systemAudible < silentBelowSeconds, micAudible >= minimumSpeechSeconds {
+            return .othersNotCaptured
+        }
+        if micAudible < silentBelowSeconds, systemAudible >= minimumSpeechSeconds {
+            return .youNotCaptured
+        }
+        return .fine
+    }
+
+    /// The line written at the top of the transcript and shown in the meeting
+    /// window, or nil when there is nothing to say.
+    var warning: String? {
+        switch self {
+        case .fine: return nil
+        case .othersNotCaptured:
+            return L("Ata could not hear the other side of this call: the system audio track is silent, "
+                     + "so only your side could be transcribed. Check that the call plays through the Mac's "
+                     + "chosen output device, and that Ata still has System Audio permission in "
+                     + "System Settings → Privacy & Security.")
+        case .youNotCaptured:
+            return L("Ata could not hear you in this recording: the microphone track is silent, "
+                     + "so only the other side could be transcribed. Check the microphone in "
+                     + "System Settings → Privacy & Security → Microphone.")
+        }
+    }
+}

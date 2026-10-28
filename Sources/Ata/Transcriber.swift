@@ -73,6 +73,13 @@ struct TranscribeOptions {
     var summaryModel: String
     /// `Pref.summaryEngine`: "auto", or the engine the user chose.
     var summaryEngine: String = "auto"
+    /// `Pref.summaryTemplate`: which shape the notes take.
+    var summaryTemplate: String = SummaryTemplate.standard.rawValue
+    /// `Pref.dictionary` as typed; resolved into `vocabulary` when a run starts.
+    var dictionary: String = ""
+    /// Names and words to spell right: the dictionary plus everyone named in
+    /// People. Built by `Transcriber`, where the voice library is at hand.
+    var vocabulary: [String] = []
 
     /// The model that will actually run, for records and file names.
     var modelID: String {
@@ -99,7 +106,9 @@ struct TranscribeOptions {
             cancelEcho: Pref.d.bool(forKey: Pref.cancelEcho),
             summarize: Pref.d.bool(forKey: Pref.summarize),
             summaryModel: Pref.d.string(forKey: Pref.summaryModel) ?? Pref.defaultSummaryModel,
-            summaryEngine: Pref.d.string(forKey: Pref.summaryEngine) ?? "auto")
+            summaryEngine: Pref.d.string(forKey: Pref.summaryEngine) ?? "auto",
+            summaryTemplate: Pref.d.string(forKey: Pref.summaryTemplate) ?? SummaryTemplate.standard.rawValue,
+            dictionary: Pref.d.string(forKey: Pref.dictionary) ?? "")
     }
 
     /// The current settings, with a meeting's one-off engine/model choice on top.
@@ -144,6 +153,10 @@ struct StoredTranscript: Codable, Equatable {
     var summary: String?
     var engine: String
     var model: String
+    /// `TrackHealth` raw value when a side of the recording held no sound, so
+    /// the transcript can say so at the top instead of quietly missing a side.
+    /// Absent in transcripts from before the check existed.
+    var health: String? = nil
 
     func save(to url: URL) throws {
         let e = JSONEncoder()
@@ -289,6 +302,11 @@ enum Transcriber {
     static func transcribe(_ meeting: Meeting, options: TranscribeOptions,
                            progress: @escaping @Sendable (Double) -> Void) async throws -> TranscriptionOutcome {
         let started = Date()
+        var options = options
+        // The words Ata should get right, resolved now that the voice library
+        // can be read: what the user typed, plus everyone they have named.
+        options.vocabulary = Vocabulary.terms(userText: options.dictionary,
+                                              names: VoiceLibrary().voices.compactMap(\.name) + [options.myName])
 
         // Audio from another device may still be in iCloud: fetched now, the first time it's needed.
         let sources = [meeting.micAudioURL, meeting.systemAudioURL].compactMap { $0 }
@@ -317,10 +335,22 @@ enum Transcriber {
         }
         guard !prepared.isEmpty else { throw TranscriberError.noAudio }
 
+        // How much sound each track actually held, from the levels the player
+        // will draw anyway. A track can be the right length, perfectly valid,
+        // and silent from end to end — the tap pointed at an output the call
+        // was not using — and nothing else in this run would ever notice.
+        let micAudible = prepared.first { $0.speaker == Speakers.me }
+            .flatMap { try? Waveform.levels($0.audio) }.map(SpeakerRoute.audibleSeconds) ?? 0
+        let systemPrepared = prepared.first { $0.speaker == Speakers.others }
+        let systemAudible = systemPrepared
+            .flatMap { try? Waveform.levels($0.audio) }.map(SpeakerRoute.audibleSeconds) ?? 0
+
         // Without headphones the microphone also hears the others, whose words then
         // came out a second time as yours. Clean a copy of the microphone track against
-        // what the speakers played; the recording itself is never changed.
-        if options.cancelEcho,
+        // what the speakers played; the recording itself is never changed. Against a
+        // silent reference there is no echo to find, so the pass (the most expensive
+        // one in this run) is skipped rather than run to prove it.
+        if options.cancelEcho, systemAudible >= TrackHealth.silentBelowSeconds,
            let micIndex = prepared.firstIndex(where: { $0.speaker == Speakers.me }),
            let system = prepared.first(where: { $0.speaker == Speakers.others }) {
             let mic = prepared[micIndex]
@@ -383,7 +413,9 @@ enum Transcriber {
             case .openAI:
                 let result = try await OpenAIEngine.transcribe(audio: track.audio, speaker: track.speaker,
                                                                language: options.language,
-                                                               model: options.openAIModel, progress: step)
+                                                               model: options.openAIModel,
+                                                               prompt: Vocabulary.transcriptionPrompt(options.vocabulary),
+                                                               progress: step)
                 segments += result.segments
                 coarse = coarse || result.coarse
             case .apple:
@@ -419,6 +451,17 @@ enum Transcriber {
                                       })
             },
             coarse: coarse, summary: nil, engine: options.engine.rawValue, model: options.modelID)
+
+        // Said at the top of the transcript, where the person reading it will
+        // see it, rather than only in a log: a side of this call was never
+        // captured, and the transcript is missing it.
+        let health = TrackHealth.judge(duration: prepared.map { WavWriter.duration(of: $0.audio) }.max() ?? 0,
+                                       micAudible: micAudible, systemAudible: systemAudible,
+                                       systemPresent: systemPrepared != nil)
+        if let warning = health.warning {
+            stored.health = health.rawValue
+            NSLog("Ata: %@", warning)
+        }
 
         var cost = options.transcriptionCost(seconds: audioSeconds)
         if options.summarize, !segments.isEmpty {
@@ -788,6 +831,9 @@ enum Transcriber {
         if people.count == 1 { people.append(names(Speakers.others)) }
         info.append(L("Participants: %@", people.joined(separator: ", ")))
         md += info.joined(separator: " · ") + "\n\n"
+        if let health = t.health.flatMap(TrackHealth.init(rawValue:)), let warning = health.warning {
+            md += "⚠️ **" + warning + "**\n\n"
+        }
         if let summary = t.summary {
             md += "## " + L("Summary") + "\n\n" + summary + "\n\n"
         }

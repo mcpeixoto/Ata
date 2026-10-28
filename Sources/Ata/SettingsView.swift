@@ -21,6 +21,8 @@ struct SettingsView: View {
     @AppStorage(Pref.cancelEcho) private var cancelEcho = true
     @AppStorage(Pref.summaryModel) private var summaryModel = Pref.defaultSummaryModel
     @AppStorage(Pref.summaryEngine) private var summaryEngine = "auto"
+    @AppStorage(Pref.summaryTemplate) private var summaryTemplate = SummaryTemplate.standard.rawValue
+    @AppStorage(Pref.dictionary) private var dictionary = ""
     @AppStorage(Pref.autoUpdate) private var autoUpdate = true
     @AppStorage(Pref.audioRetentionDays) private var audioRetentionDays = 0
     @AppStorage(Pref.calendarPrompt) private var calendarPrompt = false
@@ -260,6 +262,10 @@ struct SettingsView: View {
                     Text(choice.name).tag(choice.code)
                 }
             }
+            TextField("Names and words to spell right", text: $dictionary, prompt: Text("Copilot, Attio, Bernardo"))
+            Text("People you have named are included on their own. With OpenAI these words travel with the audio as spelling hints; in a summary, they are spelled as written here.")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             Toggle("Remove the others' voices from your microphone", isOn: $cancelEcho)
             Text("For calls without headphones: Ata takes what your Mac played out of your microphone before transcribing. The recording itself is not changed.")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
@@ -270,6 +276,11 @@ struct SettingsView: View {
                     get: { summaryEngineShown }, set: { summaryEngine = $0 })) {
                     Text("On this Mac (Apple Intelligence)").tag(SummaryEngine.apple.rawValue)
                     Text("OpenAI").tag(SummaryEngine.openAI.rawValue)
+                }
+                Picker("Note template", selection: $summaryTemplate) {
+                    ForEach(SummaryTemplate.allCases) { template in
+                        Text(template.title).tag(template.rawValue)
+                    }
                 }
                 summaryFootnote
             }
