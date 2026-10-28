@@ -20,12 +20,24 @@ final class WavWriter: @unchecked Sendable {
     private var converter: AVAudioConverter?
     private var converterInput: AVAudioFormat?
     private var frames: Int64 = 0
+    /// Samples that were audio, not the silence inserted to fill a gap.
+    private var _contentFrames: Int64 = 0
     private var lastHeaderUpdate = Date()
     private var closed = false
     private var _level: Float = 0
     private var _peakLevel: Float = 0
     private var _lastBufferAt = Date()
     private var _inputFormats: [String] = []
+    /// Host time of the previous buffer, and of the first and last. The pace of
+    /// a capture is measured from these, before any silence is written.
+    private var _previousHost: Double?
+    private var _firstHost: Double?
+    private var _lastHost: Double?
+    /// Sum of host deltas and of claimed audio duration, over ordinary cycles
+    /// only. A dropout (the tap going quiet for seconds) is not a cycle.
+    private var _cycleHost: Double = 0
+    private var _cycleAudio: Double = 0
+    private var _correctedDelivery = false
 
     init(url: URL, startHostSeconds: Double) throws {
         self.url = url
@@ -60,6 +72,33 @@ final class WavWriter: @unchecked Sendable {
     var inputFormats: [String] { lock.lock(); defer { lock.unlock() }; return _inputFormats }
     var duration: Double { lock.lock(); defer { lock.unlock() }; return Double(frames) / Self.sampleRate }
 
+    /// Audio actually received, with the silence used to fill gaps left out.
+    var contentDuration: Double {
+        lock.lock(); defer { lock.unlock() }
+        return Double(_contentFrames) / Self.sampleRate
+    }
+
+    /// Host time from the first buffer to the last.
+    var hostSpan: Double? {
+        lock.lock(); defer { lock.unlock() }
+        guard let first = _firstHost, let last = _lastHost, last > first else { return nil }
+        return last - first
+    }
+
+    /// How much audio ordinary callbacks carried, as a fraction of the time
+    /// those callbacks covered. 1 means the format told the truth. 0.5 means
+    /// every buffer held half of what the clock said it should — double speed,
+    /// once the halves are laid end to end. Nil until a second of ordinary
+    /// callbacks has been seen, so a recording's first moment isn't a verdict.
+    var deliveryRatio: Double? {
+        lock.lock(); defer { lock.unlock() }
+        guard _cycleHost >= 1 else { return nil }
+        return _cycleAudio / _cycleHost
+    }
+
+    /// Whether a buffer was rewritten at the rate its samples actually arrived.
+    var correctedDelivery: Bool { lock.lock(); defer { lock.unlock() }; return _correctedDelivery }
+
     /// Treats now as the last buffer time (avoids false watchdog alarms right after a restart).
     func touch() { lock.lock(); _lastBufferAt = Date(); lock.unlock() }
 
@@ -73,6 +112,12 @@ final class WavWriter: @unchecked Sendable {
         _level = Self.meterLevel(buffer)
         if _level > _peakLevel { _peakLevel = _level }
         _lastBufferAt = Date()
+
+        // Before the converter, and before any silence is inserted. A buffer
+        // that holds half the frames the clock just advanced is audio at double
+        // speed; padding the gap afterwards makes the file the right length and
+        // hides it. Relabel those frames with the rate they actually came in.
+        let buffer = paced(buffer, hostSeconds: hostSeconds)
 
         if converterInput != buffer.format {
             converter = AVAudioConverter(from: buffer.format, to: Self.outFormat)
@@ -113,6 +158,7 @@ final class WavWriter: @unchecked Sendable {
         do {
             try handle.write(contentsOf: Data(bytes: samples[0], count: n * 2))
             frames += Int64(n)
+            _contentFrames += Int64(n)
         } catch {
             NSLog("Ata: could not write \(url.lastPathComponent): \(error)")
         }
@@ -129,6 +175,33 @@ final class WavWriter: @unchecked Sendable {
         try? handle.synchronize()
         try? handle.close()
         closed = true
+    }
+
+    /// The buffer to convert. Usually the one we were handed. When the frames
+    /// in it don't fill the host time since the previous one — and that gap is
+    /// one ordinary callback, not a dropout — a copy labelled with the rate the
+    /// samples actually arrived at.
+    private func paced(_ buffer: AVAudioPCMBuffer, hostSeconds: Double?) -> AVAudioPCMBuffer {
+        guard let t = hostSeconds else { return buffer }
+        if _firstHost == nil { _firstHost = t }
+        _lastHost = t
+        let previous = _previousHost
+        _previousHost = t
+        guard let previous else { return buffer }
+        let dt = t - previous
+        guard dt > 0.002, dt < 0.25 else { return buffer }
+        _cycleHost += dt
+        _cycleAudio += Double(buffer.frameLength) / buffer.format.sampleRate
+        guard let fixed = DeliveryRate.corrected(frames: Int(buffer.frameLength),
+                                                 claimedRate: buffer.format.sampleRate,
+                                                 hostDelta: dt),
+              let retagged = DeliveryRate.retag(buffer, sampleRate: fixed) else { return buffer }
+        if !_correctedDelivery {
+            _correctedDelivery = true
+            NSLog("Ata: \(url.lastPathComponent) arrived at \(Int(fixed)) Hz while its format said "
+                  + "\(Int(buffer.format.sampleRate)) — writing it at the rate the samples actually came in")
+        }
+        return retagged
     }
 
     private func writeSilence(_ count: Int64) {
@@ -201,6 +274,59 @@ final class WavWriter: @unchecked Sendable {
         let rms = sqrt(sum / Float(max(n, 1)))
         let db = 20 * log10(max(rms, 1e-6))
         return min(1, max(0, (db + 50) / 50))
+    }
+}
+
+/// What to do when a callback's frames and the host clock disagree.
+///
+/// The two numbers come from different places: the frames from the buffer, the
+/// clock from the time between callbacks. They disagree when the format stamped
+/// on the buffer is not the rate the samples were captured at. The file can
+/// still end up the right length, because the gap is filled with silence, and
+/// then nothing about the file says the speech in it is running at double speed.
+enum DeliveryRate {
+    /// Half and double are the interleaved-frame mistake (2×). A third and
+    /// triple are a 48 kHz claim over a 16 kHz Bluetooth hands-free clock.
+    private static let factors: [Double] = [1.0 / 3.0, 0.5, 2, 3]
+
+    /// A sample rate to convert `frames` at, or nil to keep `claimedRate`.
+    ///
+    /// `hostDelta` has to be one ordinary callback. A dropout — nothing for a
+    /// second — is silence, not a wrong rate, and "correcting" it would stamp
+    /// the next words with a nonsense rate.
+    static func corrected(frames: Int, claimedRate: Double, hostDelta: Double) -> Double? {
+        guard frames > 0, claimedRate > 0, hostDelta > 0.002, hostDelta < 0.25 else { return nil }
+        let ratio = (Double(frames) / claimedRate) / hostDelta
+        guard abs(ratio - 1) > 0.08 else { return nil }
+        for factor in factors where abs(ratio - factor) / factor < 0.08 {
+            let rate = claimedRate * factor
+            if rate >= 8_000, rate <= 192_000 { return rate }
+        }
+        return nil
+    }
+
+    /// The same samples, labelled with a different rate. The buffer we are
+    /// handed borrows its memory from the callback, so the relabelled one is a copy.
+    static func retag(_ buffer: AVAudioPCMBuffer, sampleRate: Double) -> AVAudioPCMBuffer? {
+        guard buffer.format.sampleRate > 0,
+              abs(buffer.format.sampleRate - sampleRate) / buffer.format.sampleRate > 0.02,
+              let format = AVAudioFormat(commonFormat: buffer.format.commonFormat,
+                                         sampleRate: sampleRate,
+                                         channels: buffer.format.channelCount,
+                                         interleaved: buffer.format.isInterleaved),
+              let copy = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: buffer.frameLength)
+        else { return nil }
+        copy.frameLength = buffer.frameLength
+        let src = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: buffer.audioBufferList))
+        let dst = UnsafeMutableAudioBufferListPointer(copy.mutableAudioBufferList)
+        guard src.count == dst.count else { return nil }
+        for i in 0..<src.count {
+            guard let from = src[i].mData, let into = dst[i].mData else { return nil }
+            let n = Int(src[i].mDataByteSize)
+            guard n > 0, n <= Int(dst[i].mDataByteSize) else { return nil }
+            into.copyMemory(from: from, byteCount: n)
+        }
+        return copy
     }
 }
 

@@ -1,5 +1,17 @@
 import Foundation
 
+/// Scratch audio for a mixed-language pass (`languages-XXXXXXXX/` inside a
+/// meeting folder). Removed when the pass finishes; a crash used to leave it.
+enum LanguagePieces {
+    static func remove(in dir: URL) {
+        guard let kids = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
+        else { return }
+        for kid in kids where kid.lastPathComponent.hasPrefix("languages-") {
+            try? FileManager.default.removeItem(at: kid)
+        }
+    }
+}
+
 /// Transcribes with whisper.cpp on the Mac's own GPU (Metal). Nothing leaves the machine.
 ///
 /// whisper.cpp runs as a separate program (whisper-cli), which only a Mac can

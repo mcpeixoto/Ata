@@ -59,6 +59,7 @@ final class AppStore: ObservableObject {
         if Pref.d.bool(forKey: Pref.autoDetect) { detector.start() }
 
         recoverInterrupted()
+        removeLeftoverLanguagePieces()
         pruneOldAudio()
         pump()
         MeetingSharing.cleanUp()
@@ -71,6 +72,16 @@ final class AppStore: ObservableObject {
                 AppStore.shared.pruneOldAudio()
                 Updater.shared.checkInBackground()
             }
+        }
+    }
+
+    /// `languages-*` is the scratch directory of a mixed-language pass, removed
+    /// when the pass finishes. A crash leaves it in the meeting folder. A
+    /// meeting another device is transcribing right now is left alone — its
+    /// pieces may be the ones it is in the middle of.
+    private func removeLeftoverLanguagePieces() {
+        for meeting in Library.loadAll() where meeting.status != .transcribing {
+            LanguagePieces.remove(in: meeting.dir)
         }
     }
 
@@ -263,9 +274,26 @@ final class AppStore: ObservableObject {
             // and transcribes to nonsense.
             if let began = startedAt {
                 let ran = Date().timeIntervalSince(began)
-                if AudioCheck.isSuspect(audioSeconds: duration, elapsed: ran) {
-                    NSLog("%@", AudioCheck.report(audioSeconds: duration, elapsed: ran,
-                                                  formats: recorder.formatsSeen))
+                if recorder.paces.isEmpty {
+                    if AudioCheck.isSuspect(audioSeconds: duration, elapsed: ran) {
+                        NSLog("%@", AudioCheck.report(audioSeconds: duration, elapsed: ran,
+                                                      formats: recorder.formatsSeen))
+                    }
+                } else {
+                    for pace in recorder.paces {
+                        // The ratio that matters is samples per second of host
+                        // time, before silence was written to fill the gap. A
+                        // file that matches the clock can still be double speed.
+                        if let ratio = pace.deliveryRatio, abs(ratio - 1) > AudioCheck.tolerance {
+                            NSLog("%@", AudioCheck.deliveryReport(track: pace.track, ratio: ratio,
+                                                                  corrected: pace.corrected,
+                                                                  formats: pace.formats))
+                        } else if let host = pace.hostSeconds,
+                                  AudioCheck.isSuspect(audioSeconds: pace.fileSeconds, elapsed: host) {
+                            NSLog("%@", AudioCheck.report(audioSeconds: pace.fileSeconds, elapsed: host,
+                                                          formats: pace.formats))
+                        }
+                    }
                 }
             }
             Library.save(m)

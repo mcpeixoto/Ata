@@ -35,11 +35,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Snapshots.run()
             return
         }
-        endStaleCopies()
+        // `--diagnose` is run while Ata is already open, to ask what it can see.
+        // Ending that copy first would close the app the person is using.
         if Diagnostics.requested {
             Diagnostics.run()
             return
         }
+        endStaleCopies()
         if Updater.commandLineRequested {
             Updater.shared.runFromCommandLine()
             return

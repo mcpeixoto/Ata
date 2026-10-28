@@ -6,6 +6,19 @@ Two calls came back wrong — one with only your side in it, one with the other
 side garbled — and nothing anywhere said so. This release is about that, plus
 three things borrowed from Granola.
 
+- **The other side of a call no longer comes out at double speed.** Since 2.11
+  the system-audio track could play at about 2× while the file stayed the right
+  length: each buffer held about half as many frames as the time since the last
+  one, and the silence used to keep the two tracks in step filled the rest. The
+  length check compared that padded file with the clock, so it never noticed.
+  A buffer is now read in the layout it actually has — one the tap's format
+  doesn't describe used to be dropped, which left a stretch of the track empty —
+  and when the frames in an ordinary callback don't fill the time that just
+  passed they are written at the rate they really arrived. The check looks at
+  that, before any silence is added. `Ata --diagnose` no longer quits the copy
+  of Ata you already have open. Language-detection pieces left behind when a
+  transcription stopped are removed the next time Ata starts.
+
 - **A side of a call can no longer go missing in silence.** A system-audio tap
   pointed at an output the call is not using delivers perfect digital silence
   forever: buffers arrive, the file is the right length, every check Ata had
