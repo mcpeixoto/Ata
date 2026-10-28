@@ -99,14 +99,9 @@ enum TrackHealth: String, Equatable {
         switch self {
         case .fine: return nil
         case .othersNotCaptured:
-            return L("Ata could not hear the other side of this call: the system audio track is silent, "
-                     + "so only your side could be transcribed. Check that the call plays through the Mac's "
-                     + "chosen output device, and that Ata still has System Audio permission in "
-                     + "System Settings → Privacy & Security.")
+            return L("Ata could not hear the other side of this call: the system audio track is silent, so only your side could be transcribed. Check that the call plays through the Mac's chosen output device, and that Ata still has System Audio permission in System Settings → Privacy & Security.")
         case .youNotCaptured:
-            return L("Ata could not hear you in this recording: the microphone track is silent, "
-                     + "so only the other side could be transcribed. Check the microphone in "
-                     + "System Settings → Privacy & Security → Microphone.")
+            return L("Ata could not hear you in this recording: the microphone track is silent, so only the other side could be transcribed. Check the microphone in System Settings → Privacy & Security → Microphone.")
         }
     }
 }

@@ -123,6 +123,86 @@ final class SummaryEngineTests: XCTestCase {
     }
 }
 
+final class VocabularyTests: XCTestCase {
+    func testTypedWordsAndNamesMergeWithoutDuplicates() {
+        let terms = Vocabulary.terms(userText: "Copilot, Attio\nBernardo Reis; copilot",
+                                     names: ["Bernardo Reis", "Rita Alves"])
+        XCTAssertEqual(terms, ["Copilot", "Attio", "Bernardo Reis", "Rita Alves"])
+    }
+
+    func testEmptyIsEmpty() {
+        XCTAssertEqual(Vocabulary.terms(userText: " , \n", names: []), [])
+        XCTAssertNil(Vocabulary.transcriptionPrompt([]))
+        XCTAssertNil(Vocabulary.spellingInstruction([]))
+    }
+
+    /// The field report that prompted this: "Copilot" transcribed as "copado".
+    func testThePromptIsAListTheModelCanSpellFrom() {
+        XCTAssertEqual(Vocabulary.transcriptionPrompt(["Copilot", "Attio"]), "Copilot, Attio")
+        XCTAssertTrue(Vocabulary.spellingInstruction(["Copilot"])!.contains("Copilot"))
+    }
+}
+
+final class SummaryTemplateTests: XCTestCase {
+    /// Choosing nothing must change nothing: the standard shape is the one
+    /// Ata has always written.
+    func testStandardIsTheHistoricShape() {
+        let prompt = Summarizer.systemPrompt(template: .standard, vocabulary: [], myName: "Alex")
+        for piece in ["**Overview**", "**Decisions**", "**Action items**", "**Open questions**",
+                      "one bullet per decision"] {
+            XCTAssertTrue(prompt.contains(piece), piece)
+        }
+        XCTAssertFalse(prompt.contains("exactly as written"), "no dictionary, no spelling line")
+    }
+
+    func testATemplateChangesTheShapeAndSteers() {
+        let sales = Summarizer.systemPrompt(template: .sales, vocabulary: ["Copilot"], myName: "Alex")
+        XCTAssertTrue(sales.contains("**Needs and problems**"), sales)
+        XCTAssertTrue(sales.contains("**Objections**"), sales)
+        XCTAssertTrue(sales.contains("Copilot"), "the dictionary reaches the summarizer")
+        XCTAssertTrue(SummaryTemplate.standard.focus.isEmpty)
+        XCTAssertTrue(SummaryTemplate.sales.focus.contains("sales call"))
+    }
+
+    func testAnUnknownTemplateIsStandard() {
+        XCTAssertEqual(SummaryTemplate.named("nonsense"), .standard)
+        XCTAssertEqual(SummaryTemplate.named(nil), .standard)
+        XCTAssertEqual(SummaryTemplate.named("one-to-one"), .oneToOne)
+    }
+}
+
+final class FollowUpTests: XCTestCase {
+    private let summary = """
+    **Overview** — Agreed to ship the beta on the 3rd and move billing to the next sprint.
+
+    **Decisions**
+    - Ship on the 3rd
+
+    **Action items**
+    - Alex: send the beta invite list by Thursday
+    - Rita: confirm the support rota
+
+    **Open questions**
+    - Who tells support?
+    """
+
+    func testADraftIsSubjectOverviewAndNextSteps() {
+        let draft = FollowUp.draft(summary: summary, meetingTitle: "Weekly sync", myName: "Miguel")
+        XCTAssertTrue(draft.hasPrefix("Subject: Follow-up: Weekly sync"), draft)
+        XCTAssertTrue(draft.contains("Agreed to ship the beta on the 3rd"), draft)
+        XCTAssertTrue(draft.contains("- Alex: send the beta invite list by Thursday"), draft)
+        XCTAssertTrue(draft.contains("- Rita: confirm the support rota"), draft)
+        XCTAssertFalse(draft.contains("Who tells support?"), "open questions are not next steps")
+        XCTAssertTrue(draft.hasSuffix("Miguel"), draft)
+    }
+
+    func testNoActionItemsMeansNoNextStepsSection() {
+        let draft = FollowUp.draft(summary: "**Overview** — A quick catch-up.", meetingTitle: "Call", myName: "Miguel")
+        XCTAssertFalse(draft.contains("Next steps"), draft)
+        XCTAssertTrue(draft.contains("A quick catch-up."), draft)
+    }
+}
+
 /// The real on-device model. Opt-in (`ATA_APPLE_MODEL_TESTS=1`), and only on a
 /// Mac with Apple Intelligence: CI's runner has the SDK but not the model.
 final class AppleModelTests: XCTestCase {

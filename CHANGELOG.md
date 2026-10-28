@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+Two calls came back wrong — one with only your side in it, one with the other
+side garbled — and nothing anywhere said so. This release is about that, plus
+three things borrowed from Granola.
+
+- **A side of a call can no longer go missing in silence.** A system-audio tap
+  pointed at an output the call is not using delivers perfect digital silence
+  forever: buffers arrive, the file is the right length, every check Ata had
+  passed. Now, half a minute into a recording where you have clearly been
+  heard and their side has never risen above silence, Ata says so in the menu
+  while the call can still be saved. And after transcription, if a track was
+  present but held no sound, the transcript says so at the top and the meeting
+  window shows it, with where to check. The echo canceller is also skipped
+  against a silent reference — there is no echo to find, and it is the most
+  expensive pass in the run.
+- **Note templates.** Settings → Transcription: Standard (the shape Ata has
+  always written), One-to-one, Sales call, Team standup, Interview. Templates
+  apply when notes are written or rewritten.
+- **Names and words to spell right.** A dictionary in Settings, with everyone
+  you have named in People included automatically. With OpenAI the words go
+  with the audio as spelling hints — "Copilot", not "copado" — and both
+  summary writers are told to spell them as written.
+- **Copy follow-up draft.** A button under a meeting's summary copies a
+  follow-up email — subject, the overview, the action items as next steps —
+  ready to paste into any mail app.
+
 ## 2.11.1
 
 - **"Allow" under Settings → Calendar now actually asks.** It did nothing at all in 2.11.0:
