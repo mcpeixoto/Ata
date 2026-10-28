@@ -34,6 +34,44 @@ final class AudioCheckTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(AudioCheck.drift(audioSeconds: 660, elapsed: 600)), 0.1, accuracy: 1e-9)
     }
 
+    // MARK: - Track health
+
+    /// The call from the field: four minutes, you loud and clear, their side
+    /// digital silence. Everything else about the file was perfect.
+    func testASilentSystemTrackWithYouTalkingIsCaught() {
+        XCTAssertEqual(TrackHealth.judge(duration: 240, micAudible: 120, systemAudible: 0, systemPresent: true),
+                       .othersNotCaptured)
+        XCTAssertEqual(TrackHealth.judge(duration: 240, micAudible: 0, systemAudible: 90, systemPresent: true),
+                       .youNotCaptured)
+    }
+
+    func testBothSidesHeardIsFine() {
+        XCTAssertEqual(TrackHealth.judge(duration: 240, micAudible: 120, systemAudible: 90, systemPresent: true),
+                       .fine)
+    }
+
+    /// A meeting in the room has a silent system track on purpose, and a
+    /// notification chime must not turn your own quiet into an alarm either.
+    func testAnInPersonMeetingIsNotJudgedOnItsSystemTrack() {
+        XCTAssertEqual(TrackHealth.judge(duration: 240, micAudible: 120, systemAudible: 0, systemPresent: false),
+                       .fine)
+        XCTAssertEqual(TrackHealth.judge(duration: 240, micAudible: 2, systemAudible: 0, systemPresent: true),
+                       .fine, "you barely spoke either: nothing to conclude")
+    }
+
+    /// People join late. Under a minute, an empty side is not evidence.
+    func testAShortMeetingIsNotJudged() {
+        XCTAssertEqual(TrackHealth.judge(duration: 45, micAudible: 20, systemAudible: 0, systemPresent: true),
+                       .fine)
+    }
+
+    func testTheWarningNamesTheSideAndSurvivesStorage() {
+        XCTAssertNotNil(TrackHealth.othersNotCaptured.warning?.contains("other side"))
+        XCTAssertNotNil(TrackHealth.youNotCaptured.warning?.contains("microphone"))
+        XCTAssertNil(TrackHealth.fine.warning)
+        XCTAssertEqual(TrackHealth(rawValue: TrackHealth.othersNotCaptured.rawValue), .othersNotCaptured)
+    }
+
     /// The log line has to carry the evidence, or it is just a complaint.
     func testTheReportNamesTheSpeedAndTheFormats() {
         let line = AudioCheck.report(audioSeconds: 200, elapsed: 600, formats: ["48000 Hz × 2"])

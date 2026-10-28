@@ -46,9 +46,13 @@ struct OpenAIClient {
     }
 
     /// Transcribes one audio file. `model` is an OpenAI transcription model id.
-    func transcribe(audio: URL, model: String, language: String) async throws -> TranscriptionChunk {
+    /// `prompt` is the vocabulary hint — names and terms spelled as they should
+    /// come back ("Copilot", not whatever the model guesses) — which the
+    /// transcription models take as a spelling guide for the audio that follows.
+    func transcribe(audio: URL, model: String, language: String, prompt: String? = nil) async throws -> TranscriptionChunk {
         var fields: [String: String] = ["model": model]
         if language != "auto" { fields["language"] = language }
+        if let prompt, !prompt.isEmpty { fields["prompt"] = prompt }
 
         // Only whisper-1 returns per-segment timestamps.
         let wantsSegments = model == "whisper-1"

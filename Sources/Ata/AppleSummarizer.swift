@@ -30,10 +30,12 @@ enum AppleModel {
 
     /// The summary as Markdown, or nil when the model is unavailable, does not
     /// write the app's language, or fails, so the caller can fall back.
-    static func summarize(markdown: String, myName: String) async -> String? {
+    static func summarize(markdown: String, myName: String,
+                          template: SummaryTemplate = .standard, vocabulary: [String] = []) async -> String? {
         #if canImport(FoundationModels)
         if #available(macOS 26.0, iOS 26.0, *) {
-            return await AppleSummarizer.summarize(markdown: markdown, myName: myName)
+            return await AppleSummarizer.summarize(markdown: markdown, myName: myName,
+                                                   template: template, vocabulary: vocabulary)
         }
         #endif
         return nil
@@ -162,12 +164,13 @@ enum AppleSummarizer {
     /// Map–reduce: one partial summary per chunk, then the partials merged
     /// until one is left. A transcript that will not fit in a few rounds gives
     /// nil rather than a summary of only part of the meeting.
-    static func summarize(markdown: String, myName: String, maxCharacters: Int = 6000) async -> String? {
+    static func summarize(markdown: String, myName: String, maxCharacters: Int = 6000,
+                          template: SummaryTemplate = .standard, vocabulary: [String] = []) async -> String? {
         guard unavailableReason == nil else { return nil }
         do {
             var partials: [MeetingSummary] = []
             for chunk in SummaryChunks.split(markdown, maxCharacters: maxCharacters) {
-                let partial = try await respond(to: chunk, instructions: chunkInstructions(myName: myName))
+                let partial = try await respond(to: chunk, instructions: chunkInstructions(myName: myName, template: template, vocabulary: vocabulary))
                 partials.append(partial)
             }
             var rounds = 0
@@ -203,17 +206,23 @@ enum AppleSummarizer {
         return response.content
     }
 
-    private static func chunkInstructions(myName: String) -> String {
-        """
+    private static func chunkInstructions(myName: String, template: SummaryTemplate = .standard,
+                                          vocabulary: [String] = []) -> String {
+        var text = """
         You summarize a meeting transcript, or one part of a longer one. It was produced by \
         automatic speech recognition, so it may contain mistakes. "\(myName)" is the person \
         recording; other speakers are labelled by name or as "\(L("Others"))" / "\(L("Voice %d", 1))".
 
         Write in \(Summarizer.replyLanguage). Speakers may use other languages; summarize what \
         they said in that language anyway.
-
-        Only include what the transcript says. Leave a list empty when there is nothing for it.
         """
+        // The on-device writer fills the same four fields whoever asks, so a
+        // template steers what it notices rather than the shape it returns —
+        // and the dictionary still fixes how names are spelled.
+        if !template.focus.isEmpty { text += "\n\n" + template.focus }
+        if let spelling = Vocabulary.spellingInstruction(vocabulary) { text += "\n\n" + spelling }
+        text += "\n\nOnly include what the transcript says. Leave a list empty when there is nothing for it."
+        return text
     }
 
     private static var mergeInstructions: String {

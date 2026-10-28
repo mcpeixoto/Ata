@@ -23,6 +23,7 @@ enum OpenAIEngine {
     }
 
     static func transcribe(audio: URL, speaker: String, language: String, model: String,
+                           prompt: String? = nil,
                            progress: @escaping @Sendable (Double) -> Void) async throws -> Result {
         guard let client = OpenAIClient() else { throw OpenAIError.noKey }
 
@@ -39,7 +40,7 @@ enum OpenAIEngine {
         var coarse = false
         for (i, chunk) in chunks.enumerated() {
             progress(Double(i) / Double(chunks.count))
-            let piece = try await client.transcribe(audio: chunk.url, model: model, language: language)
+            let piece = try await client.transcribe(audio: chunk.url, model: model, language: language, prompt: prompt)
             coarse = coarse || piece.coarse
             let words = attach(words: piece.words, to: piece.segments)
             for (s, own) in zip(piece.segments, words) {
