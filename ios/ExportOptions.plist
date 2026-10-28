@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The export half of a TestFlight release, as a tracked file rather than a heredoc.
+     scripts/release-ios.sh wrote this plist inline, which was fine while a release only
+     ever ran on the maintainer's Mac. A workflow cannot read a heredoc in a script it does
+     not run, and two copies of the profile list drift, so the list lives here and both
+     routes read it.
+
+     destination is export, not upload: the workflow validates the .ipa with altool before
+     sending it, because a bad Info.plist or a missing icon is caught in seconds there and
+     arrives as an email twenty minutes later from a direct upload, with the build number
+     already spent.
+
+     Every bundle id the app ships needs a profile. The watch app and the two extensions
+     are separate ids and a missing entry fails the export, not the archive — ten minutes
+     in. -->
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>app-store-connect</string>
+	<key>destination</key>
+	<string>export</string>
+	<key>teamID</key>
+	<string>H874DPF6H5</string>
+	<key>signingStyle</key>
+	<string>manual</string>
+	<key>signingCertificate</key>
+	<string>Apple Distribution</string>
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>ai.interactive.ata</key>
+		<string>Ata App Store</string>
+		<key>ai.interactive.ata.widgets</key>
+		<string>Ata Widgets App Store</string>
+		<key>ai.interactive.ata.share</key>
+		<string>Ata Share App Store</string>
+		<key>ai.interactive.ata.watchkitapp</key>
+		<string>Ata Watch App Store</string>
+	</dict>
+	<key>uploadSymbols</key>
+	<true/>
+	<key>manageAppVersionAndBuildNumber</key>
+	<false/>
+</dict>
+</plist>

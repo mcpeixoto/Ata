@@ -1,0 +1,4 @@
+/* Ata para Apple Watch — textos do Info.plist, português. */
+
+"CFBundleDisplayName" = "Ata";
+"NSMicrophoneUsageDescription" = "A Ata grava a conversa através do microfone do Apple Watch quando o teu iPhone não está por perto, e depois envia-a para a Ata do teu iPhone para a transcrever.";

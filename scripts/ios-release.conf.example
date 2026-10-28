@@ -1,0 +1,23 @@
+# What this app is called and where it lives. The only file that differs between repos.
+#
+# Both release routes read it — .github/workflows/ios-release.yml on a v* tag, and
+# scripts/release-ios.sh on the maintainer's Mac — so the two cannot disagree about which
+# scheme to build or which .ipa to upload. That disagreement is how the pipelines drifted
+# apart in the first place: every repo grew its own release prose, and three of them grew
+# none at all.
+#
+# Shell syntax. Quote any value with a space in it: both readers do `set -a; . conf`, and
+# an unquoted `GENERATE=xcodegen generate` is not an assignment at all — it runs the
+# command `generate` with GENERATE in its environment, and the release dies on the first
+# line of its own config. The workflow strips the quotes before appending to $GITHUB_ENV,
+# which is not shell and would keep them.
+IOS_DIR=ios                      # where project.yml lives; . if at the repo root
+GENERATE='xcodegen generate'     # how the project is generated, run inside IOS_DIR
+XCODE_PROJECT=App.xcodeproj      # what the generate step produces
+SCHEME=App
+IPA=App.ipa                      # what -exportArchive names the .ipa
+EXPORT_OPTIONS=ExportOptions.plist   # relative to IOS_DIR
+BUNDLE_ID=com.peixotolabs.app     # the app's own bundle id, for the distribute step
+SWIFT_TEST_DIR=                   # a SwiftPM package to test first; empty to skip
+TEAM_ID=                          # only if the project manifest has no DEVELOPMENT_TEAM;
+                                  # signing fails without it where it is needed

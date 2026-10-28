@@ -1,0 +1,6 @@
+/* Siri and Shortcuts phrases, English. ${applicationName} becomes the app's name. */
+
+"Record with ${applicationName}" = "Record with ${applicationName}";
+"Start recording with ${applicationName}" = "Start recording with ${applicationName}";
+"Stop recording with ${applicationName}" = "Stop recording with ${applicationName}";
+"Bookmark this moment in ${applicationName}" = "Bookmark this moment in ${applicationName}";

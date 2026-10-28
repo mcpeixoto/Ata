@@ -1,0 +1,11 @@
+// Build settings for every target of the iPhone project.
+
+// One version for the Mac and the iPhone, so parity is visible: ios/generate.sh
+// writes it from Resources/Info.plist into ios/build/Version.xcconfig.
+MARKETING_VERSION = 0.0.0
+CURRENT_PROJECT_VERSION = 1
+#include? "../build/Version.xcconfig"
+
+// Your Apple team, for signing on your own Mac: copy ios/Local.xcconfig.example
+// to ios/Local.xcconfig. It is not committed. CI builds without signing.
+#include? "../Local.xcconfig"

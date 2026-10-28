@@ -1,0 +1,3 @@
+// Copy to ios/Local.xcconfig (not committed) to sign builds on your Mac.
+// Your team ID is in the Apple Developer site, under Membership details.
+DEVELOPMENT_TEAM = YOUR_TEAM_ID

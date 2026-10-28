@@ -1,0 +1,265 @@
+# Ata for iPhone. Generate the Xcode project with ios/generate.sh (XcodeGen);
+# the .xcodeproj is not committed.
+#
+# The app compiles the Mac's portable sources straight from Sources/Ata, plus
+# Sources/AtaiOS. The Mac's build (Package.swift) is unaffected by this file.
+name: Ata
+
+options:
+  bundleIdPrefix: ai.interactive
+  deploymentTarget:
+    iOS: "26.0"
+  developmentLanguage: en
+  createIntermediateGroups: true
+
+configFiles:
+  Debug: Config/Ata.xcconfig
+  Release: Config/Ata.xcconfig
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    CODE_SIGN_STYLE: Automatic
+
+packages:
+  # FluidAudio, pinned with no traits; see Packages/AtaDependencies/Package.swift.
+  AtaDependencies:
+    path: Packages/AtaDependencies
+
+targets:
+  # LAME, vendored for the Mac (see Sources/CLame/README.md), built the same way:
+  # HAVE_CONFIG_H and the folder itself on the header path.
+  CLame:
+    type: library.static
+    platform: iOS
+    sources:
+      - path: ../Sources/CLame
+        excludes:
+          - COPYING
+          - README.md
+          - include/module.modulemap
+    settings:
+      base:
+        PRODUCT_NAME: CLame
+        GCC_PREPROCESSOR_DEFINITIONS: ["$(inherited)", "HAVE_CONFIG_H=1"]
+        HEADER_SEARCH_PATHS: ["$(SRCROOT)/../Sources/CLame", "$(SRCROOT)/../Sources/CLame/include"]
+        GCC_WARN_INHIBIT_ALL_WARNINGS: YES
+        SKIP_INSTALL: YES
+
+  Ata:
+    type: application
+    platform: iOS
+    sources:
+      # Everything shared with the Mac, minus what only a Mac can run: the menu
+      # bar, system audio capture, meeting detection, the updater, Mac windows.
+      - path: ../Sources/Ata
+        excludes:
+          - App.swift
+          - AppStore.swift
+          - CalendarAccess.swift
+          - CalendarStore.swift
+          - CalendarWatcher.swift
+          - Diagnostics.swift
+          - Hotkey.swift
+          - MeetingDetector.swift
+          - MenuIcon.swift
+          - OnboardingView.swift
+          - PopoverView.swift
+          - Presence.swift
+          - Recorder.swift
+          - SettingsView.swift
+          - Snapshots.swift
+          - SystemAudio.swift
+          - Updater.swift
+      - path: ../Sources/AtaiOS
+      - path: ../Sources/AtaWidgets/Shared
+      # The share extension's inbox, which the app drains.
+      - path: ../Sources/AtaShare/Shared
+      # en.lproj and pt.lproj: the same Localizable.strings as the Mac.
+      - path: ../Resources
+        excludes:
+          - Info.plist
+          - Ata.entitlements
+          - AppIcon.iconset
+          - AppIcon.iconset/**
+          - iOS
+          - iOS/**
+      # The asset catalog and the iPhone's own InfoPlist.strings / AppShortcuts.strings.
+      - path: ../Resources/iOS
+        excludes:
+          - Info.plist
+          - Widgets-Info.plist
+          - "*.entitlements"
+          - Share
+          - Share/**
+    dependencies:
+      - target: CLame
+      - package: AtaDependencies
+      - target: AtaWidgets
+      - target: AtaShare
+      - target: AtaWatch
+    settings:
+      base:
+        PRODUCT_NAME: Ata
+        PRODUCT_MODULE_NAME: Ata
+        PRODUCT_BUNDLE_IDENTIFIER: ai.interactive.ata
+        INFOPLIST_FILE: ../Resources/iOS/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ../Resources/iOS/Ata.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        TARGETED_DEVICE_FAMILY: "1"
+        # The shared intents (Sources/AtaWidgets/Shared) only reach PhoneStore here.
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) ATA_APP"
+        # `import CLame` finds Sources/CLame/include/module.modulemap.
+        SWIFT_INCLUDE_PATHS: "$(inherited) $(SRCROOT)/../Sources/CLame/include"
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
+
+  AtaWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ../Sources/AtaWidgets
+      - path: ../Sources/Ata/Localization.swift
+      - path: ../Resources
+        excludes:
+          - Info.plist
+          - Ata.entitlements
+          - AppIcon.iconset
+          - AppIcon.iconset/**
+          - iOS
+          - iOS/**
+    settings:
+      base:
+        PRODUCT_NAME: AtaWidgets
+        PRODUCT_BUNDLE_IDENTIFIER: ai.interactive.ata.widgets
+        INFOPLIST_FILE: ../Resources/iOS/Widgets-Info.plist
+        CODE_SIGN_ENTITLEMENTS: ../Resources/iOS/AtaWidgets.entitlements
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"
+
+  # Pure logic of the iPhone app, compiled straight into the test bundle: no host
+  # app, so the tests run without launching Ata in the simulator.
+  AtaiOSTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+      - path: ../Sources/AtaiOS/RecorderState.swift
+      - path: ../Sources/Ata/FolderNames.swift
+      # FolderNames names a meeting after its calendar event, so it needs the type.
+      - path: ../Sources/Ata/MeetingEvent.swift
+      - path: ../Sources/AtaShare/Shared/ShareInbox.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.interactive.ata.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+
+  # Screenshots for review, not a gate: launches Ata in the simulator once per
+  # screen with -AtaSnapshots and fixture meetings. Only the AtaSnapshots scheme
+  # runs it (ios/snapshots.sh), so the Ata scheme's tests stay unit tests.
+  AtaUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: Ata
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.interactive.ata.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+        TEST_TARGET_NAME: Ata
+
+  # "Ata" in the share sheet: copies shared audio into the app group's inbox,
+  # which the app turns into meetings when it opens (Sources/AtaShare).
+  AtaShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ../Sources/AtaShare
+      - path: ../Sources/Ata/Localization.swift
+      - path: ../Resources
+        excludes:
+          - Info.plist
+          - Ata.entitlements
+          - AppIcon.iconset
+          - AppIcon.iconset/**
+          - iOS
+          - iOS/**
+      # Its name in the share sheet, in each language.
+      - path: ../Resources/iOS/Share
+        excludes:
+          - Info.plist
+          - "*.entitlements"
+    settings:
+      base:
+        PRODUCT_NAME: AtaShare
+        PRODUCT_BUNDLE_IDENTIFIER: ai.interactive.ata.share
+        INFOPLIST_FILE: ../Resources/iOS/Share/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ../Resources/iOS/Share/AtaShare.entitlements
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"
+
+  # The Apple Watch app, embedded in the iPhone app (Ata.app/Watch): record,
+  # stop and bookmark on the iPhone through WatchConnectivity, or record on the
+  # Watch when the iPhone is out of reach. Of the shared code it compiles only
+  # the files named here. Its own scheme (AtaWatch) builds it alone.
+  AtaWatch:
+    type: application
+    platform: watchOS
+    deploymentTarget: "26.0"
+    sources:
+      # The app, its Info.plist texts and its icon.
+      - path: ../Sources/AtaWatch
+        excludes:
+          - Info.plist
+      - path: ../Sources/Ata/WatchProtocol.swift
+      - path: ../Sources/Ata/Localization.swift
+      - path: ../Sources/AtaiOS/RecorderState.swift
+      # en.lproj and pt.lproj: the same Localizable.strings as the Mac and the iPhone.
+      - path: ../Resources
+        excludes:
+          - Info.plist
+          - Ata.entitlements
+          - AppIcon.iconset
+          - AppIcon.iconset/**
+          - iOS
+          - iOS/**
+    settings:
+      base:
+        PRODUCT_NAME: AtaWatch
+        PRODUCT_BUNDLE_IDENTIFIER: ai.interactive.ata.watchkitapp
+        INFOPLIST_FILE: ../Sources/AtaWatch/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "4"
+        WATCHOS_DEPLOYMENT_TARGET: "26.0"
+        SKIP_INSTALL: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
+    scheme: {}
+
+schemes:
+  Ata:
+    build:
+      targets:
+        Ata: all
+        AtaiOSTests: [test]
+    test:
+      targets:
+        - AtaiOSTests
+    archive:
+      config: Release
+
+  # The iPhone screenshots; see ios/snapshots.sh.
+  AtaSnapshots:
+    build:
+      targets:
+        Ata: all
+        AtaUITests: [test]
+    test:
+      targets:
+        - AtaUITests
