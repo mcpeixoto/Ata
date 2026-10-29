@@ -565,3 +565,20 @@
 "Next steps:" = "Next steps:";
 "Best," = "Best,";
 "the transcription engine stopped making progress and was stopped; this meeting can be transcribed again" = "the transcription engine stopped making progress and was stopped; this meeting can be transcribed again";
+
+/* Work and personal */
+"Work" = "Work";
+"Personal" = "Personal";
+"Category" = "Category";
+"None" = "None";
+"Work or personal" = "Work or personal";
+"Show" = "Show";
+"All" = "All";
+"No meetings here yet" = "No meetings here yet";
+"Work and personal" = "Work and personal";
+"New meetings" = "New meetings";
+"No category" = "No category";
+"A meeting from one of these calendars gets its category. Otherwise Ata goes by the app: Zoom, Teams or Slack is work, FaceTime or WhatsApp is personal. You can change it in the meeting." = "A meeting from one of these calendars gets its category. Otherwise Ata goes by the app: Zoom, Teams or Slack is work, FaceTime or WhatsApp is personal. You can change it in the meeting.";
+"Ata goes by the app: Zoom, Teams or Slack is work, FaceTime or WhatsApp is personal. Allow the calendar above to choose per calendar. You can change it in the meeting." = "Ata goes by the app: Zoom, Teams or Slack is work, FaceTime or WhatsApp is personal. Allow the calendar above to choose per calendar. You can change it in the meeting.";
+"Pick Work or Personal in a meeting to file it here." = "Pick Work or Personal in a meeting to file it here.";
+"What a new recording is filed under. You can change it in the meeting." = "What a new recording is filed under. You can change it in the meeting.";

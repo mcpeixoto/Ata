@@ -168,6 +168,11 @@ struct MeetingView: View {
             }
             Spacer()
             HStack(spacing: 2) {
+                CategoryChip(category: meeting.categoryValue) { c in
+                    model.setCategory(c)
+                    store.reload()
+                }
+                .padding(.trailing, 4)
                 shareMenu(meeting)
 
                 Menu {
@@ -300,6 +305,73 @@ struct MeetingView: View {
 }
 
 // MARK: - Player
+
+/// The meeting's category, and the menu that changes it.
+struct CategoryChip: View {
+    let category: MeetingCategory?
+    let set: (MeetingCategory?) -> Void
+
+    var body: some View {
+        Menu {
+            Picker("Category", selection: Binding(get: { category }, set: set)) {
+                ForEach(MeetingCategory.allCases) { c in
+                    Label(c.name, systemImage: c.symbol).tag(Optional(c))
+                }
+                Text("None").tag(MeetingCategory?.none)
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: category?.symbol ?? "tag")
+                Text(category?.name ?? L("Category"))
+            }
+            .font(.system(size: 11, weight: .medium))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(Color.primary.opacity(category == nil ? 0.05 : 0.09)))
+            .foregroundStyle(category == nil ? .secondary : .primary)
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(L("Work or personal"))
+    }
+}
+
+/// All, Work, Personal: the filter over the meeting lists and Insights,
+/// stored under `Pref.categoryFilter` ("" is all).
+struct CategoryFilterPicker: View {
+    @Binding var selection: String
+
+    var body: some View {
+        Picker("Show", selection: $selection) {
+            Text("All").tag("")
+            ForEach(MeetingCategory.allCases) { c in
+                Text(c.name).tag(c.rawValue)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+    }
+}
+
+/// A meeting's category in a list row: a small tag, nothing when it has none.
+struct CategoryTagView: View {
+    let category: MeetingCategory?
+
+    var body: some View {
+        if let category {
+            Text(category.name)
+                .font(.system(size: 9, weight: .semibold))
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .background(Capsule().fill(Color.primary.opacity(0.08)))
+                .foregroundStyle(.secondary)
+        }
+    }
+}
 
 private struct PlayerBar: View {
     @ObservedObject var player: MeetingPlayer

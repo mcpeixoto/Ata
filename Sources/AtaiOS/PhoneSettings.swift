@@ -8,6 +8,7 @@ struct PhoneSettings: View {
     @AppStorage(Pref.recogniseVoices) private var recogniseVoices = true
     @AppStorage(Pref.keepAudio) private var keepAudio = true
     @AppStorage(Pref.summarize) private var summarize = true
+    @AppStorage(Pref.defaultCategory) private var defaultCategory = ""
     @StateObject private var cloud = CloudSync.shared
 
     /// Why no summary will appear, when none will. Summaries are on by default on
@@ -62,6 +63,17 @@ struct PhoneSettings: View {
                     Toggle("Keep the audio after transcribing", isOn: $keepAudio)
                 } header: {
                     Text("Transcription")
+                }
+
+                Section {
+                    Picker("New meetings", selection: $defaultCategory) {
+                        Text("No category").tag("")
+                        ForEach(MeetingCategory.allCases) { c in Text(c.name).tag(c.rawValue) }
+                    }
+                } header: {
+                    Text("Work and personal")
+                } footer: {
+                    Text("What a new recording is filed under. You can change it in the meeting.")
                 }
 
                 Section {

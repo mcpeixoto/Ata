@@ -29,6 +29,8 @@ struct SettingsView: View {
     @AppStorage(Pref.calendarLeadMinutes) private var calendarLeadMinutes = 1
     @AppStorage(Pref.calendarPeopleOnly) private var calendarPeopleOnly = true
     @State private var recordShortcut: Shortcut? = Hotkey.current
+    @AppStorage(Pref.defaultCategory) private var defaultCategory = ""
+    @State private var calendarCategories = MeetingCategory.calendarMap
     @AppStorage(Pref.dockIcon) private var dockIcon = false
     @AppStorage(Pref.menuBarIcon) private var menuBarIcon = true
     @AppStorage(Pref.menuIconSymbol) private var menuIconSymbol = MenuIcon.Symbol.dot.rawValue
@@ -72,6 +74,7 @@ struct SettingsView: View {
             Form {
                 recordingSection
                 calendarSection
+                categorySection
                 presenceSection
                 menuBarSection
                 transcriptionSection
@@ -154,6 +157,34 @@ struct SettingsView: View {
             Text(calendarFootnote)
                 .font(.system(size: 11))
                 .foregroundStyle(calendarPrompt && !setup.calendar ? .orange : .secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var categorySection: some View {
+        Section("Work and personal") {
+            Picker("New meetings", selection: $defaultCategory) {
+                Text("No category").tag("")
+                ForEach(MeetingCategory.allCases) { c in Text(c.name).tag(c.rawValue) }
+            }
+            if setup.calendar {
+                ForEach(CalendarStore.shared.calendars(), id: \.id) { calendar in
+                    Picker(calendar.title, selection: Binding(
+                        get: { calendarCategories[calendar.id] ?? "" },
+                        set: { value in
+                            calendarCategories[calendar.id] = value.isEmpty ? nil : value
+                            MeetingCategory.calendarMap = calendarCategories
+                        })) {
+                        Text("No category").tag("")
+                        ForEach(MeetingCategory.allCases) { c in Text(c.name).tag(c.rawValue) }
+                    }
+                }
+            }
+            Text(setup.calendar
+                 ? L("A meeting from one of these calendars gets its category. Otherwise Ata goes by the app: Zoom, Teams or Slack is work, FaceTime or WhatsApp is personal. You can change it in the meeting.")
+                 : L("Ata goes by the app: Zoom, Teams or Slack is work, FaceTime or WhatsApp is personal. Allow the calendar above to choose per calendar. You can change it in the meeting."))
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }

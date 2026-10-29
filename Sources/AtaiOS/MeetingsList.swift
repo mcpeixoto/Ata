@@ -8,11 +8,13 @@ struct MeetingsList: View {
     @State private var query = ""
     @State private var pendingDelete: Meeting?
     @State private var choosingAudio = false
+    @AppStorage(Pref.categoryFilter) private var categoryFilter = ""
 
     private var shown: [Meeting] {
+        let inCategory = store.meetings.filter { MeetingCategory.matches($0, filter: categoryFilter) }
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !q.isEmpty else { return store.meetings }
-        return store.meetings.filter { store.searchText(for: $0).contains(q) }
+        guard !q.isEmpty else { return inCategory }
+        return inCategory.filter { store.searchText(for: $0).contains(q) }
     }
 
     var body: some View {
@@ -51,11 +53,18 @@ struct MeetingsList: View {
                 if store.meetings.isEmpty {
                     ContentUnavailableView("No meetings yet", systemImage: "waveform",
                                            description: Text("Record one and your history shows up here."))
-                } else if shown.isEmpty {
+                } else if shown.isEmpty, !query.isEmpty {
                     ContentUnavailableView.search(text: query)
+                } else if shown.isEmpty {
+                    ContentUnavailableView("No meetings here yet", systemImage: "tag",
+                                           description: Text("Pick Work or Personal in a meeting to file it here."))
                 }
             }
             .searchable(text: $query, prompt: Text("Search meetings"))
+            .searchScopes($categoryFilter, activation: .onSearchPresentation) {
+                Text("All").tag("")
+                ForEach(MeetingCategory.allCases) { c in Text(c.name).tag(c.rawValue) }
+            }
             .refreshable { store.reload() }
             .navigationTitle("Meetings")
             // Audio recorded elsewhere: Voice Memos, a recorder, a file someone sent.
@@ -106,7 +115,10 @@ private struct PhoneMeetingRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(meeting.title).font(.headline).lineLimit(1)
-            Text(meeting.subtitle).font(.subheadline).foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                Text(meeting.subtitle).font(.subheadline).foregroundStyle(.secondary)
+                CategoryTagView(category: meeting.categoryValue)
+            }
             status
         }
         .padding(.vertical, 2)

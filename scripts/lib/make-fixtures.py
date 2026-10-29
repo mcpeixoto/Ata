@@ -35,7 +35,10 @@ def record(engine, model, finished, minutes, cost, my_share):
     }
 
 
-def meeting(folder, app, ago_minutes, minutes, status="done", records=None, audio_mb=0):
+CATEGORIES = {"Zoom": "work", "Slack": "work", "Teams": "work", "FaceTime": "personal"}
+
+
+def meeting(folder, app, ago_minutes, minutes, status="done", records=None, audio_mb=0, category=None):
     d = os.path.join(out, folder)
     os.makedirs(d, exist_ok=True)
     start = now - timedelta(minutes=ago_minutes)
@@ -49,6 +52,10 @@ def meeting(folder, app, ago_minutes, minutes, status="done", records=None, audi
     }
     if records:
         body["transcriptions"] = records
+    # Work or personal: guessed from the app, as Ata does, unless given.
+    value = category or CATEGORIES.get(app)
+    if value:
+        body["category"] = {"value": value, "manual": category is not None, "at": iso(start)}
     with open(os.path.join(d, "meeting.json"), "w") as f:
         json.dump(body, f, indent=2)
     if audio_mb:
@@ -65,7 +72,7 @@ meeting("fixture-zoom", "Zoom", 190, 47, audio_mb=22,
         records=[record("openai", "whisper-1", now - timedelta(minutes=140), 47, 0.0, 0.41)
                  | {"costUSD": 0.564, "archivedAs": "earlier whisper-1.md"},
                  record(*LOCAL, now - timedelta(minutes=120), 47, 0.0, 0.41)])
-meeting("fixture-meet", "Chrome", 1500, 28, audio_mb=13,
+meeting("fixture-meet", "Chrome", 1500, 28, audio_mb=13, category="personal",
         records=[record("openai", "gpt-4o-transcribe", now - timedelta(minutes=1460), 28, 0.341, 0.52)])
 meeting("fixture-teams", "Teams", 2950, 61, audio_mb=28,
         records=[record(*LOCAL, now - timedelta(minutes=2880), 61, 0.0, 0.33)])

@@ -565,3 +565,20 @@
 "Next steps:" = "Próximos passos:";
 "Best," = "Cumprimentos,";
 "the transcription engine stopped making progress and was stopped; this meeting can be transcribed again" = "o motor de transcrição deixou de avançar e foi parado; esta reunião pode ser transcrita outra vez";
+
+/* Work and personal */
+"Work" = "Trabalho";
+"Personal" = "Pessoal";
+"Category" = "Categoria";
+"None" = "Nenhuma";
+"Work or personal" = "Trabalho ou pessoal";
+"Show" = "Mostrar";
+"All" = "Todas";
+"No meetings here yet" = "Ainda não há reuniões aqui";
+"Work and personal" = "Trabalho e pessoal";
+"New meetings" = "Reuniões novas";
+"No category" = "Sem categoria";
+"A meeting from one of these calendars gets its category. Otherwise Ata goes by the app: Zoom, Teams or Slack is work, FaceTime or WhatsApp is personal. You can change it in the meeting." = "Uma reunião de um destes calendários fica com a categoria dele. Se não, a Ata vai pela app: Zoom, Teams ou Slack é trabalho, FaceTime ou WhatsApp é pessoal. Podes mudar isto na reunião.";
+"Ata goes by the app: Zoom, Teams or Slack is work, FaceTime or WhatsApp is personal. Allow the calendar above to choose per calendar. You can change it in the meeting." = "A Ata vai pela app: Zoom, Teams ou Slack é trabalho, FaceTime ou WhatsApp é pessoal. Dá acesso ao calendário acima para escolher por calendário. Podes mudar isto na reunião.";
+"Pick Work or Personal in a meeting to file it here." = "Escolhe Trabalho ou Pessoal numa reunião para a arrumar aqui.";
+"What a new recording is filed under. You can change it in the meeting." = "Onde fica arrumada cada gravação nova. Podes mudar isto na reunião.";

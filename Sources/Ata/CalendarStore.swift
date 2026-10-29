@@ -64,7 +64,8 @@ final class CalendarStore {
                                               endsAt: event.endDate,
                                               attendees: attendees(of: event),
                                               calendarName: event.calendar?.title,
-                                              eventID: event.calendarItemExternalIdentifier) else { return nil }
+                                              eventID: event.calendarItemExternalIdentifier,
+                                              calendarID: event.calendar?.calendarIdentifier) else { return nil }
         return CalendarSchedule.Candidacy(event: meetingEvent,
                                           isAllDay: event.isAllDay,
                                           isCancelled: event.status == .canceled,
