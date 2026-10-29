@@ -365,6 +365,9 @@
 "Apple Intelligence is still getting ready." = "O Apple Intelligence ainda está a ser preparado.";
 "Turn on Apple Intelligence in System Settings to use it." = "Ativa o Apple Intelligence nas Definições do Sistema para o usares.";
 "This Mac does not support Apple Intelligence." = "Este Mac não suporta o Apple Intelligence.";
+"Turn on Apple Intelligence in Settings to use it." = "Ativa o Apple Intelligence nas Definições para o usares.";
+"This iPhone does not support Apple Intelligence." = "Este iPhone não suporta o Apple Intelligence.";
+"Ask the people you record first. In many places it is the law." = "Pede autorização a quem vais gravar. Em muitos sítios, é a lei.";
 "Summary engine" = "Motor do resumo";
 "On this Mac (Apple Intelligence)" = "Neste Mac (Apple Intelligence)";
 "Written on this Mac. Nothing leaves it." = "Escrito neste Mac. Nada sai daqui.";
@@ -408,7 +411,8 @@
 "Tells the people in a conversation apart and learns their voices, so you name each one once. Fingerprints stay on this iPhone." = "Distingue as pessoas numa conversa e aprende as vozes delas, para dares nome a cada uma só uma vez. As impressões vocais ficam neste iPhone.";
 "Keep meetings in iCloud" = "Guardar as reuniões no iCloud";
 "Version" = "Versão";
-"Source code" = "Código-fonte";
+"Help" = "Ajuda";
+"Privacy Policy" = "Política de Privacidade";
 "About" = "Sobre";
 "Your last meeting, and a button to record the next one." = "A tua última reunião e um botão para gravar a próxima.";
 "Last meeting" = "Última reunião";

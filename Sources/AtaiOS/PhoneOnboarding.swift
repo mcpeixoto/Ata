@@ -22,6 +22,10 @@ struct PhoneOnboarding: View {
             Text("Ata records conversations on this iPhone, even with the screen locked, and turns them into transcripts you can search.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
+            Text("Ask the people you record first. In many places it is the law.")
+                .font(.footnote)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
 
             VStack(spacing: 4) {
                 CheckRow(ok: mic == .granted, title: L("Microphone"),
