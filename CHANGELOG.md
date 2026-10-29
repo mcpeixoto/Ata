@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.0.4
+
+- **One microphone is a meeting in the room.** A recording on the laptop's
+  built-in microphone, or the only microphone there is, has everyone in the
+  room on that one track. Ata tells those voices apart instead of labelling
+  the whole track as you. When the Mac also played a real other side, those
+  people stay on the system track. A chime or a video is not that other side,
+  and it is no longer subtracted from the only recording of the room.
+
 ## 3.0.3
 
 - **A repaired recording is not slowed a second time.** 3.0.1 kept the original

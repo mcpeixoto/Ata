@@ -342,15 +342,18 @@ enum Transcriber {
         let micAudible = prepared.first { $0.speaker == Speakers.me }
             .flatMap { try? Waveform.levels($0.audio) }.map(SpeakerRoute.audibleSeconds) ?? 0
         let systemPrepared = prepared.first { $0.speaker == Speakers.others }
-        let systemAudible = systemPrepared
-            .flatMap { try? Waveform.levels($0.audio) }.map(SpeakerRoute.audibleSeconds) ?? 0
+        let systemLevels = systemPrepared.flatMap { try? Waveform.levels($0.audio) }
+        let systemAudible = systemLevels.map(SpeakerRoute.audibleSeconds) ?? 0
 
         // Without headphones the microphone also hears the others, whose words then
         // came out a second time as yours. Clean a copy of the microphone track against
         // what the speakers played; the recording itself is never changed. Against a
         // silent reference there is no echo to find, so the pass (the most expensive
-        // one in this run) is skipped rather than run to prove it.
+        // one in this run) is skipped rather than run to prove it. On the laptop's
+        // one microphone the same pass is skipped unless that track really is a
+        // call: a chime is not the other people, and they only exist on this mic.
         if options.cancelEcho, systemAudible >= TrackHealth.silentBelowSeconds,
+           SpeakerRoute.removesEcho(soloMicrophone: meeting.soloMicrophone == true, systemLevels: systemLevels),
            let micIndex = prepared.firstIndex(where: { $0.speaker == Speakers.me }),
            let system = prepared.first(where: { $0.speaker == Speakers.others }) {
             let mic = prepared[micIndex]
@@ -531,7 +534,8 @@ enum Transcriber {
         }
         let choice = SpeakerRoute.decision(systemLevels: systemLevels, hasMic: mic != nil,
                                            systemUnreadable: system != nil && systemLevels == nil,
-                                           systemSpeechSeconds: systemSpeech)
+                                           systemSpeechSeconds: systemSpeech,
+                                           soloMicrophone: meeting.soloMicrophone == true)
         switch choice.route {
         case .call:
             break
@@ -578,8 +582,11 @@ enum Transcriber {
         // really was one person. Three seconds of anything playing is enough to
         // route a meeting held in the room down this path, and there the
         // microphone is the whole room: learning its loudest speaker as you put
-        // your name on a colleague and kept it.
-        if let mic, let main = try? await diarizer.mainSpeaker(mic, minimumSecondsToLearn: FluidDiarizer.minimumSecondsToLearn) {
+        // your name on a colleague and kept it. The laptop's one microphone is
+        // that room even on a call, and it is diarized below instead of learned
+        // whole.
+        if !choice.diarizeMicrophone, let mic,
+           let main = try? await diarizer.mainSpeaker(mic, minimumSecondsToLearn: FluidDiarizer.minimumSecondsToLearn) {
             if main.share >= Self.micIsOneVoiceShare {
                 speakers.append(MeetingSpeaker(label: Speakers.me, embedding: main.embedding, seconds: 0, voiceID: nil))
             } else {
@@ -596,6 +603,13 @@ enum Transcriber {
         let assigned = found.isEmpty
             ? []
             : await MainActor.run { PeopleModel.shared.assign(found, meetingID: meeting.id) }
+        if choice.diarizeMicrophone, let mic {
+            if let system, !assigned.isEmpty { await cutSamples(for: assigned, turns: turns, from: system) }
+            let labels = assigned.map(\.label) + turns.map(\.label)
+            return await recogniseInPerson(relabelled, meeting: meeting, diarizer: diarizer, mic: mic,
+                                           priorSpeakers: assigned, priorTurns: turns,
+                                           othersFrom: nextSpeakerNumber(labels))
+        }
         if !assigned.isEmpty || !turns.isEmpty {
             try? MeetingVoices(speakers: assigned, turns: turns).save(for: meeting)
         }
@@ -603,23 +617,38 @@ enum Transcriber {
         return relabelled
     }
 
+    /// The next `S` number after the ones already given to the system track,
+    /// so the people on the microphone are not also called S1.
+    private static func nextSpeakerNumber(_ labels: [String]) -> Int {
+        let used = labels.compactMap { label -> Int? in
+            guard label.hasPrefix("S"), let n = Int(label.dropFirst()), n > 0 else { return nil }
+            return n
+        }
+        return (used.max() ?? 0) + 1
+    }
+
     /// One microphone, several people: the microphone is diarized, the speaker
     /// who is you keeps your lines (see `InPerson.me`), and everyone else is
     /// matched and named like the others on a call.
     private static func recogniseInPerson(_ segments: [Segment], meeting: Meeting, diarizer: Diarizer,
-                                          mic: URL) async -> [Segment] {
+                                          mic: URL, priorSpeakers: [MeetingSpeaker] = [],
+                                          priorTurns: [SpeakerTurn] = [], othersFrom: Int = 1) async -> [Segment] {
         let found: (turns: [SpeakerTurn], embeddings: [String: [Float]])
         do {
             found = try await diarizer.diarize(mic)
         } catch {
             NSLog("Ata: diarization of the microphone failed: \(error.localizedDescription)")
+            saveVoices(priorSpeakers, turns: priorTurns, for: meeting)
             return segments
         }
         let clusters = InPerson.clusters(found.turns, embeddings: found.embeddings)
         let fingerprints = await MainActor.run { PeopleModel.shared.myFingerprints() }
-        guard let me = InPerson.me(among: clusters, fingerprints: fingerprints) else { return segments }
+        guard let me = InPerson.me(among: clusters, fingerprints: fingerprints) else {
+            saveVoices(priorSpeakers, turns: priorTurns, for: meeting)
+            return segments
+        }
 
-        let rename = InPerson.labels(found.turns, me: me.label)
+        let rename = InPerson.labels(found.turns, me: me.label, othersFrom: othersFrom)
         var turns = found.turns.map { SpeakerTurn(start: $0.start, end: $0.end, label: rename[$0.label] ?? $0.label) }
 
         // Every speaker with a fingerprint goes to the library, you included. A
@@ -687,12 +716,17 @@ enum Transcriber {
         }
         // The turns are kept even when nobody could be fingerprinted: they are
         // what the meeting screen lists its speakers from, and what tells a
-        // short meeting apart from one Ata heard nothing in.
-        if !assigned.isEmpty || !turns.isEmpty {
-            try? MeetingVoices(speakers: assigned, turns: turns).save(for: meeting)
-        }
+        // short meeting apart from one Ata heard nothing in. A call heard on
+        // the laptop's one microphone already diarized the far side; those
+        // speakers stay, under their own numbers.
+        saveVoices(priorSpeakers + assigned, turns: priorTurns + turns, for: meeting)
         if !assigned.isEmpty { await cutSamples(for: assigned, turns: turns, from: mic) }
         return relabelled
+    }
+
+    private static func saveVoices(_ speakers: [MeetingSpeaker], turns: [SpeakerTurn], for meeting: Meeting) {
+        guard !speakers.isEmpty || !turns.isEmpty else { return }
+        try? MeetingVoices(speakers: speakers, turns: turns).save(for: meeting)
     }
 
     /// How much of a microphone track's speech its main speaker must hold for the

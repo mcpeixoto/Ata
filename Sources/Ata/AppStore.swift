@@ -254,7 +254,10 @@ final class AppStore: ObservableObject {
             do {
                 // Written in staging and moved into the meetings folder when it stops,
                 // so a synced folder never holds a half-written WAV.
-                let m = try Meeting.new(app: app, event: event, staged: true)
+                var m = try Meeting.new(app: app, event: event, staged: true)
+                // Read before capture starts: a device plugged in halfway
+                // through does not change who was in the room at the start.
+                m.soloMicrophone = InputDevices.isSolo
                 Library.save(m)
                 bookmarkCount = 0
                 current = m

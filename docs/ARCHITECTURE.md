@@ -224,7 +224,10 @@ With voice recognition on (off by default; macOS 15+), after the tracks are tran
 **In person** (`SpeakerRoute`, `InPerson`): when there is no system track, it holds under 3 s
 of sound (a Mac records one in every meeting, silent while nothing plays), or it is loud but
 less than a quarter of that sound comes back as words, the microphone is
-diarized instead. In that last case the system track's own lines are dropped. The speaker matching your fingerprint (the `isMe` voices, learned from the
+diarized instead. In that last case the system track's own lines are dropped. A recording
+made on the laptop's built-in microphone, or the only input device, is that same room even
+during a call: the microphone is diarized as well, and the system track is subtracted from
+it only when that track really is the other side. The speaker matching your fingerprint (the `isMe` voices, learned from the
 microphone of calls, by the same 0.65 + 0.1 rule) keeps your lines; with no fingerprint yet or
 no clear match, whoever spoke most is you, and that guess is never learned as your voice.
 Everyone else is split word by word and matched like the others on a call.

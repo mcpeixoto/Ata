@@ -860,9 +860,9 @@ enum SpeakerRoute: Equatable {
     /// how much of that track transcribed; nil when it was not transcribed, which
     /// leaves the decision to the waveform alone.
     static func choose(systemLevels: [UInt8]?, hasMic: Bool, systemUnreadable: Bool = false,
-                       systemSpeechSeconds: Double? = nil) -> SpeakerRoute {
+                       systemSpeechSeconds: Double? = nil, soloMicrophone: Bool = false) -> SpeakerRoute {
         decision(systemLevels: systemLevels, hasMic: hasMic, systemUnreadable: systemUnreadable,
-                 systemSpeechSeconds: systemSpeechSeconds).route
+                 systemSpeechSeconds: systemSpeechSeconds, soloMicrophone: soloMicrophone).route
     }
 
     /// Where to tell the speakers apart, and whether the system track's own lines
@@ -870,8 +870,30 @@ enum SpeakerRoute: Equatable {
     /// call and transcribed as if it were not: those lines are not the other
     /// participants, and leaving them in would put a second, invented side next
     /// to the voices found on the microphone.
+    /// `soloMicrophone` is the laptop's built-in mic, or the only input device.
+    /// Everyone in the room is on it, so that track is diarized even when the
+    /// system track is a real call — those lines stay the people who were not
+    /// in the room.
     static func decision(systemLevels: [UInt8]?, hasMic: Bool, systemUnreadable: Bool = false,
-                         systemSpeechSeconds: Double? = nil) -> (route: SpeakerRoute, discardSystemLines: Bool) {
+                         systemSpeechSeconds: Double? = nil, soloMicrophone: Bool = false)
+        -> (route: SpeakerRoute, discardSystemLines: Bool, diarizeMicrophone: Bool) {
+        let base = route(systemLevels: systemLevels, hasMic: hasMic, systemUnreadable: systemUnreadable,
+                         systemSpeechSeconds: systemSpeechSeconds)
+        let diarizeMicrophone = hasMic && (soloMicrophone || base.route == .inPerson)
+        return (base.route, base.discard, diarizeMicrophone)
+    }
+
+    /// Echo cancellation subtracts the system track from the microphone. That
+    /// is the other side of a call leaking out of the speakers. On the one
+    /// microphone in the room it is not, and subtracting a chime or a video
+    /// takes the people in the room out of the only recording of them.
+    static func removesEcho(soloMicrophone: Bool, systemLevels: [UInt8]?) -> Bool {
+        guard soloMicrophone, let systemLevels else { return true }
+        return isCall(systemLevels)
+    }
+
+    private static func route(systemLevels: [UInt8]?, hasMic: Bool, systemUnreadable: Bool,
+                              systemSpeechSeconds: Double?) -> (route: SpeakerRoute, discard: Bool) {
         if let systemLevels, isCall(systemLevels) {
             if let speech = systemSpeechSeconds, hasMic,
                !holdsSpeech(audible: audibleSeconds(systemLevels), speech: speech) {
@@ -976,10 +998,10 @@ enum InPerson {
 
     /// Diarizer label → transcript label: `Speakers.me` for you, and S1, S2… for
     /// everyone else in order of first appearance, as on the system track.
-    static func labels(_ turns: [SpeakerTurn], me: String?) -> [String: String] {
+    static func labels(_ turns: [SpeakerTurn], me: String?, othersFrom: Int = 1) -> [String: String] {
         var out: [String: String] = [:]
         if let me { out[me] = Speakers.me }
-        var n = 0
+        var n = max(0, othersFrom - 1)
         for t in turns.sorted(by: { $0.start < $1.start }) where out[t.label] == nil {
             n += 1
             out[t.label] = "S\(n)"
