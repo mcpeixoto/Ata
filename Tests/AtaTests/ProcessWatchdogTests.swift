@@ -1,6 +1,7 @@
 import XCTest
 @testable import Ata
 
+#if os(macOS)
 final class ProcessWatchdogTests: XCTestCase {
 
     private func sleepProcess(_ seconds: Int) throws -> Process {
@@ -44,3 +45,4 @@ final class ProcessWatchdogTests: XCTestCase {
         p.terminate()
     }
 }
+#endif

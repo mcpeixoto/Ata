@@ -180,6 +180,7 @@ enum LocalEngine {
         }
     }
 
+    #if os(macOS)
     /// Kills a helper process that has gone quiet. whisper writes a progress
     /// line as it works, so minutes without one is not a slow file, it is a
     /// wedged process — and the transcription queue is one at a time, so a
@@ -217,6 +218,7 @@ enum LocalEngine {
             lock.lock(); defer { lock.unlock() }; return Date().timeIntervalSince(lastActivity)
         }
     }
+    #endif
 
     private final class LogBuffer: @unchecked Sendable {
         private var data = Data()
@@ -268,8 +270,7 @@ enum LocalEngine {
                     cont.resume(returning: log.text)
                 } else if watchdog.didStall() {
                     cont.resume(throwing: TranscriberError.failed(
-                        L("the transcription engine stopped making progress and was stopped; "
-                          + "this meeting can be transcribed again")))
+                        L("the transcription engine stopped making progress and was stopped; this meeting can be transcribed again")))
                 } else if proc.terminationReason == .uncaughtSignal {
                     // Killed — Ata is quitting. Don't retry, or whisper outlives the app.
                     cont.resume(throwing: TranscriberError.cancelled)
