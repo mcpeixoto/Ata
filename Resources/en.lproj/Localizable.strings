@@ -450,6 +450,11 @@
 "Checking iCloud…" = "Checking iCloud…";
 "Downloading from iCloud…" = "Downloading from iCloud…";
 "Copying your meetings into iCloud… %d of %d" = "Copying your meetings into iCloud… %d of %d";
+"Copying your meetings from iCloud… %d of %d" = "Copying your meetings from iCloud… %d of %d";
+"Ata keeps using iCloud until every meeting is copied to this Mac and checked. Nothing is removed from iCloud." = "Ata keeps using iCloud until every meeting is copied to this Mac and checked. Nothing is removed from iCloud.";
+"Ata keeps using iCloud until every meeting is copied to this iPhone and checked. Nothing is removed from iCloud." = "Ata keeps using iCloud until every meeting is copied to this iPhone and checked. Nothing is removed from iCloud.";
+"iCloud isn't available, so new meetings are kept on this device. Ata moves them into iCloud when it's back." = "iCloud isn't available, so new meetings are kept on this device. Ata moves them into iCloud when it's back.";
+"%d items could not be copied from iCloud to this device, so Ata still uses iCloud. Nothing was removed; turn it off again to try again." = "%d items could not be copied from iCloud to this device, so Ata still uses iCloud. Nothing was removed; turn it off again to try again.";
 "Originals on this Mac" = "Originals on this Mac";
 "They were copied into iCloud and checked. Remove them when you no longer need them." = "They were copied into iCloud and checked. Remove them when you no longer need them.";
 "The originals stay where they are. Ata moves to the copy once every meeting is in iCloud and checked." = "The originals stay where they are. Ata moves to the copy once every meeting is in iCloud and checked.";

@@ -450,6 +450,11 @@
 "Checking iCloud…" = "A verificar o iCloud…";
 "Downloading from iCloud…" = "A descarregar do iCloud…";
 "Copying your meetings into iCloud… %d of %d" = "A copiar as tuas reuniões para o iCloud… %d de %d";
+"Copying your meetings from iCloud… %d of %d" = "A copiar as tuas reuniões do iCloud… %d de %d";
+"Ata keeps using iCloud until every meeting is copied to this Mac and checked. Nothing is removed from iCloud." = "O Ata continua a usar o iCloud até todas as reuniões estarem copiadas para este Mac e verificadas. Nada é removido do iCloud.";
+"Ata keeps using iCloud until every meeting is copied to this iPhone and checked. Nothing is removed from iCloud." = "O Ata continua a usar o iCloud até todas as reuniões estarem copiadas para este iPhone e verificadas. Nada é removido do iCloud.";
+"iCloud isn't available, so new meetings are kept on this device. Ata moves them into iCloud when it's back." = "O iCloud não está disponível, por isso as reuniões novas ficam guardadas neste dispositivo. O Ata passa-as para o iCloud quando voltar.";
+"%d items could not be copied from iCloud to this device, so Ata still uses iCloud. Nothing was removed; turn it off again to try again." = "Não foi possível copiar %d itens do iCloud para este dispositivo, por isso o Ata continua a usar o iCloud. Nada foi removido; desliga outra vez para tentar de novo.";
 "Originals on this Mac" = "Originais neste Mac";
 "They were copied into iCloud and checked. Remove them when you no longer need them." = "Foram copiados para o iCloud e verificados. Apaga-os quando já não precisares deles.";
 "The originals stay where they are. Ata moves to the copy once every meeting is in iCloud and checked." = "Os originais ficam onde estão. A Ata passa para a cópia quando todas as reuniões estiverem no iCloud e verificadas.";
