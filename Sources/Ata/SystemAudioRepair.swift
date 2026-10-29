@@ -137,9 +137,13 @@ enum SystemAudioRepair {
         var raw: [(gap: Bool, range: Range<Int>)] = []
         var i = 0
         while i < samples.count {
-            let quiet = abs(samples[i]) <= silenceCeiling
+            // `magnitude`, not `abs`: a clipped sample can be Int16.min, whose
+            // absolute value does not exist, and Swift traps on it. That is the
+            // 3.0.0/3.0.1 launch crash — one clipped sample in a healthy
+            // meeting, reached by this scan on every launch.
+            let quiet = samples[i].magnitude <= silenceCeiling.magnitude
             let start = i
-            while i < samples.count, (abs(samples[i]) <= silenceCeiling) == quiet { i += 1 }
+            while i < samples.count, (samples[i].magnitude <= silenceCeiling.magnitude) == quiet { i += 1 }
             raw.append((quiet && (i - start) >= splitAt, start..<i))
         }
         var out: [Run] = []

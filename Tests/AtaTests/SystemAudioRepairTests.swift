@@ -49,6 +49,22 @@ final class SystemAudioRepairTests: XCTestCase {
         XCTAssertNil(SystemAudioRepair.repaired(tone, sampleRate: rate))
     }
 
+    /// A clipped sample is Int16.min, and `abs` of it traps. This is the
+    /// 3.0.0 launch crash (still in 3.0.1, whose rewrite of this scan kept
+    /// `abs`): three healthy meetings each hold one, and the launch scan
+    /// reaches it every time. The scan must read it as the loud sample it is.
+    func testAClippedRecordingDoesNotCrash() {
+        var tone: [Int16] = []
+        let n = Int(rate * 8)
+        for i in 0..<n {
+            tone.append(Int16(sin(2 * .pi * 440 * Double(i) / rate) * 8_000))
+        }
+        tone[n / 2] = .min
+        XCTAssertGreaterThan(SystemAudioRepair.longContentShare(tone, sampleRate: rate), 0.8)
+        XCTAssertFalse(SystemAudioRepair.isCorrupt(tone, sampleRate: rate))
+        XCTAssertNil(SystemAudioRepair.repaired(tone, sampleRate: rate))
+    }
+
     func testAStretchLongerThanASecondIsNotTheBug() {
         var samples = [Int16](repeating: 0, count: Int(rate * 30))
         for i in 0..<Int(rate * 2) { samples[i] = 1_000 }
