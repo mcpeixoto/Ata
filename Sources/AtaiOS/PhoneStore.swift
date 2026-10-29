@@ -31,6 +31,11 @@ final class PhoneStore: ObservableObject {
     }
     /// Moments marked during this recording, in ms from its start.
     @Published private(set) var bookmarks: [Int] = []
+    /// Free meetings made on this iPhone this month; see `FreeQuota`.
+    @Published private(set) var freeUsed = 0
+
+    /// No free meeting left this month, and no Ata Pro.
+    var needsPro: Bool { !ProStore.shared.isPro && freeUsed >= FreeQuota.limit }
 
     var isRecording: Bool { phase == .recording || phase == .interrupted }
     /// Seconds of audio recorded so far, kept current in the background too (unlike `elapsed`).
@@ -59,7 +64,7 @@ final class PhoneStore: ObservableObject {
         _ = Device.current
         Pref.registerDefaults()
         mode = Pref.d.string(forKey: Pref.recordingMode).flatMap(RecordingMode.init(rawValue:)) ?? .inPerson
-        try? FileManager.default.createDirectory(at: Paths.meetingsDir, withIntermediateDirectories: true)
+        try? CloudLibrary.createFolder(Paths.meetingsDir)
         // Meetings play through the speaker even with the silent switch on.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
 
@@ -106,7 +111,25 @@ final class PhoneStore: ObservableObject {
 
     func reload() {
         meetings = Library.loadAll()
+        updateQuota()
         updateWidgets()
+    }
+
+    /// Counted again before every start too: the month may have turned since.
+    func updateQuota() {
+        guard !Snapshots.rendering else { return }
+        freeUsed = FreeQuota.used(meetings: meetings, ledger: QuotaLedger.ids(), deviceID: Device.id)
+    }
+
+    /// Made on this iPhone: counted against this month's free meetings.
+    private func counted(_ meetingID: String) {
+        QuotaLedger.record(meetingID)
+        updateQuota()
+    }
+
+    /// After an import, which is never refused: past the free meetings, Pro is offered.
+    private func offerProIfOverLimit() {
+        if !ProStore.shared.isPro && freeUsed > FreeQuota.limit { PhoneNavigation.shared.showPaywall() }
     }
 
     /// Nothing is recording, transcribing or importing: the library can move
@@ -140,6 +163,13 @@ final class PhoneStore: ObservableObject {
 
     private func start() async throws {
         guard phase == .idle else { return }
+        // Siri, the Control and the Watch come through here too. A recording
+        // already running is never stopped by this; it only gates a new one.
+        updateQuota()
+        if needsPro {
+            PhoneNavigation.shared.showPaywall()
+            throw FreeQuotaError.limitReached
+        }
         phase = .starting
         lastError = nil
         guard await PhoneRecorder.requestPermission() else {
@@ -149,7 +179,8 @@ final class PhoneStore: ObservableObject {
             throw PhoneRecorderError.micDenied
         }
         do {
-            _ = try recorder.start(mode: mode)
+            let m = try recorder.start(mode: mode)
+            counted(m.id)
             bookmarks = []
             activity.start(mode: mode)
             startTicker()
@@ -194,6 +225,8 @@ final class PhoneStore: ObservableObject {
 
     func watchImportFinished() {
         importing = max(0, importing - 1)
+        updateQuota()
+        offerProIfOverLimit()
     }
 
     /// Marks this moment of the recording.
@@ -260,8 +293,7 @@ final class PhoneStore: ObservableObject {
 
     func delete(_ m: Meeting) {
         guard m.id != transcribingID else { return }
-        Library.trash(m)
-        if FileManager.default.fileExists(atPath: m.dir.path) {
+        if !Library.trash(m) {
             lastError = L("Could not delete this meeting.")
         } else {
             PeopleModel.shared.removeMeeting(m.id)
@@ -297,11 +329,12 @@ final class PhoneStore: ObservableObject {
         Task {
             for url in files {
                 do {
-                    try await Task.detached(priority: .userInitiated) {
+                    let m = try await Task.detached(priority: .userInitiated) {
                         let scoped = url.startAccessingSecurityScopedResource()
                         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                        _ = try AudioImport.meeting(from: url)
+                        return try AudioImport.meeting(from: url)
                     }.value
+                    counted(m.id)
                     if Self.isHandedOverCopy(url) { try? FileManager.default.removeItem(at: url) }
                 } catch {
                     importError = L("Could not import %@: %@", url.lastPathComponent, error.localizedDescription)
@@ -309,6 +342,7 @@ final class PhoneStore: ObservableObject {
                 importing -= 1
                 reload()
             }
+            offerProIfOverLimit()
             pump()
         }
     }
@@ -334,7 +368,8 @@ final class PhoneStore: ObservableObject {
         Task {
             let report = await Task.detached(priority: .userInitiated) {
                 ShareInbox.drain(entries) { entry in
-                    _ = try AudioImport.meeting(from: entry.audio, named: entry.item.originalName, at: entry.item.date)
+                    let m = try AudioImport.meeting(from: entry.audio, named: entry.item.originalName, at: entry.item.date)
+                    QuotaLedger.record(m.id)
                 }
             }.value
             if !report.failed.isEmpty {
@@ -345,6 +380,7 @@ final class PhoneStore: ObservableObject {
             importing -= entries.count
             drainingInbox = false
             reload()
+            offerProIfOverLimit()
             pump()
         }
     }
@@ -367,7 +403,7 @@ final class PhoneStore: ObservableObject {
         // With the meetings in iCloud, one the Mac has claimed is skipped, and so is
         // one of the Mac's that this iPhone has no engine for: the Mac will do it.
         let now = Date()
-        let waiting = Library.loadAll().filter { $0.awaitsTranscript(now: now) && ($0.isMine || $0.hasAudio) }
+        let waiting = Library.loadAll().filter { RunEnd.awaits($0, now: now) && ($0.isMine || $0.hasAudio) }
         guard var m = waiting.last(where: { $0.isMine || Self.canRun(TranscribeOptions.current(for: $0)) }) else {
             waitingForEngine = false
             return
@@ -393,16 +429,13 @@ final class PhoneStore: ObservableObject {
             self?.job?.cancel()
         }
         job = Task {
-            var m = queued
             let heartbeat = renewClaim(of: queued.id)
             defer { heartbeat.cancel() }
-            // Taken over by the Mac while this iPhone was away: the Mac owns the meeting
-            // now, so nothing here is saved and its audio is left alone.
-            func stillMine(_ status: Meeting.Status) -> Bool {
-                Meeting.mayFinish(status, over: Library.load(queued.id), by: Device.current)
-            }
+            // Saved onto meeting.json as it is now, and only while the claim is still this
+            // run's (see `RunEnd`): if the Mac took it over while this iPhone was away, the
+            // Mac owns the meeting, so nothing here is saved and its audio is left alone.
             do {
-                let outcome = try await Transcriber.transcribe(m, options: options) { p in
+                let outcome = try await Transcriber.transcribe(queued, options: options) { p in
                     Task { @MainActor in
                         let store = PhoneStore.shared
                         guard store.transcribingID == queued.id else { return }
@@ -410,33 +443,28 @@ final class PhoneStore: ObservableObject {
                         store.background?.report(p)
                     }
                 }
-                var history = m.transcriptions ?? []
-                if let archived = outcome.archivedPrevious, !history.isEmpty {
-                    history[history.count - 1].archivedAs = archived
-                }
-                history.append(outcome.record)
-                m.transcriptions = history
-                m.status = .done
-                m.error = nil
-                m.claim = nil
-                if stillMine(.done) {
-                    Library.save(m)
+                if let m = await RunEnd.save(queued.id, as: .done, apply: RunEnd.done(outcome)) {
                     await handleAudio(of: m)
                     Notifier.shared.transcriptReady(m)
                 }
                 background?.finish(success: true)
             } catch let error where Self.shouldRequeue(error) {
-                // Stopped, not failed: back in the queue with its audio untouched.
-                m.status = .pending
-                if stillMine(.pending) { Library.save(m) }
+                // Stopped, not failed: back in the queue with its audio untouched. Audio
+                // still in iCloud gives up the claim, so the Mac that has it can do it.
+                if RunEnd.releasesClaim(error) {
+                    RunEnd.retryLater(queued.id)
+                    _ = await RunEnd.save(queued.id, as: .pending) { $0.claim = nil }
+                } else {
+                    _ = await RunEnd.save(queued.id, as: .pending)
+                }
                 background?.finish(success: false)
             } catch {
-                m.status = .failed
-                m.error = error.localizedDescription
-                m.claim = nil
-                if stillMine(.failed) {
-                    Library.save(m)
-                    Notifier.shared.transcriptFailed(m, error: error.localizedDescription)
+                let message = error.localizedDescription
+                if let m = await RunEnd.save(queued.id, as: .failed, apply: { m in
+                    m.error = message
+                    m.claim = nil
+                }) {
+                    Notifier.shared.transcriptFailed(m, error: message)
                 }
                 background?.finish(success: false)
             }
@@ -470,11 +498,12 @@ final class PhoneStore: ObservableObject {
         }
     }
 
-    /// Cancelled, ended by iOS, or no engine to run: try again later. Anything
+    /// Cancelled, ended by iOS, no engine to run, or the audio still in iCloud
+    /// (`RunEnd.releasesClaim`): try again later. Anything
     /// else is a real failure, shown with "Try again" so one bad file doesn't
     /// block the queue.
     static func shouldRequeue(_ error: Error) -> Bool {
-        if error is CancellationError { return true }
+        if error is CancellationError || RunEnd.releasesClaim(error) { return true }
         switch error as? TranscriberError {
         case .cancelled?, .whisperMissing?, .modelMissing?: return true
         default: return false
@@ -488,7 +517,7 @@ final class PhoneStore: ObservableObject {
         guard m.isMine else { return }
         await saveMergedAudio(of: m)?.value
         guard Pref.d.bool(forKey: Pref.keepAudio) else {
-            for url in m.audioFilesToDiscard { try? FileManager.default.removeItem(at: url) }
+            for url in m.audioFilesToDiscard { try? Coordinated.remove(url) }
             return
         }
         guard Pref.d.bool(forKey: Pref.compressAudio) else { return }
@@ -523,8 +552,9 @@ final class PhoneStore: ObservableObject {
     /// place of `bootstrap()`: the fixture meetings and a made-up recording, with
     /// no microphone, no queue and nothing written.
     func applySnapshotFixture(recording: Bool, elapsed: Double, level: Float, bookmarks: [Int],
-                              transcribingID: String?, progress: Double) {
+                              transcribingID: String?, progress: Double, freeUsed: Int) {
         guard Snapshots.rendering else { return }
+        self.freeUsed = freeUsed
         bootstrapped = true
         meetings = Library.loadAll()
         phase = recording ? .recording : .idle
@@ -542,5 +572,14 @@ final class PhoneStore: ObservableObject {
         let snapshot = WidgetSnapshot(lastTitle: last?.title, lastStartedAt: last?.startedAt,
                                       recordingSince: isRecording ? Date().addingTimeInterval(-recorder.recordedSeconds) : nil)
         if snapshot.save() { WidgetCenter.shared.reloadAllTimelines() }
+    }
+}
+
+/// Why a new recording did not start: this month's free meetings are used.
+enum FreeQuotaError: LocalizedError {
+    case limitReached
+
+    var errorDescription: String? {
+        L("You have used this month's %d free meetings on iPhone. Ata Pro records without a limit.", FreeQuota.limit)
     }
 }

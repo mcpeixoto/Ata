@@ -270,7 +270,7 @@ enum VoiceSamples {
     /// what Ata learned you from. The clip itself is a temporary file the caller
     /// deletes; this is a compressed copy.
     static func keep(clip: URL, voice: UUID, maxSeconds: Double = 6) async -> String? {
-        try? FileManager.default.createDirectory(at: Paths.voicesDir, withIntermediateDirectories: true)
+        try? CloudLibrary.createFolder(Paths.voicesDir)
         let name = "\(voice.uuidString).m4a"
         let out = Paths.voicesDir.appendingPathComponent(name)
         try? FileManager.default.removeItem(at: out)
@@ -289,7 +289,7 @@ enum VoiceSamples {
         let start = Double(best.start) / 1000
         let length = min(maxSeconds, Double(best.end - best.start) / 1000)
 
-        try? FileManager.default.createDirectory(at: Paths.voicesDir, withIntermediateDirectories: true)
+        try? CloudLibrary.createFolder(Paths.voicesDir)
         let name = "\(voice.uuidString).m4a"
         let out = Paths.voicesDir.appendingPathComponent(name)
         try? FileManager.default.removeItem(at: out)

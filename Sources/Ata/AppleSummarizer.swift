@@ -148,9 +148,17 @@ enum AppleSummarizer {
         case .unavailable(.modelNotReady):
             return L("Apple Intelligence is still getting ready.")
         case .unavailable(.appleIntelligenceNotEnabled):
+            #if os(iOS)
+            return L("Turn on Apple Intelligence in Settings to use it.")
+            #else
             return L("Turn on Apple Intelligence in System Settings to use it.")
+            #endif
         case .unavailable:
+            #if os(iOS)
+            return L("This iPhone does not support Apple Intelligence.")
+            #else
             return L("This Mac does not support Apple Intelligence.")
+            #endif
         }
     }
 

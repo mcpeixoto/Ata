@@ -61,7 +61,12 @@ struct MeetingsList: View {
             // Audio recorded elsewhere: Voice Memos, a recorder, a file someone sent.
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button { choosingAudio = true } label: {
+                    // Past the free meetings, Pro comes first. Files already on
+                    // their way in (shared, opened in Ata) are never refused.
+                    Button {
+                        store.updateQuota()
+                        if store.needsPro { PhoneNavigation.shared.showPaywall() } else { choosingAudio = true }
+                    } label: {
                         Label("Import audio…", systemImage: "square.and.arrow.down")
                     }
                 }

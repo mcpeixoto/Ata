@@ -9,6 +9,9 @@ struct PhoneSettings: View {
     @AppStorage(Pref.keepAudio) private var keepAudio = true
     @AppStorage(Pref.summarize) private var summarize = true
     @StateObject private var cloud = CloudSync.shared
+    @ObservedObject private var pro = ProStore.shared
+    @EnvironmentObject private var store: PhoneStore
+    @State private var managingSubscription = false
 
     /// Why no summary will appear, when none will. Summaries are on by default on
     /// the iPhone (`Pref.platformDefaults`), and before this they could silently
@@ -26,6 +29,9 @@ struct PhoneSettings: View {
 
     private var iCloudFootnote: String {
         if let problem = cloud.problem { return problem }
+        if cloud.copyingOut {
+            return L("Ata keeps using iCloud until every meeting is copied to this iPhone and checked. Nothing is removed from iCloud.")
+        }
         if cloud.copying {
             return L("Your meetings stay on this iPhone until their copy in iCloud is checked and uploaded.")
         }
@@ -79,15 +85,35 @@ struct PhoneSettings: View {
                 }
 
                 Section {
+                    LabeledContent("Status", value: pro.isPro
+                                   ? L("Active")
+                                   : L("%d of %d free meetings left this month",
+                                       FreeQuota.remaining(used: store.freeUsed), FreeQuota.limit))
+                    if pro.isPro {
+                        Button("Manage subscription") { managingSubscription = true }
+                    } else {
+                        Button("Upgrade to Ata Pro") { PhoneNavigation.shared.showPaywall() }
+                    }
+                    Button("Restore Purchases") { Task { await pro.restore() } }
+                        .disabled(pro.purchasing)
+                } header: {
+                    Text("Ata Pro")
+                } footer: {
+                    Text(pro.message ?? L("Unlimited meetings on this iPhone. Ata for Mac is free and stays free."))
+                }
+
+                Section {
                     Toggle("Keep meetings in iCloud", isOn: Binding(
-                        get: { cloud.isOn || cloud.copying },
+                        get: { (cloud.isOn || cloud.copying) && !cloud.copyingOut },
                         set: { on in
                             if on { cloud.turnOn() } else { cloud.turnOff() }
                         }))
                         .disabled(!cloud.isOn && !cloud.copying && cloud.status != .available)
                     if cloud.copying && cloud.total > 0 {
                         ProgressView(value: Double(cloud.copied), total: Double(cloud.total)) {
-                            Text(L("Copying your meetings into iCloud… %d of %d", cloud.copied, cloud.total))
+                            Text(cloud.copyingOut
+                                 ? L("Copying your meetings from iCloud… %d of %d", cloud.copied, cloud.total)
+                                 : L("Copying your meetings into iCloud… %d of %d", cloud.copied, cloud.total))
                                 .font(.footnote)
                         }
                     }
@@ -97,8 +123,14 @@ struct PhoneSettings: View {
 
                 Section {
                     LabeledContent("Version", value: version)
-                    if let url = URL(string: "https://github.com/mcpeixoto/Ata") {
-                        Link("Source code", destination: url)
+                    // The support page rather than the repository: the repository
+                    // carries a donation link, which App Review treats as an
+                    // outside purchase.
+                    if let url = URL(string: "https://mcpeixoto.github.io/Ata/") {
+                        Link("Help", destination: url)
+                    }
+                    if let url = URL(string: "https://mcpeixoto.github.io/Ata/privacy/") {
+                        Link("Privacy Policy", destination: url)
                     }
                 } header: {
                     Text("About")
@@ -106,6 +138,7 @@ struct PhoneSettings: View {
             }
             .navigationTitle("Settings")
             .onAppear { cloud.recheck() }
+            .manageSubscriptionsSheet(isPresented: $managingSubscription)
         }
     }
 }

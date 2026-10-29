@@ -75,7 +75,40 @@ enum CloudLibrary {
         #if os(macOS)
         candidates.append(macDocuments)
         #endif
-        return candidates.first(where: isDirectory)
+        return candidates.first { isDirectory($0) && isReal($0) }
+    }
+
+    /// iCloud is signed in with iCloud Drive on, and `documents` is in it rather
+    /// than a plain folder at the same path. Signing out or turning iCloud Drive
+    /// off can leave the path behind, or let something make it again, and a
+    /// library kept there would never reach iCloud. Quick enough for the main thread.
+    static func isReal(_ documents: URL) -> Bool {
+        let fm = FileManager.default
+        guard fm.ubiquityIdentityToken != nil else { return false }
+        #if os(macOS)
+        return fm.isUbiquitousItem(at: documents)
+        #else
+        return true
+        #endif
+    }
+
+    /// Makes `folder`, and what is missing above it, but never the container
+    /// itself: inside the library's iCloud container only below a `Documents`
+    /// folder that is still there. Making the folders above it would leave a plain
+    /// local folder where iCloud was, and the library would carry on there unseen.
+    static func createFolder(_ folder: URL, location: LibraryLocation = CloudLibrary.location) throws {
+        let fm = FileManager.default
+        if isDirectory(folder) { return }
+        if location.inCloud {
+            let documents = location.meetings.deletingLastPathComponent().standardizedFileURL.path
+            let path = folder.standardizedFileURL.path
+            if path == documents || path.hasPrefix(documents + "/") {
+                guard isDirectory(URL(fileURLWithPath: documents, isDirectory: true)) else {
+                    throw CocoaError(.fileNoSuchFile, userInfo: [NSFilePathErrorKey: documents])
+                }
+            }
+        }
+        try fm.createDirectory(at: folder, withIntermediateDirectories: true)
     }
 
     #if os(macOS)
@@ -125,12 +158,14 @@ enum CloudLibrary {
             return Lookup(documents: documents, status: .available, entitled: true)
         }
         #if os(macOS)
-        if isDirectory(macDocuments) {
+        if isDirectory(macDocuments), isReal(macDocuments) {
             UserDefaults.standard.set(macDocuments.path, forKey: Pref.iCloudDocuments)
             return Lookup(documents: macDocuments, status: .available, entitled: false)
         }
+        // Signed out, or iCloud Drive off, can leave the folder behind.
         let drive = Paths.home.appendingPathComponent("Library/Mobile Documents", isDirectory: true)
-        return Lookup(documents: nil, status: isDirectory(drive) ? .notOnThisMac : .signedOut, entitled: false)
+        let signedIn = fm.ubiquityIdentityToken != nil && isDirectory(drive)
+        return Lookup(documents: nil, status: signedIn ? .notOnThisMac : .signedOut, entitled: false)
         #else
         return Lookup(documents: nil, status: .signedOut, entitled: false)
         #endif
@@ -356,6 +391,26 @@ enum Coordinated {
         if let coordinationError { throw coordinationError }
     }
 
+    /// Moves `url` to the Trash, so the other device sees it go as one change.
+    static func trash(_ url: URL) throws {
+        guard CloudLibrary.isActive else {
+            try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+            return
+        }
+        var coordinationError: NSError?
+        var trashError: Error?
+        NSFileCoordinator(filePresenter: nil).coordinate(writingItemAt: url, options: .forDeleting,
+                                                         error: &coordinationError) { target in
+            do {
+                try FileManager.default.trashItem(at: target, resultingItemURL: nil)
+            } catch {
+                trashError = error
+            }
+        }
+        if let trashError { throw trashError }
+        if let coordinationError { throw coordinationError }
+    }
+
     /// Moves `source` to `destination`, which must not exist yet.
     static func move(_ source: URL, to destination: URL) throws {
         var coordinationError: NSError?
@@ -447,6 +502,10 @@ enum Conflicts {
     /// resolved until every version that is kept has been written. Blocks on file
     /// coordination, so never on the main thread.
     static func resolve(_ url: URL) {
+        // The metadata query reports a conflict again with every update until it is
+        // settled: a second pass on the same file would keep its versions twice.
+        guard begin(url) else { return }
+        defer { end(url) }
         guard let others = NSFileVersion.unresolvedConflictVersionsOfItem(at: url), !others.isEmpty,
               let current = NSFileVersion.currentVersionOfItem(at: url) else { return }
         let versions = [current] + others
@@ -478,8 +537,37 @@ enum Conflicts {
                 if let coordinationError { throw coordinationError }
             }
             for version in others { version.isResolved = true }
+            removeResolvedVersions(of: url)
         } catch {
             NSLog("Ata: left a conflict in \(url.lastPathComponent) unresolved: \(error.localizedDescription)")
+        }
+    }
+
+    private static let resolving = LockedValue<Set<String>>([])
+
+    /// False while `url` is already being settled.
+    static func begin(_ url: URL) -> Bool {
+        resolving.withLock { $0.insert(url.standardizedFileURL.path).inserted }
+    }
+
+    static func end(_ url: URL) {
+        _ = resolving.withLock { $0.remove(url.standardizedFileURL.path) }
+    }
+
+    /// Settled versions stay in iCloud, taking space on every device, until they are
+    /// removed. Everything worth keeping is in the file or beside it by now.
+    private static func removeResolvedVersions(of url: URL) {
+        var coordinationError: NSError?
+        NSFileCoordinator(filePresenter: nil).coordinate(writingItemAt: url, options: [],
+                                                         error: &coordinationError) { target in
+            do {
+                try NSFileVersion.removeOtherVersionsOfItem(at: target)
+            } catch {
+                NSLog("Ata: could not remove the old versions of \(url.lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+        if let coordinationError {
+            NSLog("Ata: could not remove the old versions of \(url.lastPathComponent): \(coordinationError.localizedDescription)")
         }
     }
 
@@ -498,6 +586,7 @@ enum Conflicts {
         do {
             try Coordinated.write(VoiceLibrary.encoder().encode(merged), to: url)
             for version in others { version.isResolved = true }
+            removeResolvedVersions(of: url)
             return true
         } catch {
             NSLog("Ata: could not merge the versions of \(url.lastPathComponent): \(error.localizedDescription)")
@@ -551,7 +640,7 @@ struct CloudMigration: Sendable {
     }
 
     /// One copy at a time, even when a second is asked for before the first stopped.
-    private static let running = NSLock()
+    static let running = NSLock()
 
     // MARK: Ledger
 

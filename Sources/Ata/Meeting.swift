@@ -358,7 +358,7 @@ enum Library {
     /// (the recording in progress, or one that could not be moved yet).
     static func loadAll() -> [Meeting] {
         let fm = FileManager.default
-        try? fm.createDirectory(at: Paths.meetingsDir, withIntermediateDirectories: true)
+        try? CloudLibrary.createFolder(Paths.meetingsDir)
         let staged = stagedIDs()
         let dirs = (try? fm.contentsOfDirectory(at: Paths.meetingsDir, includingPropertiesForKeys: nil,
                                                 options: [.skipsHiddenFiles])) ?? []
@@ -465,7 +465,7 @@ enum Library {
     static func makeFolder(named name: String, staged: Bool) throws -> String {
         let fm = FileManager.default
         let parent = staged ? Device.stagingDir : Paths.meetingsDir
-        try fm.createDirectory(at: parent, withIntermediateDirectories: true)
+        try CloudLibrary.createFolder(parent)
         var id = unusedID(name)
         var n = 2
         while true {
@@ -582,7 +582,7 @@ enum Library {
         guard fm.fileExists(atPath: source.path) else {
             throw CocoaError(.fileNoSuchFile, userInfo: [NSFilePathErrorKey: source.path])
         }
-        try fm.createDirectory(at: parent, withIntermediateDirectories: true)
+        try CloudLibrary.createFolder(parent)
         let name = source.lastPathComponent
         var target = parent.appendingPathComponent(name, isDirectory: true)
         if fm.fileExists(atPath: target.path) {
@@ -594,7 +594,8 @@ enum Library {
             target = unusedFolder(name, in: parent)
         }
         do {
-            try fm.moveItem(at: source, to: target)
+            // Coordinated, so iCloud takes the new folder in as one change.
+            try Coordinated.move(source, to: target)
             return target
         } catch {
             if !fm.fileExists(atPath: source.path), fm.fileExists(atPath: target.path) { return target }
@@ -613,7 +614,7 @@ enum Library {
         do {
             try fm.copyItem(at: source, to: partial)
             guard covers(partial, source) else { throw CocoaError(.fileWriteUnknown) }
-            try fm.moveItem(at: partial, to: target)
+            try Coordinated.move(partial, to: target)
         } catch {
             try? fm.removeItem(at: partial)
             throw error
@@ -648,7 +649,14 @@ enum Library {
         return url
     }
 
-    static func trash(_ m: Meeting) {
-        try? FileManager.default.trashItem(at: m.dir, resultingItemURL: nil)
+    /// Moves the meeting's folder to the Trash. False when it is still there.
+    @discardableResult
+    static func trash(_ m: Meeting) -> Bool {
+        do {
+            try Coordinated.trash(m.dir)
+        } catch {
+            NSLog("Ata: could not move \(m.id) to the Trash: \(error.localizedDescription)")
+        }
+        return !FileManager.default.fileExists(atPath: m.dir.path)
     }
 }
