@@ -180,6 +180,47 @@ enum LocalEngine {
         }
     }
 
+    #if os(macOS)
+    /// Kills a helper process that has gone quiet. whisper writes a progress
+    /// line as it works, so minutes without one is not a slow file, it is a
+    /// wedged process — and the transcription queue is one at a time, so a
+    /// wedge there holds every later meeting hostage until the app is quit.
+    final class ProcessWatchdog: @unchecked Sendable {
+        static let stallLimit: TimeInterval = 10 * 60
+        private let limit: TimeInterval
+        private let lock = NSLock()
+        private var lastActivity = Date()
+        private var stalledFlag = false
+        private var task: Task<Void, Never>?
+
+        init(limit: TimeInterval = ProcessWatchdog.stallLimit) { self.limit = limit }
+
+        func watch(_ process: Process) {
+            noteActivity()
+            let poll = min(15, max(0.01, limit / 4))
+            task = Task { [weak self] in
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: UInt64(poll * 1_000_000_000))
+                    guard let self, !Task.isCancelled else { return }
+                    if self.idleTime() > self.limit {
+                        self.markStalled()
+                        if process.isRunning { process.terminate() }
+                        return
+                    }
+                }
+            }
+        }
+
+        func noteActivity() { lock.lock(); lastActivity = Date(); lock.unlock() }
+        private func markStalled() { lock.lock(); stalledFlag = true; lock.unlock() }
+        func stop() { task?.cancel(); task = nil }
+        func didStall() -> Bool { lock.lock(); defer { lock.unlock() }; return stalledFlag }
+        private func idleTime() -> TimeInterval {
+            lock.lock(); defer { lock.unlock() }; return Date().timeIntervalSince(lastActivity)
+        }
+    }
+    #endif
+
     private final class LogBuffer: @unchecked Sendable {
         private var data = Data()
         private let lock = NSLock()
@@ -207,9 +248,11 @@ enum LocalEngine {
             p.standardError = pipe
 
             let log = LogBuffer()
+            let watchdog = ProcessWatchdog()
             pipe.fileHandleForReading.readabilityHandler = { h in
                 let d = h.availableData
                 guard !d.isEmpty else { return }
+                watchdog.noteActivity()
                 log.append(d)
                 // Lines like: "whisper_print_progress_callback: progress =  45%"
                 let s = String(decoding: d, as: UTF8.self)
@@ -219,12 +262,16 @@ enum LocalEngine {
                 }
             }
             p.terminationHandler = { proc in
+                watchdog.stop()
                 pipe.fileHandleForReading.readabilityHandler = nil
                 // Whatever was still buffered when the process exited.
                 log.append(pipe.fileHandleForReading.readDataToEndOfFile())
                 LocalEngine.currentProcess = nil
                 if proc.terminationStatus == 0 {
                     cont.resume(returning: log.text)
+                } else if watchdog.didStall() {
+                    cont.resume(throwing: TranscriberError.failed(
+                        L("the transcription engine stopped making progress and was stopped; this meeting can be transcribed again")))
                 } else if proc.terminationReason == .uncaughtSignal {
                     // Killed — Ata is quitting. Don't retry, or whisper outlives the app.
                     cont.resume(throwing: TranscriberError.cancelled)
@@ -237,6 +284,7 @@ enum LocalEngine {
             do {
                 try p.run()
                 LocalEngine.currentProcess = p
+                watchdog.watch(p)
             } catch {
                 cont.resume(throwing: error)
             }

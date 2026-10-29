@@ -38,7 +38,7 @@ struct Meeting: Codable, Identifiable, Equatable {
     var systemAudioCorrupt: Bool? = nil
     /// The recording used the laptop's built-in microphone, or the only input
     /// device there was. Everyone in the room is on that one track, so it is
-    /// diarized instead of being labelled as one person. Nil before Ata 3.0.4,
+    /// diarized instead of being labelled as one person. Nil before Ata 3.0.5,
     /// which decides from the system track alone.
     var soloMicrophone: Bool? = nil
     /// Never written: set on a meeting whose meeting.json is still in iCloud, listed

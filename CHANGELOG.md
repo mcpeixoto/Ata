@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.0.4
+## 3.0.5
 
 - **One microphone is a meeting in the room.** A recording on the laptop's
   built-in microphone, or the only microphone there is, has everyone in the
@@ -8,6 +8,26 @@
   the whole track as you. When the Mac also played a real other side, those
   people stay on the system track. A chime or a video is not that other side,
   and it is no longer subtracted from the only recording of the room.
+
+## 3.0.4
+
+- **A stuck transcription can no longer jam the queue.** Transcription runs
+  one meeting at a time, and the engine is a helper process: if it ever
+  wedged, every later meeting waited behind it until the app was quit. The
+  engine writes progress as it works, so ten minutes of silence from it now
+  ends the run — that meeting is marked failed with the reason, and the
+  queue moves on.
+- **The damage check no longer mistakes quiet for corrupt.** Deciding that
+  a pre-3.0 system track is the double-speed corruption used to rest on one
+  signal, which also fits a healthy track that only carried a few short
+  notification sounds. It must now also match the broken writer's signature
+  — the tenth-of-a-second silences it left between sounds — before anything
+  is rewritten.
+- **TestFlight releases sign again.** The automated iOS release had started
+  failing before it built anything: each run made Xcode create fresh
+  signing certificates until the account reached its limit. The build now
+  archives unsigned and lets the export step do all the signing, as it
+  already did.
 
 ## 3.0.3
 
