@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.0.3
+
+- **A repaired recording is not slowed a second time.** 3.0.1 kept the original
+  beside the fixed file, then on the next launch looked for that original under
+  the fixed file's extension. The original was often an m4a and the fixed file
+  a wav, so the launch never saw it and slowed the wav again. This launch
+  rebuilds from the original it kept, once. A folder it has already judged —
+  healthy or repaired — is not decoded again every time Ata opens. A few stray
+  samples a decoder leaves in a silent gap no longer hide the corruption, and
+  a stretch that was already longer than a second is still left as recorded.
+
 ## 3.0.2
 
 - **The launch crash is fixed, properly this time.** 3.0.0 crashed when it
