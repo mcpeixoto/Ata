@@ -91,16 +91,22 @@ final class AppStore: ObservableObject {
     /// Another device's meeting is left alone: that device has the file too,
     /// and both of them rewriting it would not end.
     private func repairCorruptedSystemTracks() {
+        var changed = false
         for meeting in Library.loadAll() where meeting.isMine
             && meeting.status != .recording && meeting.status != .transcribing {
             guard SystemAudioRepair.repairSystemTrack(in: meeting.dir) else { continue }
-            guard meeting.status == .done || meeting.status == .failed else { continue }
             var repaired = meeting
-            repaired.status = .pending
-            repaired.error = nil
+            repaired.systemAudioCorrupt = true
+            if repaired.status == .done || repaired.status == .failed {
+                repaired.status = .pending
+                repaired.error = nil
+                NSLog("Ata: \(repaired.id) will be transcribed again from the repaired system track")
+            }
             Library.save(repaired)
-            NSLog("Ata: \(repaired.id) will be transcribed again from the repaired system track")
+            changed = true
+            NSLog("Ata: \(repaired.id) flagged — its system audio was corrupted")
         }
+        if changed { reload() }
     }
 
     /// Interrupted recordings (crash, power loss, force quit) go back into the

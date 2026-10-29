@@ -32,6 +32,10 @@ struct Meeting: Codable, Identifiable, Equatable {
     /// hand, by the hotkey, by meeting detection or by an import.
     var event: MeetingEvent? = nil
     var bookmarks: [Bookmark]? = nil
+    /// The system track was the 2.11 double-speed corruption, and Ata has
+    /// repaired it. The meeting window and the transcript say so. Nil on every
+    /// meeting that was not.
+    var systemAudioCorrupt: Bool? = nil
     /// Never written: set on a meeting whose meeting.json is still in iCloud, listed
     /// from its folder name until the file arrives. See `Library.placeholder`.
     var cloudPlaceholder: Bool? = nil

@@ -29,12 +29,14 @@ final class SystemAudioRepairTests: XCTestCase {
     }
 
     func testPaddedDoubleSpeedAudioComesBackAtTheSpokenSpeed() {
-        let repaired = SystemAudioRepair.samples(removingPads: corruptedTone(), sampleRate: rate)
-        let samples = try! XCTUnwrap(repaired)
-        XCTAssertEqual(Double(samples.count) / rate, 6, accuracy: 0.2, "the tone lasts as long as it was spoken")
-        XCTAssertEqual(frequency(samples), 440, accuracy: 15)
-        let zeros = samples.filter { abs($0) <= 1 }.count
-        XCTAssertLessThan(Double(zeros) / Double(samples.count), 0.05, "the padding is gone")
+        let broken = corruptedTone()
+        XCTAssertEqual(SystemAudioRepair.longContentShare(broken, sampleRate: rate), 0, accuracy: 0.001)
+        XCTAssertTrue(SystemAudioRepair.isCorrupt(broken, sampleRate: rate))
+        let samples = try! XCTUnwrap(SystemAudioRepair.repaired(broken, sampleRate: rate))
+        // Three seconds of tone, slowed to six, plus the three seconds of padding left in place.
+        XCTAssertEqual(Double(samples.count) / rate, 9, accuracy: 0.2)
+        let spoken = Array(samples.prefix(Int(0.2 * rate)))
+        XCTAssertEqual(frequency(spoken), 440, accuracy: 15)
     }
 
     func testAnOrdinaryRecordingIsLeftAlone() {
@@ -43,13 +45,53 @@ final class SystemAudioRepairTests: XCTestCase {
         for i in 0..<n {
             tone.append(Int16(sin(2 * .pi * 440 * Double(i) / rate) * 8_000))
         }
-        XCTAssertNil(SystemAudioRepair.samples(removingPads: tone, sampleRate: rate))
+        XCTAssertGreaterThan(SystemAudioRepair.longContentShare(tone, sampleRate: rate), 0.8)
+        XCTAssertNil(SystemAudioRepair.repaired(tone, sampleRate: rate))
     }
 
-    func testOneLongSilenceIsNotTheBug() {
+    func testAStretchLongerThanASecondIsNotTheBug() {
         var samples = [Int16](repeating: 0, count: Int(rate * 30))
-        for i in 0..<Int(rate) { samples[i] = 1_000 }
-        XCTAssertNil(SystemAudioRepair.samples(removingPads: samples, sampleRate: rate))
+        for i in 0..<Int(rate * 2) { samples[i] = 1_000 }
+        XCTAssertFalse(SystemAudioRepair.isCorrupt(samples, sampleRate: rate))
+        XCTAssertNil(SystemAudioRepair.repaired(samples, sampleRate: rate))
+    }
+
+    /// Four percent of the sound in a long stretch is still the corruption.
+    /// Six percent is a healthy recording that happens to have short replies,
+    /// and it is left alone. The long stretch keeps its own speed.
+    func testFivePercentIsTheLineAndALongStretchIsNotSlowed() {
+        let corrupt = mixed(longSeconds: 1.2, shortSeconds: 30)
+        XCTAssertLessThan(SystemAudioRepair.longContentShare(corrupt, sampleRate: rate), 0.05)
+        let fixed = try! XCTUnwrap(SystemAudioRepair.repaired(corrupt, sampleRate: rate))
+        XCTAssertEqual(frequency(Array(fixed.prefix(Int(1.2 * rate)))), 440, accuracy: 15,
+                       "the long stretch was already at the right speed")
+        let slowed = fixed.dropFirst(Int(1.3 * rate)).prefix(Int(0.2 * rate))
+        XCTAssertEqual(frequency(Array(slowed)), 440, accuracy: 20,
+                       "a short piece that was at double speed is slowed")
+
+        let healthy = mixed(longSeconds: 2, shortSeconds: 30)
+        XCTAssertGreaterThan(SystemAudioRepair.longContentShare(healthy, sampleRate: rate), 0.05)
+        XCTAssertNil(SystemAudioRepair.repaired(healthy, sampleRate: rate))
+    }
+
+    /// `longSeconds` of 440 Hz, then `shortSeconds` of 880 Hz chopped into
+    /// tenth-of-a-second pieces with a tenth of a second of silence after each.
+    private func mixed(longSeconds: Double, shortSeconds: Double) -> [Int16] {
+        var samples: [Int16] = []
+        let longCount = Int(rate * longSeconds)
+        for i in 0..<longCount {
+            samples.append(Int16(sin(2 * .pi * 440 * Double(i) / rate) * 8_000))
+        }
+        let piece = Int(0.1 * rate)
+        samples.append(contentsOf: [Int16](repeating: 0, count: piece))
+        let pieces = Int(shortSeconds / 0.1)
+        for _ in 0..<pieces {
+            for i in 0..<piece {
+                samples.append(Int16(sin(2 * .pi * 880 * Double(i) / rate) * 8_000))
+            }
+            samples.append(contentsOf: [Int16](repeating: 0, count: piece))
+        }
+        return samples
     }
 
     func testTheOriginalFileIsKeptAndTheRepairedOnePlaysAtTheSpokenSpeed() throws {
@@ -67,7 +109,7 @@ final class SystemAudioRepairTests: XCTestCase {
         XCTAssertGreaterThan(Paths.fileSize(backup), 44)
         XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent("meeting.mp3").path))
         let repaired = try read(dir.appendingPathComponent("system.wav"))
-        XCTAssertEqual(frequency(repaired), 440, accuracy: 15)
+        XCTAssertEqual(frequency(Array(repaired.prefix(Int(0.2 * rate)))), 440, accuracy: 15)
     }
 
     private func frequency(_ samples: [Int16]) -> Double {

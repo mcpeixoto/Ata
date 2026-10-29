@@ -1,67 +1,81 @@
 import Foundation
 
-/// Undoes the system-audio files Ata 2.11 wrote at double speed.
+/// Undoes the system-audio files Ata 2.11 wrote at double speed, and says so.
 ///
-/// Each callback kept about half its frames, and once the shortfall passed a
-/// tenth of a second the writer filled it with digital silence so the file
-/// still matched the clock. The speech that remains is intelligible at half
-/// speed; the silence is padding, not a pause anyone took. Stripping those
-/// pads and stretching what is left by two puts that speech back at the speed
-/// it was spoken. The half of each buffer that was never written is gone, and
-/// this does not invent it.
+/// The writer kept about half of each callback and, once the shortfall passed
+/// a tenth of a second, filled the rest with digital silence. On a broken
+/// track that silence chops the sound into pieces, and none of those pieces
+/// is longer than a second. A healthy track is the opposite: almost all of
+/// its sound sits in stretches longer than a second. Under 5% in those long
+/// stretches, the meeting is corrupt.
 ///
-/// The original file is kept beside the meeting as `system.corrupted.<ext>`.
-/// A second launch finds that name and does nothing.
+/// Repair stretches the short pieces back to the speed they were spoken and
+/// copies anything already longer than a second unchanged. The silence stays
+/// where it was. The half of each buffer that was never written is still
+/// gone. The original file is kept as `system.corrupted.<ext>`, and the
+/// meeting is flagged so the window and the transcript say what happened.
 enum SystemAudioRepair {
     /// Exact zeros, plus the single code a converter may leave. Room tone is
-    /// nowhere near this, which is what keeps an ordinary pause from matching.
+    /// nowhere near this, which is what keeps an ordinary pause from splitting
+    /// a stretch of speech.
     static let silenceCeiling: Int16 = 1
-    static let minGapSeconds = 0.06
-    static let maxGapSeconds = 0.25
-    /// The pads land about five times a second. One a second is already more
-    /// digital silence than speech ever contains.
-    static let minGapsPerSecond = 1.0
-    static let minGapShare = 0.2
-    static let maxGapShare = 0.7
+    /// Content in a stretch longer than this is already at the speed it was
+    /// spoken. A corrupt track has essentially none of these.
+    static let longChunkSeconds = 1.0
+    /// Below this share of the content, the track is the 2.11 corruption.
+    /// Healthy recordings keep 80–90% of their sound in stretches over a second.
+    static let corruptBelowLongShare = 0.05
+    /// Shorter than this, a handful of blips proves nothing.
+    static let minimumSeconds = 5.0
+    /// Silence has to last this long before it splits one stretch from the next.
+    /// A single sample at a zero crossing is not a gap.
+    static let splitSilenceSeconds = 0.05
 
-    /// The samples with the padding removed and the rest slowed to 1×, or nil
-    /// when this is not that corruption.
-    static func samples(removingPads samples: [Int16], sampleRate: Double) -> [Int16]? {
-        guard sampleRate > 0, samples.count > Int(sampleRate) else { return nil }
-        let minRun = Int(minGapSeconds * sampleRate)
-        let maxRun = Int(maxGapSeconds * sampleRate)
-        var gaps: [Range<Int>] = []
-        var i = 0
-        while i < samples.count {
-            if abs(samples[i]) <= silenceCeiling {
-                let start = i
-                while i < samples.count, abs(samples[i]) <= silenceCeiling { i += 1 }
-                let length = i - start
-                if length >= minRun, length <= maxRun { gaps.append(start..<i) }
+    private struct Run {
+        var silence: Bool
+        var range: Range<Int>
+    }
+
+    /// Share of the audible samples that sit in a stretch longer than a second.
+    /// 1 when the file holds no sound, so silence alone is not called corrupt.
+    static func longContentShare(_ samples: [Int16], sampleRate: Double) -> Double {
+        guard sampleRate > 0 else { return 1 }
+        var content = 0
+        var long = 0
+        for run in runs(samples, sampleRate: sampleRate) where !run.silence {
+            let n = run.range.count
+            content += n
+            if Double(n) / sampleRate > longChunkSeconds { long += n }
+        }
+        guard content > 0 else { return 1 }
+        return Double(long) / Double(content)
+    }
+
+    /// True when under 5% of the sound is in stretches longer than a second.
+    static func isCorrupt(_ samples: [Int16], sampleRate: Double) -> Bool {
+        guard sampleRate > 0, Double(samples.count) / sampleRate >= minimumSeconds else { return false }
+        return longContentShare(samples, sampleRate: sampleRate) < corruptBelowLongShare
+    }
+
+    /// The samples with each short stretch slowed to 1× and each long stretch
+    /// copied as it was, or nil when the track is not corrupt.
+    static func repaired(_ samples: [Int16], sampleRate: Double) -> [Int16]? {
+        guard isCorrupt(samples, sampleRate: sampleRate) else { return nil }
+        var out: [Int16] = []
+        out.reserveCapacity(samples.count * 3 / 2)
+        for run in runs(samples, sampleRate: sampleRate) {
+            let slice = Array(samples[run.range])
+            if run.silence || Double(slice.count) / sampleRate > longChunkSeconds {
+                out.append(contentsOf: slice)
             } else {
-                i += 1
+                out.append(contentsOf: stretchTwice(slice))
             }
         }
-        let seconds = Double(samples.count) / sampleRate
-        guard seconds >= 5, Double(gaps.count) / seconds >= minGapsPerSecond else { return nil }
-        let gapSamples = gaps.reduce(0) { $0 + $1.count }
-        let share = Double(gapSamples) / Double(samples.count)
-        guard share >= minGapShare, share <= maxGapShare else { return nil }
-
-        var kept: [Int16] = []
-        kept.reserveCapacity(samples.count - gapSamples)
-        var cursor = 0
-        for gap in gaps {
-            if cursor < gap.lowerBound { kept.append(contentsOf: samples[cursor..<gap.lowerBound]) }
-            cursor = gap.upperBound
-        }
-        if cursor < samples.count { kept.append(contentsOf: samples[cursor..<samples.count]) }
-        guard kept.count > Int(sampleRate) else { return nil }
-        return stretchTwice(kept)
+        return out
     }
 
     /// Twice as long, with a sample between each pair so the slowed audio is
-    /// not a staircase. Same length change as playing the file at half speed.
+    /// not a staircase. Same length change as playing that stretch at half speed.
     static func stretchTwice(_ samples: [Int16]) -> [Int16] {
         guard !samples.isEmpty else { return [] }
         var out = [Int16]()
@@ -93,11 +107,11 @@ enum SystemAudioRepair {
         let backup = dir.appendingPathComponent("system.corrupted.\(source.pathExtension)")
         guard !FileManager.default.fileExists(atPath: backup.path) else { return false }
         guard let samples = try? readSamples(source),
-              let repaired = Self.samples(removingPads: samples, sampleRate: WavWriter.sampleRate) else { return false }
+              let fixed = repaired(samples, sampleRate: WavWriter.sampleRate) else { return false }
 
         let temporary = dir.appendingPathComponent("system.repairing.wav")
         do {
-            try writeWAV(repaired, to: temporary)
+            try writeWAV(fixed, to: temporary)
             try FileManager.default.moveItem(at: source, to: backup)
             if FileManager.default.fileExists(atPath: wav.path) {
                 try FileManager.default.removeItem(at: wav)
@@ -105,7 +119,7 @@ enum SystemAudioRepair {
             try FileManager.default.moveItem(at: temporary, to: wav)
             try? FileManager.default.removeItem(at: dir.appendingPathComponent("waveform.bin"))
             try? FileManager.default.removeItem(at: dir.appendingPathComponent("meeting.mp3"))
-            NSLog("Ata: repaired \(backup.lastPathComponent) — the other side was at double speed, "
+            NSLog("Ata: repaired \(backup.lastPathComponent) — short stretches were at double speed, "
                   + "and the original is kept beside it")
             return true
         } catch {
@@ -113,6 +127,33 @@ enum SystemAudioRepair {
             NSLog("Ata: could not repair \(source.lastPathComponent): \(error.localizedDescription)")
             return false
         }
+    }
+
+    /// Stretches of sound, split only by silence long enough to be a gap.
+    /// A zero crossing is one quiet sample, and it stays inside the stretch:
+    /// treating it as a gap chopped a tone into a thousand corrupt pieces.
+    private static func runs(_ samples: [Int16], sampleRate: Double) -> [Run] {
+        let splitAt = Int(splitSilenceSeconds * sampleRate)
+        var raw: [(gap: Bool, range: Range<Int>)] = []
+        var i = 0
+        while i < samples.count {
+            let quiet = abs(samples[i]) <= silenceCeiling
+            let start = i
+            while i < samples.count, (abs(samples[i]) <= silenceCeiling) == quiet { i += 1 }
+            raw.append((quiet && (i - start) >= splitAt, start..<i))
+        }
+        var out: [Run] = []
+        for piece in raw {
+            if piece.gap {
+                out.append(Run(silence: true, range: piece.range))
+            } else if var last = out.last, !last.silence {
+                last.range = last.range.lowerBound..<piece.range.upperBound
+                out[out.count - 1] = last
+            } else {
+                out.append(Run(silence: false, range: piece.range))
+            }
+        }
+        return out
     }
 
     private static func readSamples(_ url: URL) throws -> [Int16] {

@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.0.1
+
+- **A corrupted recording is marked, and only its short pieces are slowed.** A
+  healthy system track keeps nearly all of its sound in stretches longer than a
+  second. One that Ata 2.11 sped up has almost none. Under 5% in those long
+  stretches, the meeting is flagged in the window and at the top of the
+  transcript. The short pieces are slowed back to the speed they were spoken;
+  a stretch that was already longer than a second is left as recorded.
+
 ## 3.0.0
 
 Two calls came back wrong — one with only your side in it, one with the other

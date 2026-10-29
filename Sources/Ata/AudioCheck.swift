@@ -96,6 +96,10 @@ enum TrackHealth: String, Equatable {
     case othersNotCaptured
     /// Your microphone track is digital silence while the others were talking.
     case youNotCaptured
+    /// The system track was the 2.11 double-speed corruption. Ata has slowed
+    /// the short stretches back down. Shown so the person reading knows the
+    /// other side was repaired, and that part of it was never captured.
+    case systemAudioCorrupt
 
     /// Less sound than this on a track is no sound. A tap is digital silence
     /// while nothing plays; a real side of a call crosses this in seconds.
@@ -132,6 +136,8 @@ enum TrackHealth: String, Equatable {
             return L("Ata could not hear the other side of this call: the system audio track is silent, so only your side could be transcribed. Check that the call plays through the Mac's chosen output device, and that Ata still has System Audio permission in System Settings → Privacy & Security.")
         case .youNotCaptured:
             return L("Ata could not hear you in this recording: the microphone track is silent, so only the other side could be transcribed. Check the microphone in System Settings → Privacy & Security → Microphone.")
+        case .systemAudioCorrupt:
+            return L("The other side of this recording was corrupted: it arrived in pieces shorter than a second, playing too fast. Ata slowed those pieces back down. Longer stretches were left as recorded, and anything that was never captured is still missing.")
         }
     }
 }
