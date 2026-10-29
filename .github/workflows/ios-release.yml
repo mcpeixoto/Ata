@@ -300,13 +300,16 @@ jobs:
         working-directory: ${{ env.SWIFT_TEST_DIR }}
         run: swift test
 
-      # -allowProvisioningUpdates with the API key is what lets a headless runner obtain the
-      # App Store profiles. Without it, signing on a fresh runner has nothing to sign with.
+      # Unsigned, on purpose. The export below re-signs everything with the
+      # distribution identity and the named App Store profiles (signingStyle:
+      # manual), so the archive itself needs no signing at all. Automatic
+      # signing here instead made Xcode mint an Apple Development certificate
+      # and development profiles on every run — runners hold no identity, so
+      # each run created new ones until the account reached its certificate
+      # limit, and from then on every release failed at this step with
+      # "Choose a certificate to revoke." This step compiles; the next signs.
       - name: Archive
         working-directory: ${{ env.IOS_DIR }}
-        env:
-          KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: |
           xcodebuild archive \
             -project "$XCODE_PROJECT" \
@@ -315,10 +318,7 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath "build/$SCHEME.xcarchive" \
             ${TEAM_ID:+DEVELOPMENT_TEAM=$TEAM_ID} \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$ASC_KEY_PATH" \
-            -authenticationKeyID "$KEY_ID" \
-            -authenticationKeyIssuerID "$ISSUER"
+            CODE_SIGNING_ALLOWED=NO
 
       - name: Export the .ipa
         working-directory: ${{ env.IOS_DIR }}

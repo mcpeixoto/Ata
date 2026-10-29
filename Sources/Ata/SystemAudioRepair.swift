@@ -30,6 +30,14 @@ enum SystemAudioRepair {
     /// Below this share of the content, the track is the 2.11 corruption.
     /// Healthy recordings keep 80–90% of their sound in stretches over a second.
     static let corruptBelowLongShare = 0.05
+    /// The pads the broken writer left are a tenth of a second. The silences inside
+    /// a healthy track — a pause to think, the other side muted — run to seconds.
+    /// At least this share of the silences *between* sounds has to be pad-sized
+    /// before a track is called corrupt: chopped-into-short-pieces alone would
+    /// also convict a healthy system track that only ever carried a few short
+    /// notification sounds, and rewriting one of those would destroy good audio.
+    static let padGapCeilingSeconds = 0.5
+    static let corruptAbovePadShare = 0.3
     /// Shorter than this, a handful of blips proves nothing.
     static let minimumSeconds = 5.0
     /// Silence has to last this long before it splits one stretch from the next.
@@ -65,10 +73,36 @@ enum SystemAudioRepair {
         return Double(long) / Double(content)
     }
 
-    /// True when under 5% of the sound is in stretches longer than a second.
+    /// Share of the silence between sounds that is pad-sized (half a second or
+    /// less). 0 when there is no silence between sounds to judge by.
+    static func padGapShare(_ samples: [Int16], sampleRate: Double) -> Double {
+        guard sampleRate > 0 else { return 0 }
+        let pieces = runs(samples, sampleRate: sampleRate)
+        var interior: [Range<Int>] = []
+        var seenContent = false
+        for piece in pieces {
+            if piece.silence {
+                if seenContent { interior.append(piece.range) }
+            } else {
+                seenContent = true
+            }
+        }
+        // Silence after the last sound is an ending, not a gap between sounds.
+        if let last = pieces.last, last.silence, !interior.isEmpty { interior.removeLast() }
+        let total = interior.reduce(0) { $0 + $1.count }
+        guard total > 0 else { return 0 }
+        let pad = interior.filter { Double($0.count) / sampleRate <= padGapCeilingSeconds }
+            .reduce(0) { $0 + $1.count }
+        return Double(pad) / Double(total)
+    }
+
+    /// True when the track is the 2.11 corruption: under 5% of the sound in
+    /// stretches longer than a second, and the gaps between sounds are the
+    /// writer's pads rather than ordinary pauses.
     static func isCorrupt(_ samples: [Int16], sampleRate: Double) -> Bool {
         guard sampleRate > 0, Double(samples.count) / sampleRate >= minimumSeconds else { return false }
         return longContentShare(samples, sampleRate: sampleRate) < corruptBelowLongShare
+            && padGapShare(samples, sampleRate: sampleRate) >= corruptAbovePadShare
     }
 
     /// The samples with each short stretch slowed to 1× and each long stretch
