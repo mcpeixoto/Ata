@@ -93,6 +93,8 @@ targets:
           - "*.entitlements"
           - Share
           - Share/**
+          - Widgets
+          - Widgets/**
     dependencies:
       - target: CLame
       - package: AtaDependencies
@@ -129,6 +131,8 @@ targets:
           - AppIcon.iconset/**
           - iOS
           - iOS/**
+      # Its privacy manifest; each bundle has to carry its own.
+      - path: ../Resources/iOS/Widgets
     settings:
       base:
         PRODUCT_NAME: AtaWidgets

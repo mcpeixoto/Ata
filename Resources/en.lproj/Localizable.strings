@@ -365,6 +365,9 @@
 "Apple Intelligence is still getting ready." = "Apple Intelligence is still getting ready.";
 "Turn on Apple Intelligence in System Settings to use it." = "Turn on Apple Intelligence in System Settings to use it.";
 "This Mac does not support Apple Intelligence." = "This Mac does not support Apple Intelligence.";
+"Turn on Apple Intelligence in Settings to use it." = "Turn on Apple Intelligence in Settings to use it.";
+"This iPhone does not support Apple Intelligence." = "This iPhone does not support Apple Intelligence.";
+"Ask the people you record first. In many places it is the law." = "Ask the people you record first. In many places it is the law.";
 "Summary engine" = "Summary engine";
 "On this Mac (Apple Intelligence)" = "On this Mac (Apple Intelligence)";
 "Written on this Mac. Nothing leaves it." = "Written on this Mac. Nothing leaves it.";
@@ -408,7 +411,8 @@
 "Tells the people in a conversation apart and learns their voices, so you name each one once. Fingerprints stay on this iPhone." = "Tells the people in a conversation apart and learns their voices, so you name each one once. Fingerprints stay on this iPhone.";
 "Keep meetings in iCloud" = "Keep meetings in iCloud";
 "Version" = "Version";
-"Source code" = "Source code";
+"Help" = "Help";
+"Privacy Policy" = "Privacy Policy";
 "About" = "About";
 "Your last meeting, and a button to record the next one." = "Your last meeting, and a button to record the next one.";
 "Last meeting" = "Last meeting";

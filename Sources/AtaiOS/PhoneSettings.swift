@@ -97,8 +97,14 @@ struct PhoneSettings: View {
 
                 Section {
                     LabeledContent("Version", value: version)
-                    if let url = URL(string: "https://github.com/mcpeixoto/Ata") {
-                        Link("Source code", destination: url)
+                    // The support page rather than the repository: the repository
+                    // carries a donation link, which App Review treats as an
+                    // outside purchase.
+                    if let url = URL(string: "https://mcpeixoto.github.io/Ata/") {
+                        Link("Help", destination: url)
+                    }
+                    if let url = URL(string: "https://mcpeixoto.github.io/Ata/privacy/") {
+                        Link("Privacy Policy", destination: url)
                     }
                 } header: {
                     Text("About")

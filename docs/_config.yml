@@ -1,0 +1,8 @@
+# GitHub Pages for the App Store's support and privacy URLs. Only these two pages
+# are published; the rest of docs/ is for the repository.
+title: Ata
+theme: jekyll-theme-primer
+include: []
+exclude:
+  - ARCHITECTURE.md
+  - images
