@@ -76,6 +76,9 @@ final class SystemAudioTap: @unchecked Sendable {
     private var aggregateID = AudioObjectID(kAudioObjectUnknown)
     private var procID: AudioDeviceIOProcID?
     private var formatListener: AudioObjectPropertyListenerBlock?
+    /// The queue the listener was added on. Core Audio matches a removal on
+    /// the block *and* the queue: removing with nil left it registered.
+    private var formatListenerQueue: DispatchQueue?
     private var formats: FormatBox?
 
     /// The tap's current format. Read on the audio thread for every buffer and
@@ -263,6 +266,7 @@ final class SystemAudioTap: @unchecked Sendable {
         }
         if AudioObjectAddPropertyListenerBlock(tapID, &formatAddress, queue, listener) == noErr {
             formatListener = listener
+            formatListenerQueue = queue
         }
 
         try check("create IO proc", AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, queue) { _, input, time, _, _ in
@@ -280,9 +284,10 @@ final class SystemAudioTap: @unchecked Sendable {
     func stop() {
         if let formatListener, tapID != kAudioObjectUnknown {
             var addr = Self.address(kAudioTapPropertyFormat)
-            AudioObjectRemovePropertyListenerBlock(tapID, &addr, nil, formatListener)
+            AudioObjectRemovePropertyListenerBlock(tapID, &addr, formatListenerQueue, formatListener)
         }
         formatListener = nil
+        formatListenerQueue = nil
         if aggregateID != kAudioObjectUnknown {
             AudioDeviceStop(aggregateID, procID)
             if let procID { AudioDeviceDestroyIOProcID(aggregateID, procID) }

@@ -392,6 +392,10 @@ enum Transcriber {
         var segments: [Segment] = []
         var coarse = false
         for (i, track) in prepared.enumerated() {
+            // Taken over by another device, or Ata is quitting: the next track
+            // does not start. Language detection above reports a cancelled run
+            // as no answer, so this is where it is noticed.
+            if Task.isCancelled { throw TranscriberError.cancelled }
             let base = Double(i) / Double(prepared.count)
             let span = 1 / Double(prepared.count)
             let step: @Sendable (Double) -> Void = { p in progress(base + p * span) }
@@ -489,8 +493,7 @@ enum Transcriber {
             _ = await CloudFiles.download(meeting.transcriptFiles, timeout: 120)
         }
         // Never overwrite an earlier transcript: move it into versions/ first.
-        let archived = try archivePrevious(of: meeting)
-        try Coordinated.write(md, to: meeting.transcriptURL)
+        let archived = try replaceTranscript(of: meeting, with: md)
         try stored.save(to: meeting.storedTranscriptURL)
 
         let talk = talkTime(segments, me: Speakers.me, coarse: coarse)
@@ -542,10 +545,10 @@ enum Transcriber {
         case .inPerson:
             guard let mic else { return segments }
             if choice.discardSystemLines {
-                NSLog("Ata: only the microphone captured this conversation — telling the voices on it apart")
+                NSLog("Ata: the system track barely transcribed — telling the voices on the microphone apart")
             }
-            let room = choice.discardSystemLines ? segments.filter { $0.speaker == Speakers.me } : segments
-            return await recogniseInPerson(room, meeting: meeting, diarizer: diarizer, mic: mic)
+            // Every line goes in, the system track's too: see `splitMicrophoneLines`.
+            return await recogniseInPerson(segments, meeting: meeting, diarizer: diarizer, mic: mic)
         case .nobody:
             return segments
         }
@@ -630,6 +633,22 @@ enum Transcriber {
     /// One microphone, several people: the microphone is diarized, the speaker
     /// who is you keeps your lines (see `InPerson.me`), and everyone else is
     /// matched and named like the others on a call.
+    /// The microphone's lines split among the speakers found on it; every
+    /// other line exactly as it was.
+    ///
+    /// When a loud system track came back with little speech
+    /// (`discardSystemLines`), the microphone is the conversation and it is
+    /// the track diarized — but whatever the system track did transcribe stays,
+    /// as the other side. Those lines used to be dropped before this point, and
+    /// a remote participant on a noisy line, whose speech filled under a
+    /// quarter of their audible seconds, lost every word they said.
+    static func splitMicrophoneLines(_ segments: [Segment], turns: [SpeakerTurn]) -> [Segment] {
+        segments.flatMap { s -> [Segment] in
+            guard s.speaker == Speakers.me else { return [s] }
+            return SpeakerAssignment.split(s, turns: turns)
+        }
+    }
+
     private static func recogniseInPerson(_ segments: [Segment], meeting: Meeting, diarizer: Diarizer,
                                           mic: URL, priorSpeakers: [MeetingSpeaker] = [],
                                           priorTurns: [SpeakerTurn] = [], othersFrom: Int = 1) async -> [Segment] {
@@ -710,10 +729,7 @@ enum Transcriber {
         }
 
         // The same word-level split as the system track of a call.
-        let relabelled = segments.flatMap { s -> [Segment] in
-            guard s.speaker == Speakers.me else { return [s] }
-            return SpeakerAssignment.split(s, turns: turns)
-        }
+        let relabelled = splitMicrophoneLines(segments, turns: turns)
         // The turns are kept even when nobody could be fingerprinted: they are
         // what the meeting screen lists its speakers from, and what tells a
         // short meeting apart from one Ata heard nothing in. A call heard on
@@ -751,6 +767,43 @@ enum Transcriber {
     }
 
     // MARK: - Versions
+
+    /// Writes the new transcript, moving the earlier one into versions/. The
+    /// new text is written in full beside the old one first: archiving first
+    /// and then failing to write (a full disk) left the meeting with no
+    /// transcript.md at all. Returns the archived file's name, as
+    /// `archivePrevious` does.
+    static func replaceTranscript(of meeting: Meeting, with markdown: String,
+                                  write: (String, URL) throws -> Void = { try Coordinated.write($0, to: $1) })
+        throws -> String? {
+        let staged = meeting.dir.appendingPathComponent(".transcript-\(UUID().uuidString.prefix(8)).md")
+        do {
+            try write(markdown, staged)
+        } catch {
+            try? FileManager.default.removeItem(at: staged)
+            throw error
+        }
+        let archived: String?
+        do {
+            archived = try archivePrevious(of: meeting)
+        } catch {
+            try? FileManager.default.removeItem(at: staged)
+            throw error
+        }
+        do {
+            try Coordinated.move(staged, to: meeting.transcriptURL)
+        } catch {
+            // Put the earlier transcript back where it was, so the meeting is
+            // never left without one.
+            if let archived {
+                try? FileManager.default.moveItem(at: meeting.versionsDir.appendingPathComponent(archived),
+                                                  to: meeting.transcriptURL)
+            }
+            try? FileManager.default.removeItem(at: staged)
+            throw error
+        }
+        return archived
+    }
 
     /// Moves the current transcript to `versions/<date> <model>.md` and returns
     /// that file name, or nil when there was nothing to move. A transcript still in
