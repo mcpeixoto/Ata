@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.12.0
+## 3.0.0
 
 Two calls came back wrong — one with only your side in it, one with the other
 side garbled — and nothing anywhere said so. This release is about that, plus
