@@ -15,9 +15,16 @@ three things borrowed from Granola.
   doesn't describe used to be dropped, which left a stretch of the track empty —
   and when the frames in an ordinary callback don't fill the time that just
   passed they are written at the rate they really arrived. The check looks at
-  that, before any silence is added. `Ata --diagnose` no longer quits the copy
+  that, before any silence is added.   `Ata --diagnose` no longer quits the copy
   of Ata you already have open. Language-detection pieces left behind when a
   transcription stopped are removed the next time Ata starts.
+- **One working microphone is a meeting in the room.** When the system-audio
+  track is silent, Ata already tells the voices on your microphone apart. It
+  now does the same when that track is loud but almost none of it comes back
+  as words — the other side was never really captured, so the conversation is
+  the one the microphone heard, and it is split into its speakers instead of
+  all being filed as you. The lines that track did produce are left out: they
+  are not the other participants.
 
 - **A side of a call can no longer go missing in silence.** A system-audio tap
   pointed at an output the call is not using delivers perfect digital silence

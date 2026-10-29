@@ -490,4 +490,36 @@ final class SpeakerRouteTests: XCTestCase {
         XCTAssertEqual(SpeakerRoute.choose(systemLevels: nil, hasMic: false), .nobody)
         XCTAssertEqual(SpeakerRoute.choose(systemLevels: levels(sound: 0, of: 60), hasMic: false), .nobody)
     }
+
+    /// The system track of a broken capture is loud for the whole meeting and
+    /// transcribes to almost nothing. The words are on the microphone, so that
+    /// is the track to split, and the system track's lines are not kept.
+    func testALoudTrackThatDoesNotTranscribeIsOneMicrophone() {
+        let levels = levels(sound: 300, of: 344)
+        XCTAssertEqual(SpeakerRoute.choose(systemLevels: levels, hasMic: true), .call,
+                       "without a transcript the waveform still decides")
+        let missed = SpeakerRoute.decision(systemLevels: levels, hasMic: true, systemSpeechSeconds: 30)
+        XCTAssertEqual(missed.route, .inPerson)
+        XCTAssertTrue(missed.discardSystemLines)
+        let heard = SpeakerRoute.decision(systemLevels: levels, hasMic: true, systemSpeechSeconds: 200)
+        XCTAssertEqual(heard.route, .call)
+        XCTAssertFalse(heard.discardSystemLines)
+        XCTAssertFalse(SpeakerRoute.holdsSpeech(audible: 300, speech: 30))
+        XCTAssertTrue(SpeakerRoute.holdsSpeech(audible: 300, speech: 200))
+    }
+
+    /// Levels that would not read used to force the call path, because guessing
+    /// "silent" diarized a real call's microphone. A transcript with nothing in
+    /// it is not a guess: that microphone did not capture the conversation.
+    func testAnUnreadableTrackWithNoSpeechIsOneMicrophone() {
+        let empty = SpeakerRoute.decision(systemLevels: nil, hasMic: true, systemUnreadable: true,
+                                          systemSpeechSeconds: 0)
+        XCTAssertEqual(empty.route, .inPerson)
+        XCTAssertTrue(empty.discardSystemLines)
+        let spoken = SpeakerRoute.decision(systemLevels: nil, hasMic: true, systemUnreadable: true,
+                                           systemSpeechSeconds: 40)
+        XCTAssertEqual(spoken.route, .call)
+        XCTAssertFalse(spoken.discardSystemLines)
+        XCTAssertEqual(SpeakerRoute.choose(systemLevels: nil, hasMic: true, systemUnreadable: true), .call)
+    }
 }

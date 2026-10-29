@@ -848,16 +848,56 @@ enum SpeakerRoute: Equatable {
     /// while nothing plays.
     static let audibleLevel = Waveform.level(rms: pow(10, -50.0 / 20))
 
+    /// Of the seconds the system track was actually loud, this much has to come
+    /// back as words. Less, and the track is energy rather than a second
+    /// microphone — noise, the wrong speed, a tap pointed at the wrong device —
+    /// and the conversation is on the microphone in the room.
+    static let minimumSpeechYield = 0.25
+
     /// `systemLevels` is the system track's waveform lane (`Waveform.levels`), nil
     /// when there was no system track worth transcribing. `systemUnreadable` says
-    /// there was one but its levels could not be read.
-    static func choose(systemLevels: [UInt8]?, hasMic: Bool, systemUnreadable: Bool = false) -> SpeakerRoute {
-        if let systemLevels, isCall(systemLevels) { return .call }
+    /// there was one but its levels could not be read. `systemSpeechSeconds` is
+    /// how much of that track transcribed; nil when it was not transcribed, which
+    /// leaves the decision to the waveform alone.
+    static func choose(systemLevels: [UInt8]?, hasMic: Bool, systemUnreadable: Bool = false,
+                       systemSpeechSeconds: Double? = nil) -> SpeakerRoute {
+        decision(systemLevels: systemLevels, hasMic: hasMic, systemUnreadable: systemUnreadable,
+                 systemSpeechSeconds: systemSpeechSeconds).route
+    }
+
+    /// Where to tell the speakers apart, and whether the system track's own lines
+    /// are the conversation. They are discarded when that track looked like a
+    /// call and transcribed as if it were not: those lines are not the other
+    /// participants, and leaving them in would put a second, invented side next
+    /// to the voices found on the microphone.
+    static func decision(systemLevels: [UInt8]?, hasMic: Bool, systemUnreadable: Bool = false,
+                         systemSpeechSeconds: Double? = nil) -> (route: SpeakerRoute, discardSystemLines: Bool) {
+        if let systemLevels, isCall(systemLevels) {
+            if let speech = systemSpeechSeconds, hasMic,
+               !holdsSpeech(audible: audibleSeconds(systemLevels), speech: speech) {
+                return (.inPerson, true)
+            }
+            return (.call, false)
+        }
         // A track whose levels wouldn't read is a track all the same. Calling it
         // silence sent real calls down the in-person path, where the microphone —
-        // your voice with the others' echo over it — was taken for a room.
-        if systemUnreadable { return .call }
-        return hasMic ? .inPerson : .nobody
+        // your voice with the others' echo over it — was taken for a room. Speech
+        // from the transcription is a different fact: a track that was transcribed
+        // and came back with nothing in it is not a second microphone.
+        if systemUnreadable {
+            if let speech = systemSpeechSeconds, hasMic, speech < minimumSystemSeconds {
+                return (.inPerson, true)
+            }
+            return (.call, false)
+        }
+        return (hasMic ? .inPerson : .nobody, false)
+    }
+
+    /// Whether `speech` seconds of transcript are enough of `audible` seconds of
+    /// sound to be the other side of a call.
+    static func holdsSpeech(audible: Double, speech: Double) -> Bool {
+        guard audible > 0 else { return speech >= minimumSystemSeconds }
+        return speech >= audible * minimumSpeechYield
     }
 
     /// Enough sound, for long enough and for enough of the recording, to be the
