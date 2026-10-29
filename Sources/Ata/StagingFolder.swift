@@ -24,6 +24,8 @@ enum StagingFolder {
         var meeting = Meeting(id: id, startedAt: now, endedAt: nil, duration: nil,
                               app: app, status: .recording, error: nil)
         meeting.origin = Device.current
+        // A phone has one microphone, and everyone in the room is on it.
+        meeting.soloMicrophone = true
         do {
             try encoder.encode(meeting).write(to: folder.appendingPathComponent("meeting.json"), options: .atomic)
         } catch {

@@ -3,6 +3,65 @@ import AVFoundation
 import CoreAudio
 import CoreMedia
 
+/// Whether this recording's microphone is the only one in use: the built-in
+/// laptop microphone, or the only input device on the machine. A headset or a
+/// second mic is someone choosing a microphone that is just them.
+enum InputDevices {
+    static var isSolo: Bool {
+        guard let device = defaultInput() else { return false }
+        if transport(device) == kAudioDeviceTransportTypeBuiltIn { return true }
+        return inputDevices().count <= 1
+    }
+
+    private static func defaultInput() -> AudioDeviceID? {
+        var device = AudioDeviceID(kAudioObjectUnknown)
+        var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultInputDevice,
+                                                 mScope: kAudioObjectPropertyScopeGlobal,
+                                                 mElement: kAudioObjectPropertyElementMain)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        let status = AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address,
+                                                0, nil, &size, &device)
+        guard status == noErr, device != kAudioObjectUnknown else { return nil }
+        return device
+    }
+
+    private static func transport(_ device: AudioDeviceID) -> UInt32 {
+        var value: UInt32 = 0
+        var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyTransportType,
+                                                 mScope: kAudioObjectPropertyScopeGlobal,
+                                                 mElement: kAudioObjectPropertyElementMain)
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &value) == noErr else { return 0 }
+        return value
+    }
+
+    private static func inputDevices() -> [AudioDeviceID] {
+        var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDevices,
+                                                 mScope: kAudioObjectPropertyScopeGlobal,
+                                                 mElement: kAudioObjectPropertyElementMain)
+        var size: UInt32 = 0
+        let system = AudioObjectID(kAudioObjectSystemObject)
+        guard AudioObjectGetPropertyDataSize(system, &address, 0, nil, &size) == noErr, size > 0 else { return [] }
+        let count = Int(size) / MemoryLayout<AudioDeviceID>.size
+        var devices = [AudioDeviceID](repeating: 0, count: count)
+        guard AudioObjectGetPropertyData(system, &address, 0, nil, &size, &devices) == noErr else { return [] }
+        return devices.filter { inputChannels($0) > 0 }
+    }
+
+    private static func inputChannels(_ device: AudioDeviceID) -> Int {
+        var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyStreamConfiguration,
+                                                 mScope: kAudioObjectPropertyScopeInput,
+                                                 mElement: kAudioObjectPropertyElementMain)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(device, &address, 0, nil, &size) == noErr, size > 0 else { return 0 }
+        let raw = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: MemoryLayout<AudioBufferList>.alignment)
+        defer { raw.deallocate() }
+        guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, raw) == noErr else { return 0 }
+        let list = raw.bindMemory(to: AudioBufferList.self, capacity: 1)
+        return UnsafeMutableAudioBufferListPointer(list).reduce(0) { $0 + Int($1.mNumberChannels) }
+    }
+}
+
 enum RecorderError: LocalizedError, Equatable {
     case micDenied, systemAudioDenied, noMic
     case systemAudio(String)

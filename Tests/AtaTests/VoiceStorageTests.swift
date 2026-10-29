@@ -412,6 +412,13 @@ final class InPersonTests: XCTestCase {
         XCTAssertEqual(InPerson.labels(turns, me: nil), ["spk2": "S1", "spk0": "S2", "spk1": "S3"])
     }
 
+    /// The far side of a call already took S1 and S2. The people on the
+    /// microphone continue from there, so the two tracks don't share a number.
+    func testRoomSpeakersContinueTheNumbersTheCallAlreadyUsed() {
+        let turns = [SpeakerTurn(start: 0, end: 1_000, label: "spk2"), SpeakerTurn(start: 1_000, end: 2_000, label: "spk0")]
+        XCTAssertEqual(InPerson.labels(turns, me: "spk0", othersFrom: 3), ["spk0": Speakers.me, "spk2": "S3"])
+    }
+
     func testASpeakerTheLibraryKnowsAsYouIsYouToo() {
         let myVoice = UUID(), someone = UUID()
         let assigned = [MeetingSpeaker(label: Speakers.me, embedding: mine, seconds: 60, voiceID: myVoice),
@@ -521,5 +528,39 @@ final class SpeakerRouteTests: XCTestCase {
         XCTAssertEqual(spoken.route, .call)
         XCTAssertFalse(spoken.discardSystemLines)
         XCTAssertEqual(SpeakerRoute.choose(systemLevels: nil, hasMic: true, systemUnreadable: true), .call)
+    }
+
+    /// The laptop's one microphone has everyone in the room on it, including
+    /// during a call. The far side stays a call; the microphone is diarized too.
+    /// A headset call is not that microphone, and stays one person.
+    func testTheLaptopsOneMicrophoneIsDiarizedEvenOnACall() {
+        let call = levels(sound: 600, of: 1_800)
+        let room = SpeakerRoute.decision(systemLevels: call, hasMic: true, systemSpeechSeconds: 500,
+                                         soloMicrophone: true)
+        XCTAssertEqual(room.route, .call)
+        XCTAssertFalse(room.discardSystemLines)
+        XCTAssertTrue(room.diarizeMicrophone)
+
+        let headset = SpeakerRoute.decision(systemLevels: call, hasMic: true, systemSpeechSeconds: 500,
+                                            soloMicrophone: false)
+        XCTAssertEqual(headset.route, .call)
+        XCTAssertFalse(headset.diarizeMicrophone)
+    }
+
+    func testTheLaptopsOneMicrophoneWithNoOtherSideIsInPerson() {
+        let quiet = levels(sound: 0, of: 3_600)
+        let choice = SpeakerRoute.decision(systemLevels: quiet, hasMic: true, soloMicrophone: true)
+        XCTAssertEqual(choice.route, .inPerson)
+        XCTAssertTrue(choice.diarizeMicrophone)
+        XCTAssertFalse(SpeakerRoute.removesEcho(soloMicrophone: true, systemLevels: quiet),
+                       "a chime is not the other side, and subtracting it would take the room out of the only mic")
+        XCTAssertTrue(SpeakerRoute.removesEcho(soloMicrophone: true, systemLevels: levels(sound: 600, of: 1_800)))
+        XCTAssertTrue(SpeakerRoute.removesEcho(soloMicrophone: false, systemLevels: quiet))
+    }
+
+    /// Reading the input device is what decides the flag. It has to work on a
+    /// machine with no microphone as well as on a laptop.
+    func testTheInputDeviceCanBeRead() {
+        _ = InputDevices.isSolo
     }
 }
