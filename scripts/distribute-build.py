@@ -139,13 +139,30 @@ def main() -> int:
             print(f"build {num} -> {name}")
 
     # The only claim that counts: what App Store Connect says the build belongs to.
-    check = call(tok, f'builds/{build["id"]}?include=betaGroups')
-    named = [i["attributes"]["name"] for i in check.get("included", [])
-             if i["type"] == "betaGroups"]
-    if not named:
-        print("::error::The build still belongs to no group after assignment.")
-        return 1
-    print(f"distributed to: {', '.join(named)}")
+    # Membership of an automatic group is implicit, and Apple writes it into the
+    # build's relationships in its own time: on the first run that ever reached
+    # this check the relationship was still empty seconds after the upload, the
+    # step failed — and every tester already had the build. So poll, and count
+    # an automatic group as the distribution it is.
+    auto = {g["attributes"]["name"] for g in groups
+            if g["attributes"].get("hasAccessToAllBuilds")}
+    check_deadline = time.time() + 600
+    while True:
+        check = call(tok, f'builds/{build["id"]}?include=betaGroups')
+        named = {i["attributes"]["name"] for i in check.get("included", [])
+                 if i["type"] == "betaGroups"}
+        covered = named | auto
+        missing = [g["attributes"]["name"] for g in groups
+                   if g["attributes"]["name"] not in covered]
+        if not missing:
+            break
+        if time.time() > check_deadline:
+            print("::error::The build still belongs to no group after assignment "
+                  f"(missing: {', '.join(missing)}).")
+            return 1
+        print(f"membership not visible yet (missing: {', '.join(missing)}); waiting")
+        time.sleep(30)
+    print(f"distributed to: {', '.join(sorted(covered))}")
     print(f"marketing version {want or '?'}, build {num}")
     return 0
 
