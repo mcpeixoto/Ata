@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.0.2
+
+- **The launch crash is fixed, properly this time.** 3.0.0 crashed when it
+  opened, and 3.0.1 — which rewrote the recording-repair scan — kept the same
+  fault in the new code: the scan tested `abs(sample)` on 16-bit samples, and
+  a sample at the very bottom of the range (one loud moment, clipped, in
+  three ordinary meetings) has no absolute value, so the app trapped before
+  its window opened, on every launch. The scan compares magnitudes now, and a
+  regression test with a clipped sample stands guard. Those meetings were
+  always healthy; nothing about them is repaired or renamed.
+
 ## 3.0.1
 
 - **A corrupted recording is marked, and only its short pieces are slowed.** A
