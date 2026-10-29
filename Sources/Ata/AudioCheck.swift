@@ -44,6 +44,36 @@ enum AudioCheck {
         return String(format: "Ata: this recording's audio is %.1fs but it ran for %.1fs — it will play back %@. "
                       + "Microphone format(s) seen: %@", audioSeconds, elapsed, speed, seen)
     }
+
+    /// What to write when the frames in ordinary callbacks didn't fill the time
+    /// those callbacks covered. `ratio` is audio-seconds per host-second, measured
+    /// before any silence was inserted to hide the gap. `corrected` means the
+    /// samples were rewritten at the rate they actually arrived, so the file
+    /// itself should play at the right speed.
+    static func deliveryReport(track: String, ratio: Double, corrected: Bool, formats: [String]) -> String {
+        let speed = ratio < 1
+            ? String(format: "about %.1f× too fast", 1 / max(ratio, 0.001))
+            : String(format: "about %.1f× too slow", max(ratio, 0.001))
+        let seen = formats.isEmpty ? "unknown" : formats.joined(separator: ", ")
+        let outcome = corrected
+            ? "It was written at the rate the samples actually came in, so this recording should play at the right speed."
+            : "It was not a rate Ata knows how to repair, so this recording may play at the wrong speed."
+        return String(format: "Ata: %@ delivered audio at %.2f× the rate its format claimed — %@. %@ Format(s) seen: %@.",
+                      track, ratio, speed, outcome, seen)
+    }
+}
+
+/// One track's pace, snapshotted at the end of a recording — after that the
+/// writer is closed and the counts are gone.
+struct CapturePace: Equatable {
+    var track: String
+    /// Audio-seconds per host-second over ordinary callbacks. Nil until there
+    /// is a second of them.
+    var deliveryRatio: Double?
+    var corrected: Bool
+    var formats: [String]
+    var fileSeconds: Double
+    var hostSeconds: Double?
 }
 
 /// Whether each side of a recording actually held any sound.

@@ -82,4 +82,18 @@ final class AudioCheckTests: XCTestCase {
         XCTAssertTrue(slow.contains("too slow"), slow)
         XCTAssertTrue(slow.contains("unknown"), "say so rather than printing an empty list")
     }
+
+    /// Half the frames the clock asked for is the system track at double speed,
+    /// and the sentence has to say whether that was repaired.
+    func testTheDeliveryReportSaysWhetherItWasRepaired() {
+        let fixed = AudioCheck.deliveryReport(track: "system.wav", ratio: 0.5, corrected: true,
+                                              formats: ["48000 Hz × 2"])
+        XCTAssertTrue(fixed.contains("2.0× too fast"), fixed)
+        XCTAssertTrue(fixed.contains("right speed"), fixed)
+        XCTAssertTrue(fixed.contains("system.wav"), fixed)
+
+        let broken = AudioCheck.deliveryReport(track: "system.wav", ratio: 0.5, corrected: false, formats: [])
+        XCTAssertTrue(broken.contains("wrong speed"), broken)
+        XCTAssertTrue(broken.contains("unknown"), broken)
+    }
 }

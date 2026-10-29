@@ -87,6 +87,17 @@ final class Recorder: NSObject {
     func stop() async -> Double {
         let duration = max(mic?.duration ?? 0, sys?.duration ?? 0)
         formatsSeen = (mic?.inputFormats ?? []) + (sys?.inputFormats ?? [])
+        // Taken before the writers close. The ratio is samples against the
+        // clock, counted before the silence that pads a short buffer.
+        paces = [mic, sys].compactMap { writer in
+            guard let writer else { return nil }
+            return CapturePace(track: writer.url.lastPathComponent,
+                               deliveryRatio: writer.deliveryRatio,
+                               corrected: writer.correctedDelivery,
+                               formats: writer.inputFormats,
+                               fileSeconds: writer.duration,
+                               hostSeconds: writer.hostSpan)
+        }
         await teardown()
         return duration
     }
@@ -94,6 +105,9 @@ final class Recorder: NSObject {
     /// The input formats the writers were handed, kept past teardown so the
     /// caller can name them if the recording turns out to be the wrong length.
     private(set) var formatsSeen: [String] = []
+
+    /// How each track's samples compared with the clock. Empty until `stop`.
+    private(set) var paces: [CapturePace] = []
 
     private func teardown() async {
         running = false

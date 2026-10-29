@@ -103,7 +103,7 @@ final class SystemAudioTap: @unchecked Sendable {
     /// what used to be frozen into every buffer of a recording — so this is
     /// printed by `--diagnose`, where it can be read off a real Mac rather than
     /// reasoned about.
-    static func formatProbe() -> (before: String, after: String)? {
+    static func formatProbe() -> (before: String, after: String, clock: String?)? {
         let tap = SystemAudioTap()
         defer { tap.stop() }
         let description = CATapDescription(stereoGlobalTapButExcludeProcesses: ownProcessObject().map { [$0] } ?? [])
@@ -130,8 +130,76 @@ final class SystemAudioTap: @unchecked Sendable {
         ]
         guard AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &tap.aggregateID) == noErr,
               let after = try? tap.readFormat() else { return nil }
-        func say(_ f: AVAudioFormat) -> String { "\(Int(f.sampleRate)) Hz × \(f.channelCount)" }
-        return (say(before), say(after))
+        func say(_ f: AVAudioFormat) -> String {
+            "\(Int(f.sampleRate)) Hz × \(f.channelCount) \(f.isInterleaved ? "interleaved" : "planar")"
+        }
+        let clock = nominalRate(tap.aggregateID).map { "\(Int($0)) Hz" }
+        return (say(before), say(after), clock)
+    }
+
+    /// A PCM buffer whose layout is the buffer list's, not merely the format
+    /// the tap advertised.
+    ///
+    /// `AVAudioPCMBuffer(bufferListNoCopy:)` returns nil unless the list has
+    /// exactly the shape the format describes. That nil used to drop the
+    /// callback, and the writer filled the hole with silence — a stretch of the
+    /// other side of the call with nothing in it, in a file that was still the
+    /// right length. Frame count, when the shape does match, is
+    /// `mDataByteSize / mBytesPerFrame`. A buffer that is only half as long as
+    /// the time since the last one is the recording at double speed; the writer
+    /// relabels those samples with the rate they actually arrived at, which the
+    /// silence used to hide.
+    static func pcmBuffer(from list: UnsafePointer<AudioBufferList>, claimed: AVAudioFormat) -> AVAudioPCMBuffer? {
+        let abl = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: list))
+        guard let first = abl.first, first.mData != nil, first.mDataByteSize > 0 else { return nil }
+        let channels = abl.reduce(0) { $0 + Int($1.mNumberChannels) }
+        let interleaved = abl.count == 1
+        let matches = channels == Int(claimed.channelCount) && interleaved == claimed.isInterleaved
+        if matches, let pcm = AVAudioPCMBuffer(pcmFormat: claimed, bufferListNoCopy: list, deallocator: nil),
+           pcm.frameLength > 0 {
+            return pcm
+        }
+        let common: AVAudioCommonFormat = claimed.commonFormat == .pcmFormatInt16 ? .pcmFormatInt16 : .pcmFormatFloat32
+        let bytesPerSample = common == .pcmFormatInt16 ? 2 : 4
+        let bytesPerFrame = bytesPerSample * max(Int(first.mNumberChannels), 1)
+        let frames = Int(first.mDataByteSize) / bytesPerFrame
+        guard channels > 0, channels <= 32, frames > 0,
+              let format = AVAudioFormat(commonFormat: common, sampleRate: claimed.sampleRate,
+                                         channels: AVAudioChannelCount(channels), interleaved: interleaved),
+              let copy = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames))
+        else { return nil }
+        copy.frameLength = AVAudioFrameCount(frames)
+        let dst = UnsafeMutableAudioBufferListPointer(copy.mutableAudioBufferList)
+        guard dst.count == abl.count else { return nil }
+        for i in 0..<abl.count {
+            guard let from = abl[i].mData, let into = dst[i].mData else { return nil }
+            let n = min(Int(abl[i].mDataByteSize), Int(dst[i].mDataByteSize))
+            guard n > 0 else { return nil }
+            into.copyMemory(from: from, byteCount: n)
+        }
+        return copy
+    }
+
+    /// The rate samples are delivered at. The tap property can keep claiming
+    /// 48 kHz after the device it is clocked by has dropped to 16.
+    private func formatOnClock(_ tapFormat: AVAudioFormat) -> AVAudioFormat {
+        guard let clock = Self.nominalRate(aggregateID),
+              abs(clock - tapFormat.sampleRate) / tapFormat.sampleRate > 0.02,
+              let adjusted = AVAudioFormat(commonFormat: tapFormat.commonFormat,
+                                           sampleRate: clock,
+                                           channels: tapFormat.channelCount,
+                                           interleaved: tapFormat.isInterleaved) else { return tapFormat }
+        NSLog("Ata: the system tap says \(Int(tapFormat.sampleRate)) Hz but its device runs at "
+              + "\(Int(clock)) Hz — recording at the device clock")
+        return adjusted
+    }
+
+    private static func nominalRate(_ object: AudioObjectID) -> Double? {
+        var rate = Float64(0)
+        var addr = address(kAudioDevicePropertyNominalSampleRate)
+        var size = UInt32(MemoryLayout<Float64>.size)
+        let status = AudioObjectGetPropertyData(object, &addr, 0, nil, &size, &rate)
+        return status == noErr && rate > 0 ? rate : nil
     }
 
     /// The format the tap is delivering, for a recording that came out wrong.
@@ -175,14 +243,18 @@ final class SystemAudioTap: @unchecked Sendable {
         // wrong speed: unlistenable, and transcribed to nonsense, with nothing
         // anywhere to say so. It only showed when the output device disagreed
         // with the tap's first answer, which is why it came and went.
-        let box = FormatBox(try readFormat())
+        // The tap's own answer, then the clock it is actually running on. Drift
+        // compensation delivers samples at the aggregate device's rate, which a
+        // Bluetooth headset can change without the tap property ever updating.
+        let box = FormatBox(formatOnClock(try readFormat()))
         formats = box
 
         // And it can still change under us — the output device switches when
         // headphones go in. Follow it rather than trusting the first answer.
         var formatAddress = Self.address(kAudioTapPropertyFormat)
         let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-            guard let self, let now = try? self.readFormat() else { return }
+            guard let self, let tap = try? self.readFormat() else { return }
+            let now = self.formatOnClock(tap)
             if now != box.format {
                 NSLog("Ata: the system audio tap changed format: \(box.format.sampleRate) Hz × "
                       + "\(box.format.channelCount) → \(now.sampleRate) Hz × \(now.channelCount)")
@@ -195,8 +267,9 @@ final class SystemAudioTap: @unchecked Sendable {
 
         try check("create IO proc", AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, queue) { _, input, time, _, _ in
             // The buffer only lives for this callback; the writer converts it before returning.
-            guard let pcm = AVAudioPCMBuffer(pcmFormat: box.format, bufferListNoCopy: input,
-                                             deallocator: nil) else { return }
+            // The tap's format describes what it *claims* to deliver. The list is
+            // what this callback actually handed over, and the two can disagree.
+            guard let pcm = Self.pcmBuffer(from: input, claimed: box.format) else { return }
             let t = time.pointee
             let host: Double? = t.mFlags.contains(.hostTimeValid) ? AVAudioTime.seconds(forHostTime: t.mHostTime) : nil
             onBuffer(pcm, host)

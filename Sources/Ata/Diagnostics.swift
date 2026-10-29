@@ -33,8 +33,10 @@ enum Diagnostics {
         say("output device: \(SystemAudioTap.defaultOutputDevice().map { "#\($0)" } ?? "none")")
         if let probe = SystemAudioTap.formatProbe() {
             let agrees = probe.before == probe.after
-            say("system tap format: \(probe.before) before its device, \(probe.after) after"
-                + (agrees ? " — agree" : "  ← THESE MUST MATCH"))
+            var line = "system tap format: \(probe.before) before its device, \(probe.after) after"
+            if let clock = probe.clock { line += ", device clock \(clock)" }
+            line += agrees ? " — agree" : "  ← THESE MUST MATCH"
+            say(line)
         }
         say("whisper-cli: \(Paths.whisperCLI()?.path ?? "not installed")")
         say("local model: \(LocalModel.current.id) \(LocalModel.current.isInstalled ? "installed" : "not downloaded")")

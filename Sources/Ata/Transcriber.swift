@@ -517,13 +517,28 @@ enum Transcriber {
         let systemLevels: [UInt8]? = system.flatMap { url in
             Waveform.read(from: meeting.waveformURL)?.others ?? (try? Waveform.levels(url))
         }
-        switch SpeakerRoute.choose(systemLevels: systemLevels, hasMic: mic != nil,
-                                   systemUnreadable: system != nil && systemLevels == nil) {
+        // How much of the system track came back as words. Nil when there was no
+        // system track to transcribe, so a missing file stays "in person" on the
+        // waveform alone.
+        let systemSpeech: Double? = system.map { _ in
+            segments.reduce(0.0) { sum, s in
+                guard s.speaker == Speakers.others else { return sum }
+                return sum + Double(max(0, s.end - s.start)) / 1000
+            }
+        }
+        let choice = SpeakerRoute.decision(systemLevels: systemLevels, hasMic: mic != nil,
+                                           systemUnreadable: system != nil && systemLevels == nil,
+                                           systemSpeechSeconds: systemSpeech)
+        switch choice.route {
         case .call:
             break
         case .inPerson:
             guard let mic else { return segments }
-            return await recogniseInPerson(segments, meeting: meeting, diarizer: diarizer, mic: mic)
+            if choice.discardSystemLines {
+                NSLog("Ata: only the microphone captured this conversation — telling the voices on it apart")
+            }
+            let room = choice.discardSystemLines ? segments.filter { $0.speaker == Speakers.me } : segments
+            return await recogniseInPerson(room, meeting: meeting, diarizer: diarizer, mic: mic)
         case .nobody:
             return segments
         }
