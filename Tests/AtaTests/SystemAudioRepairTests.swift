@@ -73,6 +73,33 @@ final class SystemAudioRepairTests: XCTestCase {
         XCTAssertNil(SystemAudioRepair.repaired(samples, sampleRate: rate))
     }
 
+    /// Every sound in this track is short, which the first version of the gate
+    /// read as the corruption. But the silences between the sounds run to
+    /// seconds — the writer's pads are a tenth of a second — so this is a
+    /// healthy system track that only carried a few notification blips, and
+    /// rewriting it would destroy good audio.
+    func testSparseShortSoundsAreNotTheCorruption() {
+        var samples = [Int16](repeating: 0, count: Int(rate * 60))
+        let blip = Int(rate * 0.3)
+        var at = Int(rate)
+        while at + blip < samples.count {
+            for i in 0..<blip { samples[at + i] = 1_000 }
+            at += Int(rate * 6)
+        }
+        XCTAssertLessThan(SystemAudioRepair.longContentShare(samples, sampleRate: rate), 0.05)
+        XCTAssertEqual(SystemAudioRepair.padGapShare(samples, sampleRate: rate), 0, accuracy: 0.001)
+        XCTAssertFalse(SystemAudioRepair.isCorrupt(samples, sampleRate: rate))
+        XCTAssertNil(SystemAudioRepair.repaired(samples, sampleRate: rate))
+    }
+
+    /// In the corruption, the gaps between sounds are the writer's pads:
+    /// pad-sized, every time.
+    func testThePadsArePadSized() {
+        let padded = corruptedTone()
+        XCTAssertGreaterThan(SystemAudioRepair.padGapShare(padded, sampleRate: rate), 0.9)
+        XCTAssertTrue(SystemAudioRepair.isCorrupt(padded, sampleRate: rate))
+    }
+
     /// Four percent of the sound in a long stretch is still the corruption.
     /// Six percent is a healthy recording that happens to have short replies,
     /// and it is left alone. The long stretch keeps its own speed.
