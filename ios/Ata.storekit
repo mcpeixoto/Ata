@@ -1,0 +1,77 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "6A1D2F0E",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_applicationInternalID" : "",
+    "_developerTeamID" : "",
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "PRT",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21512345",
+      "localizations" : [
+
+      ],
+      "name" : "Ata Pro",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "2.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "6743512345",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Unlimited meetings on iPhone",
+              "displayName" : "Ata Pro",
+              "locale" : "en_US"
+            },
+            {
+              "description" : "Reuniões ilimitadas no iPhone",
+              "displayName" : "Ata Pro",
+              "locale" : "pt_PT"
+            }
+          ],
+          "productID" : "ai.interactive.ata.pro.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Ata Pro Monthly",
+          "subscriptionGroupID" : "21512345",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}
