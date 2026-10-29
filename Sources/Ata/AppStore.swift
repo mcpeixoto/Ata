@@ -60,6 +60,7 @@ final class AppStore: ObservableObject {
 
         recoverInterrupted()
         removeLeftoverLanguagePieces()
+        repairCorruptedSystemTracks()
         pruneOldAudio()
         pump()
         MeetingSharing.cleanUp()
@@ -82,6 +83,23 @@ final class AppStore: ObservableObject {
     private func removeLeftoverLanguagePieces() {
         for meeting in Library.loadAll() where meeting.status != .transcribing {
             LanguagePieces.remove(in: meeting.dir)
+        }
+    }
+
+    /// System tracks Ata 2.11 wrote at double speed are put back, and the
+    /// meeting is transcribed again. The original file stays in the folder.
+    /// Another device's meeting is left alone: that device has the file too,
+    /// and both of them rewriting it would not end.
+    private func repairCorruptedSystemTracks() {
+        for meeting in Library.loadAll() where meeting.isMine
+            && meeting.status != .recording && meeting.status != .transcribing {
+            guard SystemAudioRepair.repairSystemTrack(in: meeting.dir) else { continue }
+            guard meeting.status == .done || meeting.status == .failed else { continue }
+            var repaired = meeting
+            repaired.status = .pending
+            repaired.error = nil
+            Library.save(repaired)
+            NSLog("Ata: \(repaired.id) will be transcribed again from the repaired system track")
         }
     }
 

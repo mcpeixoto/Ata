@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.12.0
 
 Two calls came back wrong — one with only your side in it, one with the other
 side garbled — and nothing anywhere said so. This release is about that, plus
@@ -17,7 +17,11 @@ three things borrowed from Granola.
   passed they are written at the rate they really arrived. The check looks at
   that, before any silence is added.   `Ata --diagnose` no longer quits the copy
   of Ata you already have open. Language-detection pieces left behind when a
-  transcription stopped are removed the next time Ata starts.
+  transcription stopped are removed the next time Ata starts. Recordings
+  already on disk from 2.11 are repaired the next time Ata opens: the padding
+  comes out, the speech is put back to the speed it was spoken, and the
+  original file is kept as `system.corrupted`. Those meetings are transcribed
+  again. The half of each buffer 2.11 never wrote is still gone.
 - **One working microphone is a meeting in the room.** When the system-audio
   track is silent, Ata already tells the voices on your microphone apart. It
   now does the same when that track is loud but almost none of it comes back
