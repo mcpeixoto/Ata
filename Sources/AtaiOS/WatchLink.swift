@@ -129,7 +129,8 @@ final class WatchLink {
         guard !WatchImport.waiting().isEmpty else { return }
         PhoneStore.shared.watchImportStarted()
         watchImportQueue.async {
-            let done = WatchImport.importWaiting()
+            // Recorded on the Watch, made into a meeting by this iPhone: it counts.
+            let done = WatchImport.importWaiting(imported: { QuotaLedger.record($0) })
             Task { @MainActor in
                 PhoneStore.shared.watchImportFinished()
                 WatchLink.shared.imported(done)

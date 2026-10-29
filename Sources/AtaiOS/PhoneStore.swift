@@ -31,6 +31,11 @@ final class PhoneStore: ObservableObject {
     }
     /// Moments marked during this recording, in ms from its start.
     @Published private(set) var bookmarks: [Int] = []
+    /// Free meetings made on this iPhone this month; see `FreeQuota`.
+    @Published private(set) var freeUsed = 0
+
+    /// No free meeting left this month, and no Ata Pro.
+    var needsPro: Bool { !ProStore.shared.isPro && freeUsed >= FreeQuota.limit }
 
     var isRecording: Bool { phase == .recording || phase == .interrupted }
     /// Seconds of audio recorded so far, kept current in the background too (unlike `elapsed`).
@@ -106,7 +111,25 @@ final class PhoneStore: ObservableObject {
 
     func reload() {
         meetings = Library.loadAll()
+        updateQuota()
         updateWidgets()
+    }
+
+    /// Counted again before every start too: the month may have turned since.
+    func updateQuota() {
+        guard !Snapshots.rendering else { return }
+        freeUsed = FreeQuota.used(meetings: meetings, ledger: QuotaLedger.ids(), deviceID: Device.id)
+    }
+
+    /// Made on this iPhone: counted against this month's free meetings.
+    private func counted(_ meetingID: String) {
+        QuotaLedger.record(meetingID)
+        updateQuota()
+    }
+
+    /// After an import, which is never refused: past the free meetings, Pro is offered.
+    private func offerProIfOverLimit() {
+        if !ProStore.shared.isPro && freeUsed > FreeQuota.limit { PhoneNavigation.shared.showPaywall() }
     }
 
     /// Nothing is recording, transcribing or importing: the library can move
@@ -140,6 +163,13 @@ final class PhoneStore: ObservableObject {
 
     private func start() async throws {
         guard phase == .idle else { return }
+        // Siri, the Control and the Watch come through here too. A recording
+        // already running is never stopped by this; it only gates a new one.
+        updateQuota()
+        if needsPro {
+            PhoneNavigation.shared.showPaywall()
+            throw FreeQuotaError.limitReached
+        }
         phase = .starting
         lastError = nil
         guard await PhoneRecorder.requestPermission() else {
@@ -149,7 +179,8 @@ final class PhoneStore: ObservableObject {
             throw PhoneRecorderError.micDenied
         }
         do {
-            _ = try recorder.start(mode: mode)
+            let m = try recorder.start(mode: mode)
+            counted(m.id)
             bookmarks = []
             activity.start(mode: mode)
             startTicker()
@@ -194,6 +225,8 @@ final class PhoneStore: ObservableObject {
 
     func watchImportFinished() {
         importing = max(0, importing - 1)
+        updateQuota()
+        offerProIfOverLimit()
     }
 
     /// Marks this moment of the recording.
@@ -297,11 +330,12 @@ final class PhoneStore: ObservableObject {
         Task {
             for url in files {
                 do {
-                    try await Task.detached(priority: .userInitiated) {
+                    let m = try await Task.detached(priority: .userInitiated) {
                         let scoped = url.startAccessingSecurityScopedResource()
                         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                        _ = try AudioImport.meeting(from: url)
+                        return try AudioImport.meeting(from: url)
                     }.value
+                    counted(m.id)
                     if Self.isHandedOverCopy(url) { try? FileManager.default.removeItem(at: url) }
                 } catch {
                     importError = L("Could not import %@: %@", url.lastPathComponent, error.localizedDescription)
@@ -309,6 +343,7 @@ final class PhoneStore: ObservableObject {
                 importing -= 1
                 reload()
             }
+            offerProIfOverLimit()
             pump()
         }
     }
@@ -334,7 +369,8 @@ final class PhoneStore: ObservableObject {
         Task {
             let report = await Task.detached(priority: .userInitiated) {
                 ShareInbox.drain(entries) { entry in
-                    _ = try AudioImport.meeting(from: entry.audio, named: entry.item.originalName, at: entry.item.date)
+                    let m = try AudioImport.meeting(from: entry.audio, named: entry.item.originalName, at: entry.item.date)
+                    QuotaLedger.record(m.id)
                 }
             }.value
             if !report.failed.isEmpty {
@@ -345,6 +381,7 @@ final class PhoneStore: ObservableObject {
             importing -= entries.count
             drainingInbox = false
             reload()
+            offerProIfOverLimit()
             pump()
         }
     }
@@ -525,8 +562,9 @@ final class PhoneStore: ObservableObject {
     /// place of `bootstrap()`: the fixture meetings and a made-up recording, with
     /// no microphone, no queue and nothing written.
     func applySnapshotFixture(recording: Bool, elapsed: Double, level: Float, bookmarks: [Int],
-                              transcribingID: String?, progress: Double) {
+                              transcribingID: String?, progress: Double, freeUsed: Int) {
         guard Snapshots.rendering else { return }
+        self.freeUsed = freeUsed
         bootstrapped = true
         meetings = Library.loadAll()
         phase = recording ? .recording : .idle
@@ -544,5 +582,14 @@ final class PhoneStore: ObservableObject {
         let snapshot = WidgetSnapshot(lastTitle: last?.title, lastStartedAt: last?.startedAt,
                                       recordingSince: isRecording ? Date().addingTimeInterval(-recorder.recordedSeconds) : nil)
         if snapshot.save() { WidgetCenter.shared.reloadAllTimelines() }
+    }
+}
+
+/// Why a new recording did not start: this month's free meetings are used.
+enum FreeQuotaError: LocalizedError {
+    case limitReached
+
+    var errorDescription: String? {
+        L("You have used this month's %d free meetings on iPhone. Ata Pro records without a limit.", FreeQuota.limit)
     }
 }

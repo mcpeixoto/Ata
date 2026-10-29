@@ -9,6 +9,9 @@ struct PhoneSettings: View {
     @AppStorage(Pref.keepAudio) private var keepAudio = true
     @AppStorage(Pref.summarize) private var summarize = true
     @StateObject private var cloud = CloudSync.shared
+    @ObservedObject private var pro = ProStore.shared
+    @EnvironmentObject private var store: PhoneStore
+    @State private var managingSubscription = false
 
     /// Why no summary will appear, when none will. Summaries are on by default on
     /// the iPhone (`Pref.platformDefaults`), and before this they could silently
@@ -79,6 +82,24 @@ struct PhoneSettings: View {
                 }
 
                 Section {
+                    LabeledContent("Status", value: pro.isPro
+                                   ? L("Active")
+                                   : L("%d of %d free meetings left this month",
+                                       FreeQuota.remaining(used: store.freeUsed), FreeQuota.limit))
+                    if pro.isPro {
+                        Button("Manage subscription") { managingSubscription = true }
+                    } else {
+                        Button("Upgrade to Ata Pro") { PhoneNavigation.shared.showPaywall() }
+                    }
+                    Button("Restore Purchases") { Task { await pro.restore() } }
+                        .disabled(pro.purchasing)
+                } header: {
+                    Text("Ata Pro")
+                } footer: {
+                    Text(pro.message ?? L("Unlimited meetings on this iPhone. Ata for Mac is free and stays free."))
+                }
+
+                Section {
                     Toggle("Keep meetings in iCloud", isOn: Binding(
                         get: { cloud.isOn || cloud.copying },
                         set: { on in
@@ -112,6 +133,7 @@ struct PhoneSettings: View {
             }
             .navigationTitle("Settings")
             .onAppear { cloud.recheck() }
+            .manageSubscriptionsSheet(isPresented: $managingSubscription)
         }
     }
 }

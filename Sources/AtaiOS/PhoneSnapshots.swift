@@ -22,6 +22,7 @@ extension Snapshots {
         case insights
         case settings
         case onboarding
+        case paywall
     }
 
     static let screen: Screen = Snapshots.argument(after: "-AtaSnapshots").flatMap(Screen.init(rawValue:)) ?? .recordIdle
@@ -32,6 +33,10 @@ extension Snapshots {
         guard Snapshots.rendering else { return nil }
         return Snapshots.argument(after: "-AtaSnapshotAppearance") == "dark" ? .dark : .light
     }()
+
+    /// Ata Pro's price on the paywall: StoreKit's test configuration only
+    /// reaches runs started from Xcode, not a UI test's launch.
+    static var price: String { L("%@ / %@", "€2.99", L("month")) }
 
     /// The README's meeting: a summary, your notes, a transcript and two voices.
     static let meetingID = "fixture-zoom"
@@ -59,12 +64,15 @@ extension Snapshots {
                                                level: recording ? 0.64 : 0,
                                                bookmarks: recording ? [4 * 60_000 + 12_000, 17 * 60_000 + 40_000] : [],
                                                transcribingID: recording ? nil : transcribingID,
-                                               progress: recording ? 0 : 0.62)
+                                               progress: recording ? 0 : 0.62,
+                                               // Two left on the record tab; none on the paywall, which is when it shows.
+                                               freeUsed: screen == .paywall ? FreeQuota.limit : 3)
 
         let navigation = PhoneNavigation.shared
         navigation.showingOnboarding = screen == .onboarding
+        navigation.showingPaywall = screen == .paywall
         switch screen {
-        case .recordIdle, .recordRecording, .onboarding:
+        case .recordIdle, .recordRecording, .onboarding, .paywall:
             navigation.tab = .record
         case .meetings:
             navigation.tab = .meetings

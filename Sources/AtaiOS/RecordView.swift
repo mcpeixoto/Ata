@@ -4,6 +4,7 @@ import SwiftUI
 /// conversation this is.
 struct RecordView: View {
     @EnvironmentObject var store: PhoneStore
+    @ObservedObject private var pro = ProStore.shared
 
     var body: some View {
         NavigationStack {
@@ -33,6 +34,8 @@ struct RecordView: View {
                 messages
 
                 Spacer(minLength: 12)
+
+                if !pro.isPro && !store.isRecording { freeMeetings }
             }
             .padding(.horizontal, 24)
             .frame(maxWidth: .infinity)
@@ -104,6 +107,18 @@ struct RecordView: View {
             Button("Resume") { store.resumeRecording() }
                 .buttonStyle(.borderedProminent)
         }
+    }
+
+    /// Ata Pro lifts this; see `FreeQuota`.
+    private var freeMeetings: some View {
+        let left = FreeQuota.remaining(used: store.freeUsed)
+        return Button { PhoneNavigation.shared.showPaywall() } label: {
+            Text(left == 1 ? L("1 free meeting left this month") : L("%d free meetings left this month", left))
+                .font(.footnote)
+                .foregroundStyle(left == 0 ? Color.orange : Color.secondary)
+        }
+        .buttonStyle(.plain)
+        .padding(.bottom, 8)
     }
 
     @ViewBuilder

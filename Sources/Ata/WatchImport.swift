@@ -83,7 +83,8 @@ enum WatchImport {
     /// Imports everything in the inbox and returns the recordings the Watch may
     /// now delete: the ones imported, and ones imported before and sent again.
     /// Runs one at a time, off the main thread.
-    static func importWaiting() -> [UUID] {
+    /// `imported` is told each new meeting's id, as it is made.
+    static func importWaiting(imported: (String) -> Void = { _ in }) -> [UUID] {
         var ledger = Ledger.load(from: ledgerURL)
         var done: [UUID] = []
         for (info, audio) in waiting() {
@@ -92,6 +93,7 @@ enum WatchImport {
                     let m = try meeting(from: audio, info: info)
                     ledger.record(info.id, meetingID: m.id)
                     ledger.save(to: ledgerURL)
+                    imported(m.id)
                 } catch {
                     NSLog("Ata: could not import the Watch recording \(info.id), kept for the next try: \(error.localizedDescription)")
                     continue

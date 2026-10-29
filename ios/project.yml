@@ -22,6 +22,12 @@ settings:
     IPHONEOS_DEPLOYMENT_TARGET: "26.0"
     CODE_SIGN_STYLE: Automatic
 
+# Ata Pro for runs from Xcode: the subscription as App Store Connect has it, so
+# StoreKit answers without a sandbox account. XcodeGen sets it on the run action
+# only; the screenshot run shows the price from PhoneSnapshots instead.
+fileGroups:
+  - Ata.storekit
+
 packages:
   # FluidAudio, pinned with no traits; see Packages/AtaDependencies/Package.swift.
   AtaDependencies:
@@ -252,6 +258,8 @@ schemes:
       targets:
         Ata: all
         AtaiOSTests: [test]
+    run:
+      storeKitConfiguration: Ata.storekit
     test:
       targets:
         - AtaiOSTests
@@ -264,6 +272,8 @@ schemes:
       targets:
         Ata: all
         AtaUITests: [test]
+    run:
+      storeKitConfiguration: Ata.storekit
     test:
       targets:
         - AtaUITests
