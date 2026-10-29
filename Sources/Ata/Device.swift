@@ -11,6 +11,14 @@ import UIKit
 struct DeviceRef: Codable, Equatable {
     var id: String
     var name: String
+    /// "iPhone", "Mac" or "Watch": what kind of device it is, which the iPhone's
+    /// free allowance counts by (`FreeQuota`). Absent in meetings from before Ata
+    /// 3.1, which still decode.
+    var kind: String? = nil
+
+    static let iPhone = "iPhone"
+    static let mac = "Mac"
+    static let watch = "Watch"
 }
 
 /// This device. Shared code, so no AppKit here: it compiles for iOS too.
@@ -19,7 +27,17 @@ enum Device {
     /// meeting.json, and says nothing about the hardware.
     static let idKey = "deviceID"
 
-    static var current: DeviceRef { DeviceRef(id: id, name: name) }
+    static var current: DeviceRef { DeviceRef(id: id, name: name, kind: kind) }
+
+    static let kind: String = {
+        #if os(macOS)
+        return DeviceRef.mac
+        #elseif os(watchOS)
+        return DeviceRef.watch
+        #else
+        return DeviceRef.iPhone
+        #endif
+    }()
 
     /// Made once and kept. A random id rather than a hardware one: it only has
     /// to tell this device's meetings from another's.

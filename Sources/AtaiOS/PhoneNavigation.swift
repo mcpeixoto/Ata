@@ -13,6 +13,8 @@ final class PhoneNavigation: ObservableObject {
     /// Meeting ids pushed on the Meetings tab.
     @Published var meetingPath: [String] = []
     @Published var showingOnboarding = false
+    /// Ata Pro; see `Paywall`.
+    @Published var showingPaywall = false
 
     func showMeeting(_ id: String) {
         tab = .meetings
@@ -25,6 +27,10 @@ final class PhoneNavigation: ObservableObject {
 
     func showSettings() {
         tab = .settings
+    }
+
+    func showPaywall() {
+        showingPaywall = true
     }
 
     func showOnboarding() {

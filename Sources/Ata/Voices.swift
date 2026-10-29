@@ -275,7 +275,7 @@ final class VoiceLibrary {
             throw CocoaError(.fileReadCorruptFile, userInfo: [NSFilePathErrorKey: file.path])
         }
         let fm = FileManager.default
-        try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        try CloudLibrary.createFolder(directory)
         let blocked = Set(unreadable.map(\.lastPathComponent))
         let encoder = Self.encoder()
         var failure: Error?
