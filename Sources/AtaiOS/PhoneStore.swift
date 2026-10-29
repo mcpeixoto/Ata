@@ -59,7 +59,7 @@ final class PhoneStore: ObservableObject {
         _ = Device.current
         Pref.registerDefaults()
         mode = Pref.d.string(forKey: Pref.recordingMode).flatMap(RecordingMode.init(rawValue:)) ?? .inPerson
-        try? FileManager.default.createDirectory(at: Paths.meetingsDir, withIntermediateDirectories: true)
+        try? CloudLibrary.createFolder(Paths.meetingsDir)
         // Meetings play through the speaker even with the silent switch on.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
 
@@ -260,8 +260,7 @@ final class PhoneStore: ObservableObject {
 
     func delete(_ m: Meeting) {
         guard m.id != transcribingID else { return }
-        Library.trash(m)
-        if FileManager.default.fileExists(atPath: m.dir.path) {
+        if !Library.trash(m) {
             lastError = L("Could not delete this meeting.")
         } else {
             PeopleModel.shared.removeMeeting(m.id)
@@ -367,7 +366,7 @@ final class PhoneStore: ObservableObject {
         // With the meetings in iCloud, one the Mac has claimed is skipped, and so is
         // one of the Mac's that this iPhone has no engine for: the Mac will do it.
         let now = Date()
-        let waiting = Library.loadAll().filter { $0.awaitsTranscript(now: now) && ($0.isMine || $0.hasAudio) }
+        let waiting = Library.loadAll().filter { RunEnd.awaits($0, now: now) && ($0.isMine || $0.hasAudio) }
         guard var m = waiting.last(where: { $0.isMine || Self.canRun(TranscribeOptions.current(for: $0)) }) else {
             waitingForEngine = false
             return
@@ -393,16 +392,13 @@ final class PhoneStore: ObservableObject {
             self?.job?.cancel()
         }
         job = Task {
-            var m = queued
             let heartbeat = renewClaim(of: queued.id)
             defer { heartbeat.cancel() }
-            // Taken over by the Mac while this iPhone was away: the Mac owns the meeting
-            // now, so nothing here is saved and its audio is left alone.
-            func stillMine(_ status: Meeting.Status) -> Bool {
-                Meeting.mayFinish(status, over: Library.load(queued.id), by: Device.current)
-            }
+            // Saved onto meeting.json as it is now, and only while the claim is still this
+            // run's (see `RunEnd`): if the Mac took it over while this iPhone was away, the
+            // Mac owns the meeting, so nothing here is saved and its audio is left alone.
             do {
-                let outcome = try await Transcriber.transcribe(m, options: options) { p in
+                let outcome = try await Transcriber.transcribe(queued, options: options) { p in
                     Task { @MainActor in
                         let store = PhoneStore.shared
                         guard store.transcribingID == queued.id else { return }
@@ -410,33 +406,28 @@ final class PhoneStore: ObservableObject {
                         store.background?.report(p)
                     }
                 }
-                var history = m.transcriptions ?? []
-                if let archived = outcome.archivedPrevious, !history.isEmpty {
-                    history[history.count - 1].archivedAs = archived
-                }
-                history.append(outcome.record)
-                m.transcriptions = history
-                m.status = .done
-                m.error = nil
-                m.claim = nil
-                if stillMine(.done) {
-                    Library.save(m)
+                if let m = await RunEnd.save(queued.id, as: .done, apply: RunEnd.done(outcome)) {
                     await handleAudio(of: m)
                     Notifier.shared.transcriptReady(m)
                 }
                 background?.finish(success: true)
             } catch let error where Self.shouldRequeue(error) {
-                // Stopped, not failed: back in the queue with its audio untouched.
-                m.status = .pending
-                if stillMine(.pending) { Library.save(m) }
+                // Stopped, not failed: back in the queue with its audio untouched. Audio
+                // still in iCloud gives up the claim, so the Mac that has it can do it.
+                if RunEnd.releasesClaim(error) {
+                    RunEnd.retryLater(queued.id)
+                    _ = await RunEnd.save(queued.id, as: .pending) { $0.claim = nil }
+                } else {
+                    _ = await RunEnd.save(queued.id, as: .pending)
+                }
                 background?.finish(success: false)
             } catch {
-                m.status = .failed
-                m.error = error.localizedDescription
-                m.claim = nil
-                if stillMine(.failed) {
-                    Library.save(m)
-                    Notifier.shared.transcriptFailed(m, error: error.localizedDescription)
+                let message = error.localizedDescription
+                if let m = await RunEnd.save(queued.id, as: .failed, apply: { m in
+                    m.error = message
+                    m.claim = nil
+                }) {
+                    Notifier.shared.transcriptFailed(m, error: message)
                 }
                 background?.finish(success: false)
             }
@@ -470,11 +461,12 @@ final class PhoneStore: ObservableObject {
         }
     }
 
-    /// Cancelled, ended by iOS, or no engine to run: try again later. Anything
+    /// Cancelled, ended by iOS, no engine to run, or the audio still in iCloud
+    /// (`RunEnd.releasesClaim`): try again later. Anything
     /// else is a real failure, shown with "Try again" so one bad file doesn't
     /// block the queue.
     static func shouldRequeue(_ error: Error) -> Bool {
-        if error is CancellationError { return true }
+        if error is CancellationError || RunEnd.releasesClaim(error) { return true }
         switch error as? TranscriberError {
         case .cancelled?, .whisperMissing?, .modelMissing?: return true
         default: return false
@@ -488,9 +480,9 @@ final class PhoneStore: ObservableObject {
         guard m.isMine else { return }
         await saveMergedAudio(of: m)?.value
         guard Pref.d.bool(forKey: Pref.keepAudio) else {
-            try? FileManager.default.removeItem(at: m.micURL)
-            try? FileManager.default.removeItem(at: m.systemURL)
-            try? FileManager.default.removeItem(at: m.mergedAudioURL)
+            try? Coordinated.remove(m.micURL)
+            try? Coordinated.remove(m.systemURL)
+            try? Coordinated.remove(m.mergedAudioURL)
             return
         }
         guard Pref.d.bool(forKey: Pref.compressAudio) else { return }

@@ -17,6 +17,9 @@ final class CloudSync: ObservableObject {
     @Published private(set) var problem: String?
     /// The meetings folder on this Mac that was copied into iCloud and kept as it was.
     @Published private(set) var originals: URL?
+    /// Turning iCloud off: copying the meetings in iCloud to this device first.
+    /// `copying`, `copied` and `total` count it too.
+    @Published private(set) var copyingOut = false
 
     var inCloud: Bool { CloudLibrary.isActive }
 
@@ -45,6 +48,12 @@ final class CloudSync: ObservableObject {
             status = .available
             return
         }
+        // Signing out of iCloud, or turning iCloud Drive off, takes the container away
+        // while the library is in it.
+        NotificationCenter.default.addObserver(forName: .NSUbiquityIdentityDidChange, object: nil,
+                                               queue: .main) { _ in
+            MainActor.assumeIsolated { CloudSync.shared.identityChanged() }
+        }
         // Otherwise iCloud is only looked for when Settings is opened.
         if isOn || Pref.d.bool(forKey: Pref.iCloudMigrating) {
             Task { await refresh() }
@@ -57,6 +66,8 @@ final class CloudSync: ObservableObject {
         let found = await CloudLibrary.lookUp()
         lookup = found
         status = found.status
+        // On, but the launch found no iCloud to use: everything goes on this device for now.
+        if isOn, !CloudLibrary.isActive, found.documents == nil { problem = Self.awayProblem }
         updateOriginals()
         if isOn, CloudLibrary.isActive { startWatching() }
         // Every launch while this is on: whatever an interruption left, and anything
@@ -65,6 +76,37 @@ final class CloudSync: ObservableObject {
             copyIn(to: documents)
         }
         updateSettingsSync()
+    }
+
+    /// What Settings says while the setting is on and iCloud is not there.
+    static var awayProblem: String {
+        L("iCloud isn't available, so new meetings are kept on this device. Ata moves them into iCloud when it's back.")
+    }
+
+    /// Signed in or out of iCloud, or iCloud Drive turned on or off. If the library
+    /// was in a container that is no longer real, Ata goes on in this device's
+    /// folder at once rather than writing into a plain folder where iCloud was.
+    func identityChanged() {
+        guard started, !Paths.overridden else { return }
+        let location = CloudLibrary.location
+        if location.inCloud, !CloudLibrary.isReal(location.meetings.deletingLastPathComponent()) {
+            stopFlag.stop()
+            copyTask = nil
+            retry?.invalidate()
+            retry = nil
+            target = nil
+            passes = 0
+            copying = false
+            copyingOut = false
+            watcher.stop()
+            CloudLibrary.use(.local)
+            NSLog("Ata: iCloud went away; the library is in this device's folder until it is back")
+            problem = Self.awayProblem
+            updateOriginals()
+            updateSettingsSync()
+            changed()
+        }
+        Task { await refresh() }
     }
 
     /// iCloud wasn't found, or not looked for yet: look now, for Settings or for
@@ -81,26 +123,50 @@ final class CloudSync: ObservableObject {
             problem = L("iCloud stays off while Ata uses a development folder.")
             return
         }
+        // Changed your mind while the meetings were being copied out: stay in iCloud.
+        if copyingOut {
+            stopFlag.stop()
+            copyTask = nil
+            retry?.invalidate()
+            retry = nil
+            target = nil
+            passes = 0
+            copying = false
+            copyingOut = false
+            changed()
+            return
+        }
         guard status == .available, let documents = lookup?.documents else { return }
         copyIn(to: documents)
     }
 
-    /// Back to this device's folder. What is in iCloud stays there.
+    /// Back to this device's folder. What is in iCloud stays there, and is copied
+    /// here first: only once every meeting is here and checked does Ata move.
     func turnOff() {
         stopFlag.stop()
         copyTask = nil
         retry?.invalidate()
         retry = nil
         passes = 0
-        Pref.d.set(false, forKey: Pref.iCloudSync)
         Pref.d.set(false, forKey: Pref.iCloudMigrating)
-        isOn = false
         copying = false
         problem = nil
+        if CloudLibrary.isActive {
+            copyOut()
+        } else {
+            target = nil
+            finishTurningOff()
+        }
+    }
+
+    /// The setting goes off; the library has already moved, or never was in iCloud.
+    private func finishTurningOff() {
+        Pref.d.set(false, forKey: Pref.iCloudSync)
+        isOn = false
+        copying = false
+        copyingOut = false
         watcher.stop()
         updateSettingsSync()
-        target = CloudLibrary.isActive ? .local : nil
-        moveWhenIdle()
         updateOriginals()
     }
 
@@ -142,6 +208,49 @@ final class CloudSync: ObservableObject {
                 copying = false
                 problem = L("%d items could not be copied into iCloud. Nothing was moved, and Ata tries again the next time it opens.",
                             outcome.failed.count)
+                // The queue waits while copying: let it go on.
+                changed()
+            }
+        }
+    }
+
+    /// Copies the meetings and voices in iCloud to this device, then moves there.
+    private func copyOut() {
+        let from = CloudLibrary.location
+        let out = CloudCopyOut(cloud: from.meetings, local: Paths.localMeetingsDir, ledgerURL: CloudLibrary.ledgerURL)
+        let voicesTo = Paths.localVoicesDir
+        let flag = StopFlag()
+        stopFlag = flag
+        copying = true
+        copyingOut = true
+        copied = 0
+        total = 0
+        copyTask = Task {
+            let outcome = await Task.detached(priority: .utility) { () -> CloudMigration.Outcome in
+                var outcome = await out.run(shouldContinue: { !flag.stopped }) { done, total in
+                    Task { @MainActor in
+                        guard !flag.stopped else { return }
+                        CloudSync.shared.copied = done
+                        CloudSync.shared.total = total
+                    }
+                }
+                if !outcome.stopped {
+                    outcome.failed += await out.copyVoices(from: from.voices, to: voicesTo)
+                }
+                return outcome
+            }.value
+            // Turned back on meanwhile: whatever was copied stays, nothing moves.
+            guard flag === stopFlag, !flag.stopped else { return }
+            copyTask = nil
+            if outcome.failed.isEmpty {
+                target = .local
+                moveWhenIdle()
+            } else {
+                copying = false
+                copyingOut = false
+                problem = L("%d items could not be copied from iCloud to this device, so Ata still uses iCloud. Nothing was removed; turn it off again to try again.",
+                            outcome.failed.count)
+                changed()
             }
         }
     }
@@ -176,6 +285,19 @@ final class CloudSync: ObservableObject {
             Pref.d.set(false, forKey: Pref.iCloudMigrating)
             isOn = true
             copying = false
+        } else if copyingOut {
+            // Something changed in iCloud since its copy: another pass first, but
+            // not forever. What is in iCloud stays there either way.
+            let out = CloudCopyOut(cloud: CloudLibrary.location.meetings, local: Paths.localMeetingsDir,
+                                   ledgerURL: CloudLibrary.ledgerURL)
+            if moves, !out.isComplete, passes < 3 {
+                passes += 1
+                self.target = nil
+                copyOut()
+                return
+            }
+            passes = 0
+            finishTurningOff()
         }
         self.target = nil
         if moves {

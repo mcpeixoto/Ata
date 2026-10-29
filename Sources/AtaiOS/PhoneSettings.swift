@@ -26,6 +26,9 @@ struct PhoneSettings: View {
 
     private var iCloudFootnote: String {
         if let problem = cloud.problem { return problem }
+        if cloud.copyingOut {
+            return L("Ata keeps using iCloud until every meeting is copied to this iPhone and checked. Nothing is removed from iCloud.")
+        }
         if cloud.copying {
             return L("Your meetings stay on this iPhone until their copy in iCloud is checked and uploaded.")
         }
@@ -80,14 +83,16 @@ struct PhoneSettings: View {
 
                 Section {
                     Toggle("Keep meetings in iCloud", isOn: Binding(
-                        get: { cloud.isOn || cloud.copying },
+                        get: { (cloud.isOn || cloud.copying) && !cloud.copyingOut },
                         set: { on in
                             if on { cloud.turnOn() } else { cloud.turnOff() }
                         }))
                         .disabled(!cloud.isOn && !cloud.copying && cloud.status != .available)
                     if cloud.copying && cloud.total > 0 {
                         ProgressView(value: Double(cloud.copied), total: Double(cloud.total)) {
-                            Text(L("Copying your meetings into iCloud… %d of %d", cloud.copied, cloud.total))
+                            Text(cloud.copyingOut
+                                 ? L("Copying your meetings from iCloud… %d of %d", cloud.copied, cloud.total)
+                                 : L("Copying your meetings into iCloud… %d of %d", cloud.copied, cloud.total))
                                 .font(.footnote)
                         }
                     }
