@@ -203,7 +203,7 @@ enum LocalEngine {
                     try? await Task.sleep(nanoseconds: UInt64(poll * 1_000_000_000))
                     guard let self, !Task.isCancelled else { return }
                     if self.idleTime() > self.limit {
-                        self.lock.lock(); self.stalledFlag = true; self.lock.unlock()
+                        self.markStalled()
                         if process.isRunning { process.terminate() }
                         return
                     }
@@ -212,6 +212,7 @@ enum LocalEngine {
         }
 
         func noteActivity() { lock.lock(); lastActivity = Date(); lock.unlock() }
+        private func markStalled() { lock.lock(); stalledFlag = true; lock.unlock() }
         func stop() { task?.cancel(); task = nil }
         func didStall() -> Bool { lock.lock(); defer { lock.unlock() }; return stalledFlag }
         private func idleTime() -> TimeInterval {
