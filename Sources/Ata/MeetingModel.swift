@@ -317,6 +317,9 @@ final class MeetingModel: ObservableObject {
             markdown = file.flatMap { try? String(contentsOf: $0, encoding: .utf8) }
             transcriptDownloading = !storedHere || !markdownHere
         }
+        if m.systemAudioCorrupt == true {
+            healthWarning = TrackHealth.systemAudioCorrupt.warning
+        }
 
         let map = MeetingVoices.load(for: m)
         let voices = PeopleModel.shared.voices

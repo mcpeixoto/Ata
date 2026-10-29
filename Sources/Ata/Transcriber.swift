@@ -458,7 +458,10 @@ enum Transcriber {
         let health = TrackHealth.judge(duration: prepared.map { WavWriter.duration(of: $0.audio) }.max() ?? 0,
                                        micAudible: micAudible, systemAudible: systemAudible,
                                        systemPresent: systemPrepared != nil)
-        if let warning = health.warning {
+        if meeting.systemAudioCorrupt == true {
+            stored.health = TrackHealth.systemAudioCorrupt.rawValue
+            if let warning = TrackHealth.systemAudioCorrupt.warning { NSLog("Ata: %@", warning) }
+        } else if let warning = health.warning {
             stored.health = health.rawValue
             NSLog("Ata: %@", warning)
         }
