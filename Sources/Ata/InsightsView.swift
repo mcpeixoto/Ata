@@ -15,11 +15,17 @@ struct InsightsView: View {
     @State private var data = Insights()
     /// Drives every entrance animation: charts grow and numbers count up from zero.
     @State private var shown = false
+    /// The same filter as the meeting list: Insights for work alone, or for the rest.
+    @AppStorage(Pref.categoryFilter) private var categoryFilter = ""
 
     private var myName: String { Pref.myNameOrDefault }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            if !store.meetings.isEmpty {
+                CategoryFilterPicker(selection: $categoryFilter)
+                    .controlSize(.small)
+            }
             if data.isEmpty {
                 empty
             } else {
@@ -35,10 +41,12 @@ struct InsightsView: View {
         }
         .onAppear(perform: refresh)
         .onChange(of: store.meetings) { _, _ in refresh() }
+        .onChange(of: categoryFilter) { _, _ in refresh() }
     }
 
     private func refresh() {
-        let computed = Insights.compute(store.meetings, myName: myName)
+        let meetings = store.meetings.filter { MeetingCategory.matches($0, filter: categoryFilter) }
+        let computed = Insights.compute(meetings, myName: myName)
         guard computed != data || !shown else { return }
         data = computed
         if Snapshots.rendering {

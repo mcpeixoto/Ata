@@ -533,6 +533,16 @@ final class MeetingModel: ObservableObject {
 
     // MARK: Voices
 
+    /// Work, personal, or neither (nil). Read fresh, so nothing else in
+    /// meeting.json is put back as this window last saw it.
+    func setCategory(_ category: MeetingCategory?) {
+        guard var m = Library.load(id), !m.isPlaceholder else { return }
+        let now = Date()
+        m.category = category.map { CategoryTag(value: $0.rawValue, manual: true, at: now) } ?? .cleared(at: now)
+        Library.save(m)
+        reload()
+    }
+
     func rename(_ speaker: Speaker, to name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard let voice = speaker.voice, !trimmed.isEmpty else { return }

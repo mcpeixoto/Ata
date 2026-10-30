@@ -44,6 +44,10 @@ struct Meeting: Codable, Identifiable, Equatable {
     /// Never written: set on a meeting whose meeting.json is still in iCloud, listed
     /// from its folder name until the file arrives. See `Library.placeholder`.
     var cloudPlaceholder: Bool? = nil
+    /// Work or personal, guessed when it started or picked by the user; see
+    /// `MeetingCategory`. Nil on every meeting from before Ata 3.1, and on any
+    /// meeting nothing pointed either way for.
+    var category: CategoryTag? = nil
 
     var isPlaceholder: Bool { cloudPlaceholder == true }
 
@@ -177,6 +181,7 @@ struct Meeting: Codable, Identifiable, Equatable {
                         app: app, status: .recording, error: nil)
         m.origin = Device.current
         m.event = event
+        m.category = MeetingCategory.initialTag(app: app, event: event, at: date)
         return m
     }
 
@@ -346,12 +351,28 @@ enum Library {
     static func save(_ m: Meeting) {
         // A stand-in for a meeting.json still in iCloud: writing it would replace the real one.
         guard !m.isPlaceholder else { return }
+        var m = m
+        // A copy held since before the user changed the category (a recording
+        // being stopped, a transcript being finished) must not put the old one back.
+        if let disk = diskCategory(m), disk.at > (m.category?.at ?? .distantPast) {
+            m.category = disk
+        }
         do {
             try FileManager.default.createDirectory(at: m.dir, withIntermediateDirectories: true)
             try Coordinated.write(encoder.encode(m), to: m.metaURL)
         } catch {
             NSLog("Ata: could not save \(m.id): \(error)")
         }
+    }
+
+    /// The category in meeting.json as it is now, when it can be read without
+    /// waiting on iCloud.
+    private static func diskCategory(_ m: Meeting) -> CategoryTag? {
+        let meta = m.metaURL
+        if CloudLibrary.isActive, CloudFiles.state(of: meta) == .inCloud { return nil }
+        guard let data = try? Data(contentsOf: meta) else { return nil }
+        struct Only: Decodable { var category: CategoryTag? }
+        return (try? decoder.decode(Only.self, from: data))?.category
     }
 
     /// Every meeting: the meetings folder, plus whatever is still in staging

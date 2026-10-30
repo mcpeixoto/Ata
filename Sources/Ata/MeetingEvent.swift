@@ -27,6 +27,10 @@ struct MeetingEvent: Codable, Equatable {
     /// How to find the event again when the user taps Record and the title has
     /// changed since the prompt was scheduled. Nil when EventKit gave none.
     var eventID: String? = nil
+    /// The calendar's own identifier, which survives a rename, for the
+    /// work-or-personal choice made per calendar in Settings. Nil on events
+    /// kept before Ata 3.1.
+    var calendarID: String? = nil
 
     /// Beyond this many people, only the first this many are kept.
     static let attendeeLimit = 40
@@ -55,7 +59,8 @@ struct MeetingEvent: Codable, Equatable {
     /// `MeetingEvent` is made, so a blank or whitespace-only title never becomes
     /// a meeting called "".
     init?(title: String, startsAt: Date, endsAt: Date? = nil, attendees: [Attendee] = [],
-          attendeeTotal: Int? = nil, calendarName: String? = nil, eventID: String? = nil) {
+          attendeeTotal: Int? = nil, calendarName: String? = nil, eventID: String? = nil,
+          calendarID: String? = nil) {
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return nil }
         self.title = name
@@ -65,6 +70,7 @@ struct MeetingEvent: Codable, Equatable {
         self.attendeeTotal = attendeeTotal ?? (attendees.count > Self.attendeeLimit ? attendees.count : nil)
         self.calendarName = calendarName
         self.eventID = eventID
+        self.calendarID = calendarID
     }
 }
 

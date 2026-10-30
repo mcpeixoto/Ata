@@ -42,6 +42,7 @@ struct PopoverView: View {
     enum Tab: Hashable { case record, insights, people }
     @State private var tab: Tab
     @State private var dropping = false
+    @AppStorage(Pref.categoryFilter) private var categoryFilter = ""
 
     init(tab: Tab = .record) {
         _tab = State(initialValue: tab)
@@ -225,13 +226,25 @@ struct PopoverView: View {
 
     private var recent: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("RECENT")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .padding(.leading, 4)
+            HStack {
+                Text("RECENT")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 4)
+                Spacer()
+                CategoryFilterPicker(selection: $categoryFilter)
+                    .controlSize(.mini)
+                    .frame(width: 170)
+            }
+            let shown = store.meetings.filter { MeetingCategory.matches($0, filter: categoryFilter) }
             VStack(spacing: 2) {
-                ForEach(store.meetings.prefix(6)) { m in
+                ForEach(shown.prefix(6)) { m in
                     MeetingRow(meeting: m)
+                }
+                if shown.isEmpty {
+                    Text("No meetings here yet")
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity).padding(.vertical, 10)
                 }
             }
         }
@@ -375,7 +388,10 @@ struct MeetingRow: View {
         HStack(spacing: 10) {
             icon
             VStack(alignment: .leading, spacing: 1) {
-                Text(meeting.title).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                HStack(spacing: 5) {
+                    Text(meeting.title).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                    CategoryTagView(category: meeting.categoryValue)
+                }
                 Text(detail).font(.system(size: 11)).foregroundStyle(detailColor).lineLimit(1)
             }
             Spacer(minLength: 4)

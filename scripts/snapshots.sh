@@ -42,7 +42,7 @@ open -n -W build/Ata.app \
   -AppleLanguages '(en)' -AppleLocale en_US \
   -myName Alex -language auto -engine local \
   -summarize YES -keepAudio YES -compressAudio YES -audioRetentionDays 90 \
-  -autoDetect YES -autoStart NO -autoStop YES -autoUpdate YES -onboarded YES -recogniseVoices YES
+  -categoryFilter "" -autoDetect YES -autoStart NO -autoStop YES -autoUpdate YES -onboarded YES -recogniseVoices YES
 kill "$WATCHDOG" 2>/dev/null || true
 cat "$LOG"
 ls "$RENDER"/*.png >/dev/null 2>&1 || { echo "no screenshots were rendered" >&2; exit 1; }
