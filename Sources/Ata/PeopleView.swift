@@ -344,6 +344,7 @@ private struct YouRow: View {
                 .disabled(voice?.sample == nil)
                 .help(L("Play a sample"))
                 .accessibilityLabel(L("Play a sample"))
+                .accessibilityLabel(L("Play a sample"))
 
                 TextField(L("Your name"), text: $myName, prompt: Text(L("Me")))
                     .textFieldStyle(.roundedBorder)

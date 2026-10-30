@@ -61,9 +61,21 @@ struct MeetingView: View {
                     Spacer()
                     Button { model.message = nil } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
                         .buttonStyle(.plain).foregroundStyle(.secondary)
+                        .help(L("Dismiss"))
+                        .accessibilityLabel(L("Dismiss"))
                 }
                 .padding(10)
                 .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.orange.opacity(0.10)))
+            }
+            if let notice = model.notice {
+                Label(notice, systemImage: "checkmark.circle.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.05)))
+                    .transition(.opacity)
             }
             if let healthWarning = model.healthWarning {
                 // Not dismissable: it is a fact about this recording, and it is
@@ -101,6 +113,7 @@ struct MeetingView: View {
         .padding(.top, 4)
         #endif
         .padding(.bottom, 12)
+        .animation(.easeInOut(duration: 0.2), value: model.notice)
         .confirmationDialog(L("Delete this meeting?"), isPresented: $confirmDelete) {
             Button(Self.deleteButton, role: .destructive) {
                 store.delete(meeting)
@@ -175,6 +188,7 @@ struct MeetingView: View {
                 .padding(.trailing, 4)
                 shareMenu(meeting)
 
+                #if os(macOS)
                 Menu {
                     Button("Copy transcript") { model.copyTranscript() }
                         .disabled(meeting.existingTranscriptURL == nil)
@@ -188,14 +202,28 @@ struct MeetingView: View {
                 .menuIndicator(.hidden)
                 .fixedSize()
                 .help(L("Copy"))
+                .accessibilityLabel(L("Copy"))
 
                 toolbarButton("square.and.arrow.down", help: L("Save as MP3…")) { model.exportMP3() }
                     .disabled(!(meeting.hasAudio || meeting.hasMergedAudio) || model.exporting)
                 toolbarButton("folder", help: Self.revealTitle) {
                     Platform.actions.reveal(meeting.dir)
                 }
+                #endif
 
                 Menu {
+                    #if os(iOS)
+                    // A phone header has room for three controls, not six: what
+                    // the Mac keeps as buttons lives here instead.
+                    Button("Copy transcript", systemImage: "doc.on.doc") { model.copyTranscript() }
+                        .disabled(meeting.existingTranscriptURL == nil)
+                    Button("Copy notes", systemImage: "note.text") { model.copyNotes() }
+                        .disabled(model.summary == nil && model.notes.isEmpty)
+                    Button(L("Save as MP3…"), systemImage: "square.and.arrow.down") { model.exportMP3() }
+                        .disabled(!(meeting.hasAudio || meeting.hasMergedAudio) || model.exporting)
+                    Button(Self.revealTitle, systemImage: "folder") { Platform.actions.reveal(meeting.dir) }
+                    Divider()
+                    #endif
                     Button("Open transcript in your editor") {
                         if let url = meeting.existingTranscriptURL { Platform.actions.open(url) }
                     }
@@ -215,8 +243,13 @@ struct MeetingView: View {
                 .menuIndicator(.hidden)
                 .fixedSize()
                 .help(L("More"))
+                .accessibilityLabel(L("More"))
             }
+            #if os(iOS)
+            .font(.system(size: 17))
+            #else
             .font(.system(size: 14))
+            #endif
             .foregroundStyle(.secondary)
         }
     }
@@ -248,6 +281,7 @@ struct MeetingView: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .help(L("Share"))
+        .accessibilityLabel(L("Share"))
         .disabled(model.sharedAudio == nil && !model.preparingAudio && model.sharedTranscript == nil
                   && model.notesText.isEmpty)
     }
@@ -266,6 +300,7 @@ struct MeetingView: View {
         }
         .buttonStyle(.plain)
         .help(help)
+        .accessibilityLabel(help)
     }
 
     @ViewBuilder
@@ -402,6 +437,7 @@ private struct PlayerBar: View {
                     }
                     .buttonStyle(.plain)
                     .help(player.isPlaying ? L("Pause") : L("Play the meeting"))
+                    .accessibilityLabel(player.isPlaying ? L("Pause") : L("Play the meeting"))
                     skipButton("goforward.15", by: 15)
 
                     VStack(spacing: 2) {
@@ -430,6 +466,8 @@ private struct PlayerBar: View {
                     .menuIndicator(.hidden)
                     .fixedSize()
                     .help(L("Playback speed"))
+                    .accessibilityLabel(L("Playback speed"))
+                    .accessibilityValue(Self.rateText(player.rate))
 
                     if let sharedAudio {
                         Image(systemName: "arrow.up.doc")
@@ -439,6 +477,7 @@ private struct PlayerBar: View {
                             .contentShape(Rectangle())
                             .onDrag { NSItemProvider(contentsOf: sharedAudio) ?? NSItemProvider() }
                             .help(L("Drag the MP3 into another app"))
+                            .accessibilityLabel(L("Drag the MP3 into another app"))
                     }
                 }
             } else {
@@ -459,6 +498,8 @@ private struct PlayerBar: View {
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
         .disabled(!player.loaded)
+        .help(seconds < 0 ? L("Back 15 seconds") : L("Forward 15 seconds"))
+        .accessibilityLabel(seconds < 0 ? L("Back 15 seconds") : L("Forward 15 seconds"))
     }
 
     static func clock(_ seconds: Double) -> String {
@@ -871,6 +912,7 @@ private struct SpeakerRow: View {
             .buttonStyle(.plain)
             .disabled(speaker.sampleStart == nil)
             .help(L("Play where they speak longest"))
+            .accessibilityLabel(L("Play where they speak longest"))
 
             VStack(alignment: .leading, spacing: 3) {
                 if !editing {
@@ -913,6 +955,7 @@ private struct SpeakerRow: View {
                     .menuIndicator(.hidden)
                     .fixedSize()
                     .help(L("Same person as"))
+                    .accessibilityLabel(L("Same person as"))
                 }
                 Menu {
                     Button(voice.isMe ? L("Not me") : L("This is me")) {

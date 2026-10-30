@@ -233,6 +233,10 @@ final class MeetingModel: ObservableObject {
     /// The save panel is up: a second click must not open another.
     private var choosingDestination = false
     @Published var message: String?
+    /// A copy or a save that worked, said briefly and then gone. Kept apart from
+    /// `message`, which is drawn as a warning.
+    @Published var notice: String?
+    private var noticeClear: DispatchWorkItem?
 
     /// Ready-to-share copies; see `MeetingSharing`.
     @Published private(set) var sharedAudio: URL?
@@ -589,11 +593,13 @@ final class MeetingModel: ObservableObject {
         guard let url = meeting?.existingTranscriptURL,
               let text = try? String(contentsOf: url, encoding: .utf8) else { return }
         copy(text)
+        say(L("Transcript copied."))
     }
 
     func copyNotes() {
         guard !notesText.isEmpty else { return }
         copy(notesText)
+        say(L("Notes copied."))
     }
 
     /// A follow-up email drafted from the summary, on the clipboard: subject,
@@ -601,11 +607,20 @@ final class MeetingModel: ObservableObject {
     func copyFollowUp() {
         guard let meeting, let summary, !summary.isEmpty else { return }
         copy(FollowUp.draft(summary: summary, meetingTitle: meeting.title, myName: Pref.myNameOrDefault))
-        message = L("Follow-up draft copied — paste it into your email.")
+        say(L("Follow-up draft copied — paste it into your email."))
     }
 
     private func copy(_ text: String) {
         Platform.actions.copy(text)
+    }
+
+    /// Shows `text` as a notice for a few seconds.
+    func say(_ text: String, for seconds: Double = 3) {
+        noticeClear?.cancel()
+        notice = text
+        let clear = DispatchWorkItem { [weak self] in self?.notice = nil }
+        noticeClear = clear
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: clear)
     }
 
     /// Saves the meeting as one MP3 wherever you choose.
@@ -615,14 +630,15 @@ final class MeetingModel: ObservableObject {
         Task {
             let m = meeting
             do {
-                _ = try await Platform.actions.saveFile(named: MeetingSharing.name(for: m) + ".mp3",
-                                                        type: .mp3) { [weak self] destination in
+                let saved = try await Platform.actions.saveFile(named: MeetingSharing.name(for: m) + ".mp3",
+                                                                type: .mp3) { [weak self] destination in
                     self?.exporting = true
                     self?.message = nil
                     try await Task.detached(priority: .userInitiated) {
                         try MeetingSharing.audio(of: m, to: destination, link: false)
                     }.value
                 }
+                if saved { say(L("MP3 saved.")) }
             } catch {
                 message = L("Could not save the MP3: %@", error.localizedDescription)
             }
