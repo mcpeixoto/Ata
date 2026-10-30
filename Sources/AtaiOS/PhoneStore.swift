@@ -519,9 +519,7 @@ final class PhoneStore: ObservableObject {
         guard m.isMine else { return }
         await saveMergedAudio(of: m)?.value
         guard Pref.d.bool(forKey: Pref.keepAudio) else {
-            try? Coordinated.remove(m.micURL)
-            try? Coordinated.remove(m.systemURL)
-            try? Coordinated.remove(m.mergedAudioURL)
+            for url in m.audioFilesToDiscard { try? Coordinated.remove(url) }
             return
         }
         guard Pref.d.bool(forKey: Pref.compressAudio) else { return }

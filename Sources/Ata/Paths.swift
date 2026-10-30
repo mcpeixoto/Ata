@@ -138,6 +138,7 @@ enum Pref {
     static let iCloudSync = "iCloudSync"         // meetings and voices are in iCloud; set once the copy is checked
     static let iCloudMigrating = "iCloudMigrating" // copying into iCloud, to resume after a quit
     static let iCloudDocuments = "iCloudDocuments" // the container's Documents folder, as last found
+    static let fixedSystemWriterSince = "fixedSystemWriterSince" // first launch of a build whose system-audio writer is fixed
 
     /// The languages Ata offers for transcription, by their own names: Settings on
     /// both platforms, and "Transcribe again in" on the iPhone. Endonyms, so they

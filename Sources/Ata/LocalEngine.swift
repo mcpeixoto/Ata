@@ -101,6 +101,7 @@ enum LocalEngine {
         let runs = LanguageChoice.runs(detections, seconds: pieces.map { Double($0.count) / rate },
                                        plausible: plausible, fallback: fallback)
         progress(0.1)
+        if Task.isCancelled { throw TranscriberError.cancelled }
         if runs.count == 1 {
             return try await transcribe(audio: audio, speaker: speaker, model: model, language: runs[0].language) {
                 progress(0.1 + 0.9 * $0)
@@ -110,6 +111,9 @@ enum LocalEngine {
         let total = Double(pieces.last!.upperBound)
         var out: [Segment] = []
         for (i, run) in runs.enumerated() {
+            // Language detection swallows a cancelled run as "no answer";
+            // the pieces after it must not start.
+            if Task.isCancelled { throw TranscriberError.cancelled }
             let range = pieces[run.pieces.lowerBound].lowerBound..<pieces[run.pieces.upperBound - 1].upperBound
             let file = dir.appendingPathComponent("run-\(i).wav")
             try AudioFiles.copySamples(audio, range, to: file)
@@ -230,14 +234,58 @@ enum LocalEngine {
 
     #if !os(macOS)
     @discardableResult
-    private static func runProcess(_ exe: URL, _ args: [String],
-                                   progress: @escaping @Sendable (Double) -> Void) async throws -> String {
+    static func runProcess(_ exe: URL, _ args: [String],
+                           progress: @escaping @Sendable (Double) -> Void) async throws -> String {
         throw TranscriberError.whisperMissing
     }
     #else
+    /// The process a run started, for the cancellation handler, which can be
+    /// called before the process exists, while it runs, or after it ended.
+    private final class ProcessBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var process: Process?
+        private var cancelled = false
+
+        /// False when the run was cancelled before the process could start.
+        func set(_ p: Process) -> Bool {
+            lock.lock(); defer { lock.unlock() }
+            guard !cancelled else { return false }
+            process = p
+            return true
+        }
+
+        var isCancelled: Bool {
+            lock.lock(); defer { lock.unlock() }
+            return cancelled
+        }
+
+        func cancel() {
+            lock.lock()
+            cancelled = true
+            let p = process
+            lock.unlock()
+            if let p, p.isRunning { p.terminate() }
+        }
+    }
+
+    /// Runs a helper to the end. Cancelling the calling task terminates it:
+    /// another device taking a meeting over cancels the run, and a whisper left
+    /// working on a meeting this Mac no longer owns held the one-at-a-time
+    /// queue until it finished on its own.
     @discardableResult
-    private static func runProcess(_ exe: URL, _ args: [String],
-                                   progress: @escaping @Sendable (Double) -> Void) async throws -> String {
+    static func runProcess(_ exe: URL, _ args: [String],
+                           progress: @escaping @Sendable (Double) -> Void) async throws -> String {
+        if Task.isCancelled { throw TranscriberError.cancelled }
+        let box = ProcessBox()
+        return try await withTaskCancellationHandler {
+            try await startProcess(exe, args, box: box, progress: progress)
+        } onCancel: {
+            box.cancel()
+        }
+    }
+
+    private static func startProcess(_ exe: URL, _ args: [String], box: ProcessBox,
+                                     progress: @escaping @Sendable (Double) -> Void) async throws -> String {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
             let p = Process()
             p.executableURL = exe
@@ -281,11 +329,19 @@ enum LocalEngine {
                         tail.isEmpty ? L("exit code %d", proc.terminationStatus) : tail))
                 }
             }
+            guard box.set(p) else {
+                pipe.fileHandleForReading.readabilityHandler = nil
+                cont.resume(throwing: TranscriberError.cancelled)
+                return
+            }
             do {
                 try p.run()
                 LocalEngine.currentProcess = p
                 watchdog.watch(p)
+                // Cancelled between handing the process over and starting it.
+                if box.isCancelled { p.terminate() }
             } catch {
+                pipe.fileHandleForReading.readabilityHandler = nil
                 cont.resume(throwing: error)
             }
         }

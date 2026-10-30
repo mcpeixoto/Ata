@@ -29,7 +29,7 @@ final class CalendarWatcher {
     /// Occurrences this process has already started a recording for. In memory
     /// on purpose: after a relaunch mid-meeting, starting again is the right
     /// answer, and `startRecording` refuses anyway unless the phase is idle.
-    private var started: Set<String> = []
+    private var ledger = AutoStartLedger()
 
     private var isOn: Bool {
         Pref.d.bool(forKey: Pref.calendarPrompt) && CalendarAccess.isAuthorized
@@ -109,11 +109,41 @@ final class CalendarWatcher {
                                                peopleOnly: Pref.d.bool(forKey: Pref.calendarPeopleOnly))
         for candidacy in due {
             let key = CalendarSchedule.key(for: candidacy.event)
-            guard !started.contains(key),
+            guard ledger.mayStart(key),
                   candidacy.event.startsAt.timeIntervalSince(now) <= lead else { continue }
-            started.insert(key)
-            AppStore.shared.startRecording(app: AppStore.shared.detectedApp, event: candidacy.event)
+            ledger.attempt(key)
+            AppStore.shared.startRecording(app: AppStore.shared.detectedApp, event: candidacy.event) { ok in
+                CalendarWatcher.shared.ledger.finished(key, started: ok)
+            }
             return
         }
+    }
+}
+
+/// Which calendar occurrences "Start recording" has dealt with. An occurrence
+/// counts as started only once the recording really is running: it used to be
+/// marked before the attempt, so a start that failed (a device that vanished, a
+/// tap Core Audio refused) was never tried again for that meeting. A failure
+/// is retried on the next tick, a few times, and then left alone — a missing
+/// permission would otherwise reopen the welcome window every twenty seconds.
+struct AutoStartLedger {
+    static let maxAttempts = 3
+
+    private(set) var started: Set<String> = []
+    private var attempts: [String: Int] = [:]
+    private var inFlight: Set<String> = []
+
+    func mayStart(_ key: String) -> Bool {
+        !started.contains(key) && !inFlight.contains(key) && attempts[key, default: 0] < Self.maxAttempts
+    }
+
+    mutating func attempt(_ key: String) {
+        attempts[key, default: 0] += 1
+        inFlight.insert(key)
+    }
+
+    mutating func finished(_ key: String, started ok: Bool) {
+        inFlight.remove(key)
+        if ok { started.insert(key) }
     }
 }

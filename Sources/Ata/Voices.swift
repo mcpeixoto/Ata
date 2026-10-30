@@ -866,10 +866,12 @@ enum SpeakerRoute: Equatable {
     }
 
     /// Where to tell the speakers apart, and whether the system track's own lines
-    /// are the conversation. They are discarded when that track looked like a
-    /// call and transcribed as if it were not: those lines are not the other
-    /// participants, and leaving them in would put a second, invented side next
-    /// to the voices found on the microphone.
+    /// are the conversation. `discardSystemLines` is set when that track looked
+    /// like a call and transcribed as if it were not: the conversation is on the
+    /// microphone, which is diarized. The name is older than the behaviour —
+    /// the lines themselves are kept, under the other side, because a noisy
+    /// remote participant is also a loud track with little speech, and
+    /// dropping the lines lost every word that person said.
     /// `soloMicrophone` is the laptop's built-in mic, or the only input device.
     /// Everyone in the room is on it, so that track is diarized even when the
     /// system track is a real call — those lines stay the people who were not

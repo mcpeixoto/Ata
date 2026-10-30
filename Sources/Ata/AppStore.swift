@@ -39,6 +39,10 @@ final class AppStore: ObservableObject {
     private var mergeTasks: [String: Task<Void, Never>] = [:]
     /// The transcription running now, so it can stop if another device takes it over.
     private var transcribeJob: Task<Void, Never>?
+    /// Meetings the launch repair scan has not reached yet. Their system track
+    /// may be rewritten under them, so they are neither transcribed nor pruned
+    /// until it has.
+    private var repairingIDs: Set<String> = []
 
     private init() {}
 
@@ -88,25 +92,41 @@ final class AppStore: ObservableObject {
 
     /// System tracks Ata 2.11 wrote at double speed are put back, and the
     /// meeting is transcribed again. The original file stays in the folder.
-    /// Another device's meeting is left alone: that device has the file too,
-    /// and both of them rewriting it would not end.
+    /// A healthy track an earlier repair slowed by mistake gets its original
+    /// back, and is transcribed again too.
+    ///
+    /// Judging a track decodes all of it, so the scan runs off the main actor,
+    /// at utility priority, one meeting at a time: at launch it used to hold
+    /// the menu bar for as long as the whole history took to decode. Only the
+    /// meetings the broken writer could have made are looked at, and a meeting
+    /// waits out of the queue until the scan has been past it.
     private func repairCorruptedSystemTracks() {
-        var changed = false
-        for meeting in Library.loadAll() where meeting.isMine
-            && meeting.status != .recording && meeting.status != .transcribing {
-            guard SystemAudioRepair.repairSystemTrack(in: meeting.dir) else { continue }
-            var repaired = meeting
-            repaired.systemAudioCorrupt = true
-            if repaired.status == .done || repaired.status == .failed {
-                repaired.status = .pending
-                repaired.error = nil
-                NSLog("Ata: \(repaired.id) will be transcribed again from the repaired system track")
+        let since = SystemAudioRepair.fixedWriterSince()
+        let candidates = Library.loadAll().filter { SystemAudioRepair.mayHoldBrokenTrack($0, fixedSince: since) }
+        guard !candidates.isEmpty else { return }
+        let jobs = candidates.map { (id: $0.id, dir: $0.dir) }
+        repairingIDs.formUnion(jobs.map(\.id))
+        Task.detached(priority: .utility) {
+            for job in jobs {
+                let outcome = SystemAudioRepair.examine(job.dir)
+                await AppStore.shared.repairChecked(job.id, outcome: outcome)
             }
-            Library.save(repaired)
-            changed = true
-            NSLog("Ata: \(repaired.id) flagged — its system audio was corrupted")
         }
-        if changed { reload() }
+    }
+
+    private func repairChecked(_ id: String, outcome: SystemAudioRepair.Outcome) {
+        repairingIDs.remove(id)
+        defer { pump() }
+        guard let meeting = Library.load(id), let fixed = SystemAudioRepair.applying(outcome, to: meeting) else {
+            return
+        }
+        Library.save(fixed)
+        reload()
+        switch outcome {
+        case .repaired: NSLog("Ata: \(id) flagged — its system audio was corrupted; it will be transcribed again")
+        case .restored: NSLog("Ata: \(id) has its original system track back; it will be transcribed again")
+        case .unchanged: break
+        }
     }
 
     /// Interrupted recordings (crash, power loss, force quit) go back into the
@@ -153,11 +173,11 @@ final class AppStore: ObservableObject {
         let days = Pref.d.integer(forKey: Pref.audioRetentionDays)
         guard days > 0 else { return }
         let cutoff = Date().addingTimeInterval(-Double(days) * 86_400)
-        for m in Library.loadAll() where m.isMine && m.status == .done && m.startedAt < cutoff {
-            for url in [m.micAudioURL, m.systemAudioURL].compactMap({ $0 }) {
+        for m in Library.loadAll() where m.isMine && m.status == .done && m.startedAt < cutoff
+            && !repairingIDs.contains(m.id) {
+            for url in m.keptAudioFiles {
                 try? Coordinated.remove(url)
             }
-            try? Coordinated.remove(m.mergedAudioURL)
         }
     }
 
@@ -236,14 +256,18 @@ final class AppStore: ObservableObject {
         startRecording(app: detectedApp, event: fresh)
     }
 
-    func startRecording(app: String?, event: MeetingEvent? = nil) {
-        guard phase == .idle else { return }
+    /// `started` hears whether the recording is running, once that is known:
+    /// false when it was refused or failed to start.
+    func startRecording(app: String?, event: MeetingEvent? = nil,
+                        started: (@MainActor (Bool) -> Void)? = nil) {
+        guard phase == .idle else { started?(false); return }
         // An auto-stop armed for an earlier meeting must never end this one.
         pendingAutoStop = false
         setup.refresh()
         guard setup.mic || AVAuthorization.micUndetermined else {
             lastError = L("Grant microphone access to record.")
             WindowManager.shared.showOnboarding()
+            started?(false)
             return
         }
         phase = .starting
@@ -268,6 +292,7 @@ final class AppStore: ObservableObject {
                 startTicker()
                 reload()
                 if !autoStarted { Notifier.shared.clear("recording") } else { Notifier.shared.recordingStarted(app: app) }
+                started?(true)
             } catch {
                 if let m = current { try? FileManager.default.removeItem(at: m.dir) }
                 current = nil
@@ -278,6 +303,7 @@ final class AppStore: ObservableObject {
                 // Only a refused permission is something the welcome window can fix.
                 if let e = error as? RecorderError, e.isPermission { WindowManager.shared.showOnboarding() }
                 reload()
+                started?(false)
             }
         }
     }
@@ -473,7 +499,9 @@ final class AppStore: ObservableObject {
         // Not while the library is being copied into iCloud: it moves once nothing uses it.
         guard transcribingID == nil, !CloudSync.shared.copying else { return }
         let now = Date()
-        guard var m = Library.loadAll().last(where: { RunEnd.awaits($0, now: now) && ($0.isMine || $0.hasAudio) })
+        guard var m = Library.loadAll().last(where: {
+            !repairingIDs.contains($0.id) && RunEnd.awaits($0, now: now) && ($0.isMine || $0.hasAudio)
+        })
         else { return }
 
         let options = TranscribeOptions.current(for: m)
@@ -585,9 +613,7 @@ final class AppStore: ObservableObject {
         // reading them first, or write it now if it was never started.
         await saveMergedAudio(of: m)?.value
         guard Pref.d.bool(forKey: Pref.keepAudio) else {
-            try? Coordinated.remove(m.micURL)
-            try? Coordinated.remove(m.systemURL)
-            try? Coordinated.remove(m.mergedAudioURL)
+            for url in m.audioFilesToDiscard { try? Coordinated.remove(url) }
             return
         }
         guard Pref.d.bool(forKey: Pref.compressAudio) else { return }

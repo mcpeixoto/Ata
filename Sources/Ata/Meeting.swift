@@ -119,10 +119,28 @@ struct Meeting: Codable, Identifiable, Equatable {
         micAudioURL != nil || systemAudioURL != nil
     }
 
+    /// The original system track the 2.11 repair kept beside the fixed one
+    /// (`system.corrupted.wav` / `.m4a`), whichever are there. Audio all the
+    /// same: it counts toward storage, and goes when the user's settings say
+    /// the meeting's audio goes.
+    var repairBackupURLs: [URL] {
+        ["system.corrupted.wav", "system.corrupted.m4a"].map { dir.appendingPathComponent($0) }
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
+    /// Every audio file kept for this meeting, for storage and retention.
+    var keptAudioFiles: [URL] {
+        [micAudioURL, systemAudioURL].compactMap { $0 } + [mergedAudioURL] + repairBackupURLs
+    }
+
+    /// What "don't keep audio" removes once a transcript has succeeded.
+    var audioFilesToDiscard: [URL] {
+        [micURL, systemURL, mergedAudioURL] + repairBackupURLs
+    }
+
     /// Total size of the audio kept for this meeting, in bytes.
     var audioBytes: Int64 {
-        [micAudioURL, systemAudioURL].compactMap { $0 }.reduce(0) { $0 + Paths.fileSize($1) }
-            + Paths.fileSize(mergedAudioURL)
+        keptAudioFiles.reduce(0) { $0 + Paths.fileSize($1) }
     }
 
     /// What this meeting is called: the calendar event's title when it came from

@@ -1,5 +1,44 @@
 # Changelog
 
+## 3.1.0
+
+Ata for iPhone goes to the App Store. This release gets it ready, and fixes
+what a full review of the Mac app and the iCloud sync turned up.
+
+- **Work and personal meetings.** Every meeting can be filed as work or
+  personal. On the Mac, map each calendar to one or the other in Settings,
+  and calls from Zoom, Teams or Slack count as work and FaceTime or WhatsApp
+  as personal unless you say otherwise. Change it from the meeting's header,
+  and filter the list, the iPhone's meetings and Insights by either.
+- **Ata Pro on iPhone.** Five new meetings a month recorded or imported on
+  the iPhone are free; Ata Pro removes the limit for €2.99 a month. A
+  recording in progress always finishes, imports are never refused, and
+  meetings recorded on the Mac never count. The Mac app stays free.
+- **iCloud sync is careful when iCloud goes away.** Signing out of iCloud, or
+  turning iCloud Drive off, used to leave Ata writing into a folder that no
+  longer synced while it still said "in iCloud". It now notices and switches
+  to this device. Turning sync off copies every meeting back to the device
+  first, so the list no longer comes back empty on an iPhone.
+- **Two devices no longer undo each other's work.** A device that lost its
+  claim on a meeting can't save over the other's transcript any more; the
+  end of a run re-reads the meeting and only adds the transcript, so a title
+  or category changed meanwhile survives. A meeting whose audio hadn't
+  downloaded yet is retried instead of failing for good, and resolved iCloud
+  conflict copies are deleted instead of using up storage.
+- **Tracks an earlier repair slowed by mistake are restored.** 3.0.0 to 3.0.3
+  could judge a healthy call recording corrupt and slow it down. When the
+  original kept beside it is healthy, it is put back and the meeting is
+  transcribed again. The check now runs in the background, so the first
+  launch after updating no longer freezes, and it only looks at meetings
+  recorded before this version.
+- **The other side's words stay in the transcript.** In a room recording, a
+  remote participant with steady background noise could lose every line.
+- Cancelling a transcription now stops the engine at once; a failed write
+  can no longer leave a meeting without its transcript; a calendar meeting
+  that failed to start recording is retried.
+- iPhone: privacy manifests, a privacy policy and help page, and Apple
+  Intelligence messages that no longer mention a Mac.
+
 ## 3.0.5
 
 - **One microphone is a meeting in the room.** A recording on the laptop's
