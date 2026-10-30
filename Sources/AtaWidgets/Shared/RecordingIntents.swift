@@ -38,7 +38,7 @@ struct StopRecordingIntent: LiveActivityIntent {
 
 /// Marks the current moment of the recording, to find it again later.
 struct BookmarkIntent: LiveActivityIntent {
-    static let title: LocalizedStringResource = "Bookmark this moment"
+    static let title: LocalizedStringResource = "Mark this moment"
     static let description = IntentDescription("Marks this moment of the recording so you can find it later.")
 
     func perform() async throws -> some IntentResult {

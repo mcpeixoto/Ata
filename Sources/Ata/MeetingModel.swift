@@ -97,6 +97,42 @@ enum MeetingNotes {
                                       options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
             ?? AttributedString(text)
     }
+
+    /// One line of the summary as the app draws it: a list item keeps its
+    /// marker apart from its text, so a wrapped item continues under the text
+    /// rather than under the bullet.
+    struct Line: Equatable {
+        /// "•" for "- ", "* " or "• ", "1." for a numbered item; nil for plain text.
+        var marker: String?
+        /// 0 for a top-level item, 1 for one indented under it, and so on.
+        var level: Int
+        var text: AttributedString
+    }
+
+    /// The summary split into lines for hanging-indented lists. Blank lines are
+    /// kept, as empty plain lines, because they separate the sections.
+    static func lines(_ summary: String) -> [Line] {
+        summary.split(separator: "\n", omittingEmptySubsequences: false).map { raw in
+            let indent = raw.prefix { $0 == " " || $0 == "\t" }
+            let body = raw.dropFirst(indent.count)
+            let level = indent.reduce(0) { $0 + ($1 == "\t" ? 2 : 1) } / 2
+            for bullet in ["- ", "* ", "• "] where body.hasPrefix(bullet) {
+                return Line(marker: "•", level: level, text: inline(body.dropFirst(bullet.count)))
+            }
+            if let dot = body.firstIndex(of: "."), dot > body.startIndex, body[..<dot].count <= 3,
+               body[..<dot].allSatisfy(\.isNumber), body[dot...].hasPrefix(". ") {
+                return Line(marker: String(body[...dot]), level: level,
+                            text: inline(body[body.index(dot, offsetBy: 2)...]))
+            }
+            return Line(marker: nil, level: 0, text: inline(raw))
+        }
+    }
+
+    private static func inline(_ text: Substring) -> AttributedString {
+        (try? AttributedString(markdown: String(text),
+                               options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
+            ?? AttributedString(String(text))
+    }
 }
 
 /// What the meeting window does with your notes when notes.md may have changed

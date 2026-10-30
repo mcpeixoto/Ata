@@ -27,8 +27,8 @@ struct MeetingView: View {
                 content(meeting)
             } else {
                 VStack(spacing: 8) {
-                    Image(systemName: "trash").font(.system(size: 26)).foregroundStyle(.secondary)
-                    Text("This meeting was deleted.").font(.system(size: 13, weight: .semibold))
+                    Image(systemName: "trash").ataFont(26).foregroundStyle(.secondary)
+                    Text("This meeting was deleted.").ataFont(13, weight: .semibold)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -57,9 +57,9 @@ struct MeetingView: View {
             if let message = model.message {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                    Text(message).font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
+                    Text(message).ataFont(11).fixedSize(horizontal: false, vertical: true)
                     Spacer()
-                    Button { model.message = nil } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
+                    Button { model.message = nil } label: { Image(systemName: "xmark").ataFont(10, weight: .bold) }
                         .buttonStyle(.plain).foregroundStyle(.secondary)
                         .help(L("Dismiss"))
                         .accessibilityLabel(L("Dismiss"))
@@ -69,7 +69,7 @@ struct MeetingView: View {
             }
             if let notice = model.notice {
                 Label(notice, systemImage: "checkmark.circle.fill")
-                    .font(.system(size: 11))
+                    .ataFont(11)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
@@ -82,7 +82,7 @@ struct MeetingView: View {
                 // at the top of its transcript.md too.
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "waveform.slash").foregroundStyle(.orange)
-                    Text(healthWarning).font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
+                    Text(healthWarning).ataFont(11).fixedSize(horizontal: false, vertical: true)
                     Spacer()
                 }
                 .padding(10)
@@ -166,17 +166,17 @@ struct MeetingView: View {
     private func header(_ meeting: Meeting) -> some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(meeting.title).font(.system(size: 20, weight: .bold, design: .rounded)).lineLimit(1)
-                Text(meeting.subtitle).font(.system(size: 11)).foregroundStyle(.secondary)
+                Text(meeting.title).ataFont(20, weight: .bold, design: .rounded).lineLimit(1)
+                Text(meeting.subtitle).ataFont(11).foregroundStyle(.secondary)
                 if model.participants.count > 1 {
                     Text(model.participants.joined(separator: ", "))
-                        .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(2)
+                        .ataFont(11).foregroundStyle(.secondary).lineLimit(2)
                 }
                 // Who was asked, as against who Ata heard. Worth saying
                 // separately: the difference is often the point.
                 if let invited = Self.invited(meeting.event) {
                     Text(invited)
-                        .font(.system(size: 11)).foregroundStyle(.tertiary).lineLimit(2)
+                        .ataFont(11).ataFaint().lineLimit(2)
                 }
             }
             Spacer()
@@ -313,7 +313,7 @@ struct MeetingView: View {
         case .failed:
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
-                Text(meeting.error ?? L("Failed")).font(.system(size: 11)).lineLimit(2)
+                Text(meeting.error ?? L("Failed")).ataFont(11).lineLimit(2)
                 Spacer()
                 if meeting.hasAudio {
                     Button("Try again") { store.retry(meeting) }.controlSize(.small)
@@ -333,7 +333,7 @@ struct MeetingView: View {
             } else {
                 ProgressView().controlSize(.small)
             }
-            Text(text).font(.system(size: 11)).foregroundStyle(.secondary)
+            Text(text).ataFont(11).foregroundStyle(.secondary)
             Spacer()
         }
     }
@@ -361,7 +361,7 @@ struct CategoryChip: View {
                 Image(systemName: category?.symbol ?? "tag")
                 Text(category?.name ?? L("Category"))
             }
-            .font(.system(size: 11, weight: .medium))
+            .ataFont(11, weight: .medium)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(Capsule().fill(Color.primary.opacity(category == nil ? 0.05 : 0.09)))
@@ -399,7 +399,7 @@ struct CategoryTagView: View {
     var body: some View {
         if let category {
             Text(category.name)
-                .font(.system(size: 9, weight: .semibold))
+                .ataFont(9, weight: .semibold)
                 .padding(.horizontal, 5)
                 .padding(.vertical, 1)
                 .background(Capsule().fill(Color.primary.opacity(0.08)))
@@ -451,7 +451,7 @@ private struct PlayerBar: View {
                             Spacer()
                             Text(verbatim: "-" + Self.clock(max(0, duration - player.time))).monospacedDigit()
                         }
-                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                        .ataFont(10).foregroundStyle(.secondary)
                     }
 
                     Menu {
@@ -459,7 +459,7 @@ private struct PlayerBar: View {
                             Button(Self.rateText(rate)) { player.rate = rate }
                         }
                     } label: {
-                        Text(Self.rateText(player.rate)).font(.system(size: 11, weight: .semibold)).monospacedDigit()
+                        Text(Self.rateText(player.rate)).ataFont(11, weight: .semibold).monospacedDigit()
                     }
                     .menuStyle(.button)
                 .buttonStyle(.borderless)
@@ -484,7 +484,7 @@ private struct PlayerBar: View {
                 HStack(spacing: 8) {
                     Image(systemName: "speaker.slash").foregroundStyle(.secondary)
                     Text("The audio of this meeting was not kept.")
-                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                        .ataFont(12).foregroundStyle(.secondary)
                     Spacer()
                 }
             }
@@ -493,7 +493,7 @@ private struct PlayerBar: View {
 
     private func skipButton(_ symbol: String, by seconds: Double) -> some View {
         Button { player.skip(by: seconds) } label: {
-            Image(systemName: symbol).font(.system(size: 15))
+            Image(systemName: symbol).ataFont(15)
         }
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
@@ -538,7 +538,7 @@ private struct NotesTab: View {
             VStack(alignment: .leading, spacing: 8) {
                 heading(L("Your notes"))
                 TextEditor(text: $model.notes)
-                    .font(.system(size: 13))
+                    .ataFont(13)
                     .scrollContentBackground(.hidden)
                     .frame(minHeight: 160)
                     .padding(8)
@@ -549,10 +549,10 @@ private struct NotesTab: View {
                     .disabled(model.notesDownloading)
                 if model.notesDownloading {
                     Label("Downloading from iCloud…", systemImage: "icloud.and.arrow.down")
-                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                        .ataFont(10).foregroundStyle(.secondary)
                 } else {
                     Text("Saved as notes.md in the meeting folder, next to the transcript.")
-                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                        .ataFont(10).foregroundStyle(.secondary)
                 }
             }
         }
@@ -561,11 +561,7 @@ private struct NotesTab: View {
     @ViewBuilder
     private var summary: some View {
         if let summary = model.summary {
-            Text(MeetingNotes.display(summary))
-                .font(.system(size: 13))
-                .lineSpacing(3)
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
+            SummaryText(summary: summary)
             Button { model.copyFollowUp() } label: {
                 Label("Copy follow-up draft", systemImage: "envelope")
             }
@@ -573,12 +569,12 @@ private struct NotesTab: View {
         } else if model.writingNotes {
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
-                Text("Writing notes…").font(.system(size: 12)).foregroundStyle(.secondary)
+                Text("Writing notes…").ataFont(12).foregroundStyle(.secondary)
             }
         } else if model.hasStoredTranscript {
             VStack(alignment: .leading, spacing: 8) {
                 Text("No summary yet. Ata can write one, with the decisions and action items.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                    .ataFont(12).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 switch Summarizer.engine(preference: summaryEngine, appleAvailable: AppleModel.isAvailable,
                                          hasOpenAIKey: Keychain.has(Keychain.openAIKey)) {
@@ -586,29 +582,29 @@ private struct NotesTab: View {
                     #if os(iOS)
                     Button("Write notes on this iPhone") { Task { await model.writeNotes() } }
                     Text("Written on this iPhone. Nothing leaves it.")
-                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                        .ataFont(10).foregroundStyle(.secondary)
                     #else
                     Button("Write notes on this Mac") { Task { await model.writeNotes() } }
                     Text("Written on this Mac. Nothing leaves it.")
-                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                        .ataFont(10).foregroundStyle(.secondary)
                     #endif
                 case .openAI?:
                     Button(L("Write notes with %@", summaryModel)) { Task { await model.writeNotes() } }
                     #if os(iOS)
                     Text("Sends the transcript text to OpenAI. The audio stays on this iPhone.")
-                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                        .ataFont(10).foregroundStyle(.secondary)
                     #else
                     Text("Sends the transcript text to OpenAI. The audio stays on this Mac.")
-                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                        .ataFont(10).foregroundStyle(.secondary)
                     #endif
                 case nil:
                     if summaryEngine == SummaryEngine.apple.rawValue, let reason = AppleModel.unavailableReason {
                         Text(reason)
-                            .font(.system(size: 11)).foregroundStyle(.orange)
+                            .ataFont(11).foregroundStyle(.orange)
                             .fixedSize(horizontal: false, vertical: true)
                     } else {
                         Text("Writing notes needs an OpenAI API key.")
-                            .font(.system(size: 11)).foregroundStyle(.orange)
+                            .ataFont(11).foregroundStyle(.orange)
                     }
                     Button("Open Settings") { WindowManager.shared.showSettings() }
                 }
@@ -617,9 +613,40 @@ private struct NotesTab: View {
             Text(meeting.status == .done
                  ? L("This meeting was transcribed before Ata could add notes to it. Transcribe it again to get a summary.")
                  : L("Notes appear here once the meeting is transcribed."))
-                .font(.system(size: 12)).foregroundStyle(.secondary)
+                .ataFont(12).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+/// The summary, list items hanging-indented: a wrapped action item lines up
+/// under its own text, not under the bullet.
+private struct SummaryText: View {
+    let summary: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            ForEach(Array(MeetingNotes.lines(summary).enumerated()), id: \.offset) { _, line in
+                if let marker = line.marker {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(verbatim: marker)
+                            .foregroundStyle(.secondary)
+                            .frame(minWidth: 10, alignment: .leading)
+                        Text(line.text)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.leading, CGFloat(line.level) * 16)
+                } else if line.text.characters.isEmpty {
+                    Color.clear.frame(height: 4)
+                } else {
+                    Text(line.text)
+                }
+            }
+        }
+        .ataFont(13)
+        .lineSpacing(3)
+        .textSelection(.enabled)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -633,25 +660,25 @@ private struct MomentRow: View {
     var body: some View {
         Button(action: play) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Image(systemName: "bookmark.fill").font(.system(size: 10)).foregroundStyle(.orange)
+                Image(systemName: "bookmark.fill").ataFont(10).foregroundStyle(.orange)
                 Text(verbatim: Transcriber.timestamp(moment.bookmark.ms))
-                    .font(.system(size: 11, weight: .semibold)).monospacedDigit().foregroundStyle(.secondary)
+                    .ataFont(11, weight: .semibold).monospacedDigit().foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 2) {
                     if let line = moment.line {
                         Text(Self.said(line))
-                            .font(.system(size: 12))
+                            .ataFont(12)
                             .lineLimit(2)
                     } else if moment.bookmark.note == nil {
                         Text("The transcript will show what was said here.")
-                            .font(.system(size: 12)).foregroundStyle(.secondary)
+                            .ataFont(12).foregroundStyle(.secondary)
                     }
                     if let note = moment.bookmark.note {
-                        Text(verbatim: note).font(.system(size: 11)).italic().foregroundStyle(.secondary)
+                        Text(verbatim: note).ataFont(11).italic().foregroundStyle(.secondary)
                     }
                 }
                 Spacer(minLength: 0)
                 if playable && hover {
-                    Image(systemName: "play.fill").font(.system(size: 10)).foregroundStyle(.secondary)
+                    Image(systemName: "play.fill").ataFont(10).foregroundStyle(.secondary)
                 }
             }
             .padding(.horizontal, 8)
@@ -675,7 +702,7 @@ private struct MomentRow: View {
 }
 
 private func heading(_ title: String) -> some View {
-    Text(title.uppercased()).font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+    Text(title.uppercased()).ataFont(10, weight: .semibold).foregroundStyle(.secondary)
 }
 
 // MARK: - Transcript
@@ -708,7 +735,7 @@ private struct TranscriptTab: View {
                             }
                             if shown.isEmpty {
                                 Text("Nothing in this transcript matches.")
-                                    .font(.system(size: 12)).foregroundStyle(.secondary).padding(.top, 8)
+                                    .ataFont(12).foregroundStyle(.secondary).padding(.top, 8)
                             }
                         }
                         .padding(.bottom, 12)
@@ -727,18 +754,18 @@ private struct TranscriptTab: View {
             } else if let markdown = model.markdown {
                 ScrollView {
                     Text(markdown)
-                        .font(.system(size: 13))
+                        .ataFont(13)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.bottom, 12)
                 }
             } else if model.transcriptDownloading {
                 Label("Downloading from iCloud…", systemImage: "icloud.and.arrow.down")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                    .ataFont(12).foregroundStyle(.secondary)
                 Spacer()
             } else {
                 Text("The transcript appears here once the meeting is transcribed.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                    .ataFont(12).foregroundStyle(.secondary)
                 Spacer()
             }
         }
@@ -765,10 +792,10 @@ private struct LineRow: View, Equatable {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(line.name)
-                    .font(.system(size: 11, weight: .semibold))
+                    .ataFont(11, weight: .semibold)
                     .foregroundStyle(line.speaker == Speakers.me ? Theme.meTint : Theme.othersTint)
                 Text(Self.text(line, word: word, linked: !coarse))
-                    .font(.system(size: 13))
+                    .ataFont(13)
                     .tint(.primary)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
@@ -823,7 +850,7 @@ private struct PeopleTab: View {
                 empty
             } else {
                 Text("Name a voice once and every transcript uses the name, this one included.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .ataFont(11).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 VStack(spacing: 2) {
                     ForEach(model.speakers) { SpeakerRow(model: model, speaker: $0) }
@@ -847,11 +874,11 @@ private struct PeopleTab: View {
 
     private var empty: some View {
         VStack(spacing: 10) {
-            Image(systemName: "person.wave.2.fill").font(.system(size: 26)).foregroundStyle(Theme.brand)
+            Image(systemName: "person.wave.2.fill").ataFont(26).foregroundStyle(Theme.brand)
             if !recognise {
-                Text("Know who said what").font(.system(size: 13, weight: .semibold))
+                Text("Know who said what").ataFont(13, weight: .semibold)
                 Text(Self.voicesPitch)
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .ataFont(11).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                 if Diarization.isSupported {
@@ -859,12 +886,12 @@ private struct PeopleTab: View {
                         .buttonStyle(.borderedProminent)
                 } else {
                     Text("Needs macOS 15 or later.")
-                        .font(.system(size: 11, weight: .semibold)).foregroundStyle(.orange)
+                        .ataFont(11, weight: .semibold).foregroundStyle(.orange)
                 }
             } else {
-                Text("No voices for this meeting yet").font(.system(size: 13, weight: .semibold))
+                Text("No voices for this meeting yet").ataFont(13, weight: .semibold)
                 Text("Voices are found while a meeting is transcribed. This one was transcribed before voice recognition was on, or there was no speech to tell apart.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .ataFont(11).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -916,18 +943,18 @@ private struct SpeakerRow: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 if !editing {
-                    Text(speaker.name).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                    Text(speaker.name).ataFont(12, weight: .semibold).lineLimit(1)
                 }
                 if speaker.voice != nil, speaker.label != Speakers.me, !named || editing {
                     TextField(L("Name"), text: $name, prompt: Text(L("Type their name…")))
                         .textFieldStyle(.roundedBorder)
                         .controlSize(.small)
-                        .font(.system(size: 11))
+                        .ataFont(11)
                         .focused($focused)
                         .onSubmit { save() }
                         .onExitCommand { editing = false; name = "" }
                 }
-                Text(detail).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
+                Text(detail).ataFont(10).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 4)
             if !name.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -1130,7 +1157,7 @@ struct WaveformView: View {
             .overlay(alignment: .topLeading) {
                 if let hover, duration > 0 {
                     Text(Transcriber.timestamp(Int(Double(hover / geo.size.width) * duration * 1000)))
-                        .font(.system(size: 9, weight: .medium)).monospacedDigit()
+                        .ataFont(9, weight: .medium).monospacedDigit()
                         .padding(.horizontal, 4).padding(.vertical, 1)
                         .background(Capsule().fill(.regularMaterial))
                         .offset(x: min(max(0, hover - 16), geo.size.width - 36), y: -2)

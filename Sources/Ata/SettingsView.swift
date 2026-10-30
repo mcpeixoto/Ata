@@ -231,6 +231,12 @@ struct SettingsView: View {
                     Hotkey.set(new) { AppStore.shared.toggleRecording() }
                 }
                 .frame(width: 140, height: 22)
+                // An NSView has no text baseline, so LabeledContent lined the
+                // field's bottom edge up with the label's baseline and the field
+                // sat below it. Give it one, a little under its middle, where its
+                // own 11–12 pt text sits.
+                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
+                .alignmentGuide(.lastTextBaseline) { $0[VerticalAlignment.center] + 4 }
             }
             if recordShortcut != nil, !Hotkey.isRegistered {
                 Text("Another app already uses that combination. Try a different one.")
@@ -320,25 +326,47 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var summaryFootnote: some View {
-        if summaryUsesOpenAI {
-            Text("Sends the finished transcript text to OpenAI, even when the audio is transcribed locally.")
-                .font(.system(size: 11)).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+        let note = Self.summaryNote(engine: summaryEngine, appleAvailable: AppleModel.isAvailable,
+                                    appleUnavailableReason: AppleModel.unavailableReason,
+                                    hasOpenAIKey: setup.hasOpenAIKey)
+        Group {
+            switch note {
+            case .sendsToOpenAI:
+                Text("Sends the finished transcript text to OpenAI, even when the audio is transcribed locally.")
+                    .foregroundStyle(.secondary)
+            case .appleUnavailable(let reason):
+                Text(reason).foregroundStyle(Color.orange)
+            case .onThisMac(let fallsBackToOpenAI):
+                Text(fallsBackToOpenAI
+                     ? L("Written on this Mac. If that fails, the transcript text goes to OpenAI.")
+                     : L("Written on this Mac. Nothing leaves it."))
+                    .foregroundStyle(.secondary)
+            }
         }
-        // Why this Mac can't write it, unless the user chose OpenAI anyway.
-        if summaryEngine != SummaryEngine.openAI.rawValue, let reason = AppleModel.unavailableReason {
-            Text(reason)
-                .font(.system(size: 11))
-                .foregroundStyle(summaryEngineShown == SummaryEngine.apple.rawValue ? Color.orange : Color.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        } else if !summaryUsesOpenAI {
-            // "auto" with a key falls back to OpenAI when this Mac can't write the summary.
-            Text(summaryEngine == SummaryEngine.apple.rawValue || !setup.hasOpenAIKey
-                 ? L("Written on this Mac. Nothing leaves it.")
-                 : L("Written on this Mac. If that fails, the transcript text goes to OpenAI."))
-                .font(.system(size: 11)).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
+        .font(.system(size: 11))
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// The one line under the summary engine picker.
+    enum SummaryNote: Equatable {
+        /// OpenAI writes it: say what is uploaded.
+        case sendsToOpenAI
+        /// Apple Intelligence was chosen but can't write it, and why.
+        case appleUnavailable(String)
+        /// Apple Intelligence writes it; with "auto" and a key, OpenAI is the fallback.
+        case onThisMac(fallsBackToOpenAI: Bool)
+    }
+
+    /// Decided from what the picker shows, not from what is stored: "auto" on a
+    /// Mac without Apple Intelligence shows OpenAI, and a line telling you to turn
+    /// Apple Intelligence on under "OpenAI" read as a contradiction.
+    static func summaryNote(engine stored: String, appleAvailable: Bool,
+                            appleUnavailableReason: String?, hasOpenAIKey: Bool) -> SummaryNote {
+        let chosen = SummaryEngine(rawValue: stored)
+        let shown = chosen ?? (appleAvailable ? .apple : .openAI)
+        if shown == .openAI { return .sendsToOpenAI }
+        if let reason = appleUnavailableReason { return .appleUnavailable(reason) }
+        return .onThisMac(fallsBackToOpenAI: chosen == nil && hasOpenAIKey)
     }
 
     private var openAISection: some View {

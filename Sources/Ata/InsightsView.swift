@@ -20,6 +20,10 @@ struct InsightsView: View {
 
     private var myName: String { Pref.myNameOrDefault }
 
+    /// Always the default on the Mac, which has no Text Size setting.
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    private var stacked: Bool { dynamicTypeSize.isAccessibilitySize }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if !store.meetings.isEmpty {
@@ -31,7 +35,11 @@ struct InsightsView: View {
             } else {
                 tiles
                 weeksCard
-                HStack(alignment: .top, spacing: 10) {
+                // Side by side, unless the iPhone's text is so large that the
+                // names and numbers no longer fit in half the width.
+                let pair = stacked ? AnyLayout(VStackLayout(spacing: 10))
+                                   : AnyLayout(HStackLayout(alignment: .top, spacing: 10))
+                pair {
                     talkCard
                     appsCard
                 }
@@ -60,23 +68,50 @@ struct InsightsView: View {
     // MARK: Tiles
 
     private var tiles: some View {
-        Grid(horizontalSpacing: 8, verticalSpacing: 8) {
-            GridRow {
-            Tile(symbol: "waveform", tint: Theme.meTint, title: L("Recorded"),
-                 value: hours(shown ? data.recordedSeconds : 0))
-            Tile(symbol: "person.2.fill", tint: Theme.othersTint, title: L("Meetings"),
-                 value: "\(shown ? data.meetings : 0)")
-            }
-            GridRow {
-            Tile(symbol: "text.word.spacing", tint: .orange, title: L("Words"),
-                 value: (shown ? data.words : 0).formatted(.number.notation(.compactName)))
-            Tile(symbol: "dollarsign.circle.fill", tint: .pink, title: L("Spent this month"),
-                 value: Pricing.format(shown ? data.spentThisMonth : 0),
-                 footnote: data.savedLocally > 0.005
-                    ? Self.savedLine(Pricing.format(data.savedLocally)) : nil)
+        Group {
+            if stacked {
+                VStack(spacing: 8) {
+                    recordedTile
+                    meetingsTile
+                    wordsTile
+                    spentTile
+                }
+            } else {
+                Grid(horizontalSpacing: 8, verticalSpacing: 8) {
+                    GridRow {
+                        recordedTile
+                        meetingsTile
+                    }
+                    GridRow {
+                        wordsTile
+                        spentTile
+                    }
+                }
             }
         }
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var recordedTile: some View {
+        Tile(symbol: "waveform", tint: Theme.meTint, title: L("Recorded"),
+             value: hours(shown ? data.recordedSeconds : 0))
+    }
+
+    private var meetingsTile: some View {
+        Tile(symbol: "person.2.fill", tint: Theme.othersTint, title: L("Meetings"),
+             value: "\(shown ? data.meetings : 0)")
+    }
+
+    private var wordsTile: some View {
+        Tile(symbol: "text.word.spacing", tint: .orange, title: L("Words"),
+             value: (shown ? data.words : 0).formatted(.number.notation(.compactName)))
+    }
+
+    private var spentTile: some View {
+        Tile(symbol: "dollarsign.circle.fill", tint: .pink, title: L("Spent this month"),
+             value: Pricing.format(shown ? data.spentThisMonth : 0),
+             footnote: data.savedLocally > 0.005
+                ? Self.savedLine(Pricing.format(data.savedLocally)) : nil)
     }
 
     private func hours(_ seconds: Double) -> String {
@@ -114,7 +149,9 @@ struct InsightsView: View {
 
     private var talkCard: some View {
         InsightCard(title: L("Who talks")) {
-            HStack(spacing: 10) {
+            // The ring above its legend: beside it, half a menu's width left
+            // no room for a name and its share.
+            VStack(spacing: 8) {
                 Chart {
                     SectorMark(angle: .value("You", shown ? max(data.mySpeech, 0.001) : 0.001),
                                innerRadius: .ratio(0.62), angularInset: 1.5)
@@ -126,24 +163,32 @@ struct InsightsView: View {
                         .cornerRadius(3)
                 }
                 .frame(width: 62, height: 62)
-                .overlay {
-                    Text("\(Int((shown ? data.myShare : 0) * 100))%")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .contentTransition(.numericText())
-                }
+                .frame(maxWidth: .infinity)
+                .accessibilityHidden(true)
+                // Each share next to its own name: a lone "40%" in the ring
+                // didn't say whose 40% it was.
                 VStack(alignment: .leading, spacing: 4) {
-                    legend(myName, Theme.meTint)
-                    legend(L("Others"), Theme.othersTint)
+                    legend(myName, Theme.meTint, percent: data.talkPercents?.mine)
+                    legend(L("Others"), Theme.othersTint, percent: data.talkPercents?.others)
                 }
             }
         }
     }
 
-    private func legend(_ title: String, _ color: Color) -> some View {
+    private func legend(_ title: String, _ color: Color, percent: Int?) -> some View {
         HStack(spacing: 5) {
             Circle().fill(color).frame(width: 7, height: 7)
-            Text(title).font(.system(size: 11)).lineLimit(1)
+            Text(title).ataFont(11).lineLimit(1)
+            if let percent {
+                Spacer(minLength: 4)
+                Text(verbatim: "\(shown ? percent : 0)%")
+                    .ataFont(11, weight: .bold, design: .rounded)
+                    .monospacedDigit()
+                    .fixedSize()
+                    .contentTransition(.numericText())
+            }
         }
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: Apps
@@ -154,7 +199,13 @@ struct InsightsView: View {
                 let top = data.apps.first?.minutes ?? 1
                 ForEach(data.apps) { app in
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(app.name).font(.system(size: 10, weight: .medium)).lineLimit(1)
+                        HStack(spacing: 4) {
+                            Text(app.name).ataFont(10, weight: .medium).lineLimit(1)
+                            Spacer(minLength: 4)
+                            Text(Insights.duration(minutes: app.minutes))
+                                .ataFont(10).monospacedDigit().foregroundStyle(.secondary).lineLimit(1)
+                        }
+                        .accessibilityElement(children: .combine)
                         GeometryReader { geo in
                             Capsule()
                                 .fill(Theme.othersTint.opacity(0.85))
@@ -186,11 +237,11 @@ struct InsightsView: View {
     private var empty: some View {
         VStack(spacing: 8) {
             Image(systemName: "chart.bar.xaxis")
-                .font(.system(size: 28))
+                .ataFont(28)
                 .foregroundStyle(Theme.brand)
-            Text("No meetings yet").font(.system(size: 13, weight: .semibold))
+            Text("No meetings yet").ataFont(13, weight: .semibold)
             Text("Record one and your history shows up here.")
-                .font(.system(size: 11)).foregroundStyle(.secondary)
+                .ataFont(11).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 30)
@@ -207,18 +258,18 @@ private struct Tile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 5) {
-                Image(systemName: symbol).font(.system(size: 10, weight: .semibold)).foregroundStyle(tint)
-                Text(title.uppercased()).font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
+                Image(systemName: symbol).ataFont(10, weight: .semibold).foregroundStyle(tint)
+                Text(title.uppercased()).ataFont(9, weight: .semibold).foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             Text(value)
-                .font(.system(size: 19, weight: .bold, design: .rounded))
+                .ataFont(19, weight: .bold, design: .rounded)
                 .monospacedDigit()
                 .contentTransition(.numericText())
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             if let footnote {
-                Text(footnote).font(.system(size: 9)).foregroundStyle(.green).lineLimit(1)
+                Text(footnote).ataFont(9).foregroundStyle(.green).lineLimit(1)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -235,10 +286,10 @@ private struct InsightCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(title.uppercased()).font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
+                Text(title.uppercased()).ataFont(9, weight: .semibold).foregroundStyle(.secondary)
                 Spacer()
                 if let trailing {
-                    Text(trailing).font(.system(size: 9)).foregroundStyle(.tertiary)
+                    Text(trailing).ataFont(9).ataFaint()
                 }
             }
             content
@@ -260,16 +311,16 @@ private struct TimelineRow: View {
                 .frame(width: 20, height: 20)
                 .background(Circle().fill((event.record.isLocal ? Theme.meTint : .pink).opacity(0.14)))
             VStack(alignment: .leading, spacing: 0) {
-                Text(event.meetingTitle).font(.system(size: 11, weight: .semibold)).lineLimit(1)
+                Text(event.meetingTitle).ataFont(11, weight: .semibold).lineLimit(1)
                 Text(event.record.model + (event.isCurrent ? "" : " · " + L("replaced")))
-                    .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
+                    .ataFont(10).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 4)
             VStack(alignment: .trailing, spacing: 0) {
                 Text(event.record.costUSD > 0 ? Pricing.format(event.record.costUSD) : L("free"))
-                    .font(.system(size: 10, weight: .medium)).monospacedDigit()
+                    .ataFont(10, weight: .medium).monospacedDigit()
                 Text(event.record.finishedAt, format: .relative(presentation: .named))
-                    .font(.system(size: 9)).foregroundStyle(.tertiary)
+                    .ataFont(9).ataFaint()
             }
         }
     }

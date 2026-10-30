@@ -45,6 +45,20 @@ struct Insights: Equatable {
         return total > 0 ? mySpeech / total : 0
     }
 
+    /// Your share and everyone else's in whole percent, adding up to 100 so the
+    /// two labels next to the ring never read 41% and 58%. Nil before anyone spoke.
+    var talkPercents: (mine: Int, others: Int)? {
+        guard mySpeech + othersSpeech > 0 else { return nil }
+        let mine = Int((myShare * 100).rounded())
+        return (mine, 100 - mine)
+    }
+
+    /// How long, for a bar in "Where": "45 min", or "2h 05m" from an hour up.
+    static func duration(minutes: Double) -> String {
+        let whole = Int(minutes.rounded())
+        return whole >= 60 ? L("%dh %02dm", whole / 60, whole % 60) : L("%d min", whole)
+    }
+
     static let weeksShown = 8
 
     static func compute(_ all: [Meeting], myName: String, now: Date = Date()) -> Insights {

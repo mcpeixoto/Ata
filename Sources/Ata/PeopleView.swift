@@ -86,7 +86,7 @@ struct PeopleView: View {
                 }
                 HStack {
                     Text(Self.learnedLine(people.voices.count))
-                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                        .ataFont(10).foregroundStyle(.secondary)
                     Spacer()
                     Button(confirmForgetAll ? L("Delete all?") : L("Forget all")) {
                         if confirmForgetAll { people.forgetAll(); confirmForgetAll = false } else {
@@ -95,7 +95,7 @@ struct PeopleView: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    .font(.system(size: 10, weight: .medium))
+                    .ataFont(10, weight: .medium)
                     .foregroundStyle(confirmForgetAll ? .red : .secondary)
                 }
             }
@@ -106,15 +106,15 @@ struct PeopleView: View {
     private var off: some View {
         VStack(spacing: 10) {
             Image(systemName: "person.wave.2.fill")
-                .font(.system(size: 30))
+                .ataFont(30)
                 .foregroundStyle(Theme.brand)
-            Text("Know who said what").font(.system(size: 14, weight: .semibold))
+            Text("Know who said what").ataFont(14, weight: .semibold)
             Text("Ata can tell the other participants apart and learn their voices across meetings. You name a voice once; every transcript uses the name from then on.")
-                .font(.system(size: 11)).foregroundStyle(.secondary)
+                .ataFont(11).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
             Text(Self.privacyLine)
-                .font(.system(size: 10)).foregroundStyle(.tertiary)
+                .ataFont(10).ataFaint()
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
             if Diarization.isSupported {
@@ -123,7 +123,7 @@ struct PeopleView: View {
                     .controlSize(.regular)
             } else {
                 Text(Self.unsupportedLine)
-                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(.orange)
+                    .ataFont(11, weight: .semibold).foregroundStyle(.orange)
             }
         }
         .frame(maxWidth: .infinity)
@@ -144,10 +144,10 @@ struct PeopleView: View {
     private var waiting: some View {
         VStack(spacing: 8) {
             Image(systemName: "waveform.badge.magnifyingglass")
-                .font(.system(size: 26)).foregroundStyle(Theme.brand)
-            Text("Listening for voices").font(.system(size: 13, weight: .semibold))
+                .ataFont(26).foregroundStyle(Theme.brand)
+            Text("Listening for voices").ataFont(13, weight: .semibold)
             Text(Self.waitingLine)
-                .font(.system(size: 11)).foregroundStyle(.secondary)
+                .ataFont(11).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -157,9 +157,9 @@ struct PeopleView: View {
 
     private func section<C: View>(_ title: String, footnote: String?, @ViewBuilder content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title.uppercased()).font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
+            Text(title.uppercased()).ataFont(9, weight: .semibold).foregroundStyle(.secondary)
             if let footnote {
-                Text(footnote).font(.system(size: 10)).foregroundStyle(.secondary)
+                Text(footnote).ataFont(10).foregroundStyle(.secondary)
             }
             VStack(spacing: 2) { content() }
                 .padding(6)
@@ -193,15 +193,15 @@ private struct VoiceRow: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 if asking {
-                    Text(voice.displayName).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                    Text(voice.displayName).ataFont(12, weight: .semibold).lineLimit(1)
                 } else if !editing {
-                    Text(voice.name ?? "").font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                    Text(voice.name ?? "").ataFont(12, weight: .semibold).lineLimit(1)
                 }
                 if asking || editing {
                     TextField(L("Name"), text: $name, prompt: Text(L("Type their name…")))
                         .textFieldStyle(.roundedBorder)
                         .controlSize(.small)
-                        .font(.system(size: 11))
+                        .ataFont(11)
                         .focused($focused)
                         .onSubmit { save() }
                         .onExitCommand { editing = false; name = "" }
@@ -209,14 +209,14 @@ private struct VoiceRow: View {
                 if asking { suggestions }
                 Text(L("%d meetings · heard %@", voice.meetings,
                        voice.lastSeen.formatted(.relative(presentation: .named))))
-                    .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
+                    .ataFont(10).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 4)
             if (asking || editing) && !name.trimmingCharacters(in: .whitespaces).isEmpty {
                 Button(L("Save")) { save() }.controlSize(.small)
             } else if asking {
                 Button { people.dismiss(voice) } label: {
-                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
+                    Image(systemName: "xmark").ataFont(10, weight: .bold)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
@@ -293,7 +293,7 @@ private struct VoiceRow: View {
                         }
                         .controlSize(.small)
                         Text(Self.reason(candidate))
-                            .font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
+                            .ataFont(9).foregroundStyle(.secondary).lineLimit(1)
                     }
                 }
             }
@@ -349,7 +349,7 @@ private struct YouRow: View {
                 TextField(L("Your name"), text: $myName, prompt: Text(L("Me")))
                     .textFieldStyle(.roundedBorder)
                     .controlSize(.small)
-                    .font(.system(size: 11))
+                    .ataFont(11)
                     .frame(maxWidth: 160)
                     .accessibilityLabel(L("Your name in the transcript"))
 
@@ -364,7 +364,7 @@ private struct YouRow: View {
             if let voice {
                 Text(L("%d meetings · heard %@", voice.meetings,
                        voice.lastSeen.formatted(.relative(presentation: .named))))
-                    .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
+                    .ataFont(10).foregroundStyle(.secondary).lineLimit(1)
                     .padding(.leading, 4)
             }
 
@@ -382,13 +382,13 @@ private struct YouRow: View {
         case .recording:
             VStack(alignment: .leading, spacing: 5) {
                 Text(VoiceEnrolment.prompt)
-                    .font(.system(size: 11))
+                    .ataFont(11)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 8) {
                     ProgressView(value: min(1, enrolment.seconds / VoiceEnrolment.targetSeconds))
                         .frame(maxWidth: 120)
                     Text(L("%d s left", Int((VoiceEnrolment.targetSeconds - enrolment.seconds).rounded(.up))))
-                        .font(.system(size: 10)).monospacedDigit().foregroundStyle(.secondary)
+                        .ataFont(10).monospacedDigit().foregroundStyle(.secondary)
                     Spacer(minLength: 4)
                     Button(L("Stop")) { enrolment.cancel() }.controlSize(.small)
                 }
@@ -397,12 +397,12 @@ private struct YouRow: View {
         case .learning:
             HStack(spacing: 6) {
                 ProgressView().controlSize(.small)
-                Text("Learning your voice…").font(.system(size: 10)).foregroundStyle(.secondary)
+                Text("Learning your voice…").ataFont(10).foregroundStyle(.secondary)
             }
             .padding(.horizontal, 4)
         case .failed(let why):
             VStack(alignment: .leading, spacing: 4) {
-                Text(why).font(.system(size: 10)).foregroundStyle(.orange)
+                Text(why).ataFont(10).foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
                 Button(L("Try again")) { enrolment.start() }.controlSize(.small)
             }
@@ -436,9 +436,9 @@ private struct HiddenVoiceRow: View {
             .accessibilityLabel(L("Play a sample"))
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(voice.displayName).font(.system(size: 12, weight: .medium)).lineLimit(1)
+                Text(voice.displayName).ataFont(12, weight: .medium).lineLimit(1)
                 Text(voice.isExcluded ? L("Left out of transcripts") : L("Not asked about"))
-                    .font(.system(size: 10)).foregroundStyle(.secondary)
+                    .ataFont(10).foregroundStyle(.secondary)
             }
             Spacer(minLength: 4)
             Button(voice.isExcluded ? L("Put back") : L("Ask again")) {

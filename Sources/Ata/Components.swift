@@ -113,7 +113,7 @@ struct GhostButton: View {
     var body: some View {
         Button(role: role, action: action) {
             Label(title, systemImage: systemImage)
-                .font(.system(size: 12, weight: .medium))
+                .ataFont(12, weight: .medium)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
                 .background(
@@ -147,8 +147,8 @@ struct CheckRow<Trailing: View>: View {
                     .foregroundStyle(ok ? Color.green : (optional ? Color.secondary : Color.orange))
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 13, weight: .semibold))
-                Text(detail).font(.system(size: 11)).foregroundStyle(.secondary)
+                Text(title).ataFont(13, weight: .semibold)
+                Text(detail).ataFont(11).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)

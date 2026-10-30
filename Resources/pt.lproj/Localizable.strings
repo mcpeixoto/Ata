@@ -381,11 +381,11 @@
 "Starts recording with Ata. It keeps going with the screen locked until you stop it." = "Começa a gravar com a Ata. Continua com o ecrã bloqueado até parares.";
 "Stop recording" = "Parar de gravar";
 "Stops the recording and queues it to be transcribed." = "Para a gravação e põe-na na fila para ser transcrita.";
-"Bookmark this moment" = "Marcar este momento";
+"Mark this moment" = "Marcar este momento";
 "Marks this moment of the recording so you can find it later." = "Marca este momento da gravação para o encontrares mais tarde.";
-"Bookmark" = "Marcar";
-"Bookmark (%d)" = "Marcar (%d)";
-"Bookmarks: %d" = "Marcadores: %d";
+"Mark" = "Marcar";
+"Mark (%d)" = "Marcar (%d)";
+"Moments marked: %d" = "Momentos marcados: %d";
 "Stop" = "Parar";
 "Paused" = "Em pausa";
 "Paused: another app is using the microphone." = "Em pausa: outra app está a usar o microfone.";
