@@ -1,5 +1,28 @@
 # Changelog
 
+## 3.1.2
+
+The rest of the screen review.
+
+- **Text follows your iPhone's text size.** The meeting, People and Insights
+  screens now grow with the size set in Settings, and never get smaller than
+  11 pt. At the largest sizes Insights stacks into one column and the Record
+  screen scrolls. The Mac looks the same as before.
+- **"Mark" everywhere.** The iPhone, Watch, Live Activity and Siri now say
+  "Mark this moment", like the Mac. The Siri phrase is "Mark this moment in
+  Ata".
+- **The Record screen says what it is doing.** "Recording · In person", or
+  "Paused", sits above the timer, and the empty band above it is gone.
+- **Clearer Insights.** "Who talks" shows each person's share next to their
+  name, and every "Where" bar shows its time.
+- **Summaries.** A long action item wraps under its own text, not under the
+  bullet.
+- **Mac Settings.** The Apple Intelligence hint no longer shows when OpenAI
+  writes the summaries, and the "Record from anywhere" shortcut lines up with
+  its label.
+- **Easier to read in dark mode** on iPhone: the faintest grey text is
+  brighter where it was too faint to read.
+
 ## 3.1.1
 
 A pass over the screens, mostly the iPhone's and mostly small.
