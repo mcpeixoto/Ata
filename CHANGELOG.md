@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.1.1
+
+A pass over the screens, mostly the iPhone's and mostly small.
+
+- **A calmer meeting header on iPhone.** It now holds the category, Share and
+  More. Copy transcript, Copy notes, Save as MP3 and Show in Files moved to
+  the top of More, and the icons are easier to hit.
+- **Copying says so.** Copying the transcript or notes, saving an MP3 and
+  copying a follow-up draft now show a short confirmation that clears itself,
+  instead of nothing or an orange warning.
+- **VoiceOver names every icon button** in the meeting window, the player,
+  People and the menu bar popover.
+- **iPhone onboarding and Settings.** The name field is labelled, and "Not
+  now" no longer competes with "Allow" for the microphone.
+- **Portuguese.** "A Ata" throughout, "reunião" instead of "meeting",
+  "subscrição" instead of "assinatura", and a handful of smaller fixes.
+
 ## 3.1.0
 
 Ata for iPhone goes to the App Store. This release gets it ready, and fixes
