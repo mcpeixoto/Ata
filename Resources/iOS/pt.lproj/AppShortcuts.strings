@@ -3,4 +3,4 @@
 "Record with ${applicationName}" = "Gravar com a ${applicationName}";
 "Start recording with ${applicationName}" = "Começar a gravar com a ${applicationName}";
 "Stop recording with ${applicationName}" = "Parar de gravar com a ${applicationName}";
-"Bookmark this moment in ${applicationName}" = "Marcar este momento na ${applicationName}";
+"Mark this moment in ${applicationName}" = "Marcar este momento na ${applicationName}";

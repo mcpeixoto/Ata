@@ -14,8 +14,8 @@ struct AtaShortcuts: AppShortcutsProvider {
                     shortTitle: "Stop recording",
                     systemImageName: "stop.fill")
         AppShortcut(intent: BookmarkIntent(),
-                    phrases: ["Bookmark this moment in \(.applicationName)"],
-                    shortTitle: "Bookmark",
+                    phrases: ["Mark this moment in \(.applicationName)"],
+                    shortTitle: "Mark",
                     systemImageName: "bookmark.fill")
     }
 }

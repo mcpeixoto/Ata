@@ -348,7 +348,7 @@ private struct RecordingContent: View {
                 .keyboardShortcut("b", modifiers: .command)
                 .disabled(store.phase == .stopping)
                 .help(L("Mark this moment (⌘B)"))
-                .accessibilityLabel(L("Bookmark this moment"))
+                .accessibilityLabel(L("Mark this moment"))
 
                 Button {
                     if confirmDiscard {

@@ -94,12 +94,12 @@ struct WatchRecordView: View {
     private var bookmarkButton: some View {
         VStack(spacing: 4) {
             Button { model.bookmarkTapped() } label: {
-                Label("Bookmark", systemImage: "bookmark.fill")
+                Label("Mark", systemImage: "bookmark.fill")
                     .frame(maxWidth: .infinity)
             }
             .disabled(model.isBusy)
             if model.bookmarkCount > 0 {
-                Text(L("Bookmarks: %d", model.bookmarkCount))
+                Text(L("Moments marked: %d", model.bookmarkCount))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

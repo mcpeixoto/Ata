@@ -94,7 +94,7 @@ private struct RecordingButtons: View {
     var body: some View {
         HStack(spacing: 10) {
             Button(intent: BookmarkIntent()) {
-                Label(state.bookmarks > 0 ? L("Bookmark (%d)", state.bookmarks) : L("Bookmark"),
+                Label(state.bookmarks > 0 ? L("Mark (%d)", state.bookmarks) : L("Mark"),
                       systemImage: "bookmark.fill")
                     .frame(maxWidth: .infinity)
             }

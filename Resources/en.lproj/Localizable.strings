@@ -381,11 +381,11 @@
 "Starts recording with Ata. It keeps going with the screen locked until you stop it." = "Starts recording with Ata. It keeps going with the screen locked until you stop it.";
 "Stop recording" = "Stop recording";
 "Stops the recording and queues it to be transcribed." = "Stops the recording and queues it to be transcribed.";
-"Bookmark this moment" = "Bookmark this moment";
+"Mark this moment" = "Mark this moment";
 "Marks this moment of the recording so you can find it later." = "Marks this moment of the recording so you can find it later.";
-"Bookmark" = "Bookmark";
-"Bookmark (%d)" = "Bookmark (%d)";
-"Bookmarks: %d" = "Bookmarks: %d";
+"Mark" = "Mark";
+"Mark (%d)" = "Mark (%d)";
+"Moments marked: %d" = "Moments marked: %d";
 "Stop" = "Stop";
 "Paused" = "Paused";
 "Paused: another app is using the microphone." = "Paused: another app is using the microphone.";
