@@ -626,3 +626,11 @@
 "Upgrade to Ata Pro" = "Upgrade to Ata Pro";
 "Unlimited meetings on this iPhone. Ata for Mac is free and stays free." = "Unlimited meetings on this iPhone. Ata for Mac is free and stays free.";
 "You have used this month's %d free meetings on iPhone. Ata Pro records without a limit." = "You have used this month's %d free meetings on iPhone. Ata Pro records without a limit.";
+
+/* Feedback and accessibility labels */
+"Transcript copied." = "Transcript copied.";
+"Notes copied." = "Notes copied.";
+"MP3 saved." = "MP3 saved.";
+"Dismiss" = "Dismiss";
+"Back 15 seconds" = "Back 15 seconds";
+"Forward 15 seconds" = "Forward 15 seconds";

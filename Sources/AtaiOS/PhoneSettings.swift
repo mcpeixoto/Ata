@@ -55,6 +55,10 @@ struct PhoneSettings: View {
                 Section {
                     TextField("Your name in the transcript", text: $myName, prompt: Text("Me"))
                         .textContentType(.givenName)
+                } header: {
+                    // A Form hides a text field's label, so without this the
+                    // first row is a bare name with nothing saying what it is.
+                    Text("Your name")
                 } footer: {
                     Text("How you appear in transcripts.")
                 }

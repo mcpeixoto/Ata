@@ -43,6 +43,8 @@ struct PhoneOnboarding: View {
             .padding(.horizontal, 4)
 
             VStack(alignment: .leading, spacing: 6) {
+                Text("Your name")
+                    .font(.subheadline.weight(.semibold))
                 TextField("Your name in the transcript", text: $myName, prompt: Text("Me"))
                     .textContentType(.givenName)
                     .textFieldStyle(.roundedBorder)
@@ -60,11 +62,25 @@ struct PhoneOnboarding: View {
                 Text(mic == .granted ? L("Start using Ata") : L("Not now"))
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
+            // Without the microphone, Allow is the one thing to press; a second
+            // filled button saying "Not now" would compete with it.
+            .modifier(FinishStyle(primary: mic == .granted))
             .controlSize(.large)
         }
         .padding(24)
         .task { await refresh() }
+    }
+
+    private struct FinishStyle: ViewModifier {
+        let primary: Bool
+
+        func body(content: Content) -> some View {
+            if primary {
+                content.buttonStyle(.borderedProminent)
+            } else {
+                content.buttonStyle(.bordered)
+            }
+        }
     }
 
     private func requestMic() {

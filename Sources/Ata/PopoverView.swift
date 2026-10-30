@@ -131,6 +131,7 @@ struct PopoverView: View {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .help("Settings")
+            .accessibilityLabel(L("Settings"))
         }
     }
 
@@ -174,6 +175,8 @@ struct PopoverView: View {
             Spacer()
             Button { store.lastError = nil } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
                 .buttonStyle(.plain).foregroundStyle(.secondary)
+                .help(L("Dismiss"))
+                .accessibilityLabel(L("Dismiss"))
         }
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.red.opacity(0.10)))
@@ -266,6 +269,7 @@ struct PopoverView: View {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .help(L("Buy me a coffee"))
+            .accessibilityLabel(L("Buy me a coffee"))
             .padding(.horizontal, 8)
             GhostButton(title: L("Quit"), systemImage: "power") {
                 NSApp.terminate(nil)
@@ -344,6 +348,7 @@ private struct RecordingContent: View {
                 .keyboardShortcut("b", modifiers: .command)
                 .disabled(store.phase == .stopping)
                 .help(L("Mark this moment (⌘B)"))
+                .accessibilityLabel(L("Bookmark this moment"))
 
                 Button {
                     if confirmDiscard {
@@ -533,6 +538,8 @@ struct UpdateBanner: View {
                 Spacer()
                 Button { updater.dismiss() } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
                     .buttonStyle(.plain).foregroundStyle(.secondary)
+                    .help(L("Dismiss"))
+                    .accessibilityLabel(L("Dismiss"))
             }
         default:
             EmptyView()

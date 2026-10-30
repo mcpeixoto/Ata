@@ -30,7 +30,7 @@
 "Start recording (⌘R)" = "Começar a gravar (⌘R)";
 "earlier" = "anterior";
 "Recorded" = "Gravado";
-"Meetings" = "Meetings";
+"Meetings" = "Reuniões";
 "Words" = "Palavras";
 "Spent this month" = "Gasto este mês";
 "%@ saved on this Mac" = "%@ poupados neste Mac";
@@ -42,7 +42,7 @@
 "Others" = "Outros";
 "Where" = "Onde";
 "Transcriptions" = "Transcrições";
-"No meetings yet" = "Ainda não há meetings";
+"No meetings yet" = "Ainda não há reuniões";
 "Record one and your history shows up here." = "Grava uma e o teu histórico aparece aqui.";
 "replaced" = "substituída";
 "free" = "grátis";
@@ -54,16 +54,16 @@
 "Fastest, a little less accurate. About 3 minutes per hour of audio." = "O mais rápido, um pouco menos preciso. Cerca de 3 minutos por hora de áudio.";
 "Turbo compact" = "Turbo compacto";
 "Turbo's accuracy in a third of the download and under 1 GB of memory. About 4 minutes per hour." = "A precisão do Turbo com um terço do download e menos de 1 GB de memória. Cerca de 4 minutos por hora.";
-"Meeting" = "Meeting";
+"Meeting" = "Reunião";
 "<1 min" = "<1 min";
 "Record" = "Gravar";
 "Stop and transcribe" = "Parar e transcrever";
 "Open" = "Abrir";
 "Update" = "Atualizar";
-"Meeting in %@" = "Meeting no %@";
-"Record and transcribe this meeting?" = "Queres gravar e transcrever esta meeting?";
+"Meeting in %@" = "Reunião no %@";
+"Record and transcribe this meeting?" = "Queres gravar e transcrever esta reunião?";
 "Recording" = "A gravar";
-"Ata is recording your microphone and your Mac's audio." = "A Ata está a gravar o teu micro e o som do Mac.";
+"Ata is recording your microphone and your Mac's audio." = "A Ata está a gravar o teu microfone e o som do Mac.";
 "Transcript ready" = "Transcrição pronta";
 "Transcription failed" = "A transcrição falhou";
 "%@: %@. The audio is safe — you can try again from Ata." = "%@: %@. O áudio está guardado — podes tentar de novo na Ata.";
@@ -77,14 +77,14 @@
 "Turn on Ata under \"System Audio Recording Only\" in the settings that open." = "Ativa a Ata em \"Apenas gravação de áudio do sistema\" nas definições que se abrem.";
 "To record the other participants. Only the sound — never your screen." = "Para gravar os outros participantes. Só o som — nunca o teu ecrã.";
 "Notifications" = "Notificações";
-"Tells you when a meeting is detected and when a transcript is ready." = "Avisa quando deteta uma meeting e quando a transcrição fica pronta.";
+"Tells you when a meeting is detected and when a transcript is ready." = "Avisa quando é detetada uma reunião e quando a transcrição fica pronta.";
 "Transcription" = "Transcrição";
 "On this Mac — private, free, %@ download" = "Neste Mac — privado, grátis, %@ para descarregar";
 "OpenAI API — nothing to install, you pay per minute" = "API da OpenAI — nada para instalar, pagas por minuto";
 "Behaviour" = "Comportamento";
-"Detect meetings automatically" = "Detetar meetings automaticamente";
-"When Slack, Zoom, Meet, Teams… start using the microphone." = "Quando o Slack, Zoom, Meet, Teams… começam a usar o micro.";
-"When a meeting is detected" = "Quando deteto uma meeting";
+"Detect meetings automatically" = "Detetar reuniões automaticamente";
+"When Slack, Zoom, Meet, Teams… start using the microphone." = "Quando o Slack, Zoom, Meet, Teams… começam a usar o microfone.";
+"When a meeting is detected" = "Quando é detetada uma reunião";
 "Ask me with a notification" = "Perguntar com notificação";
 "Start recording" = "Gravar automaticamente";
 "Open Ata at login" = "Abrir a Ata ao iniciar sessão";
@@ -105,7 +105,7 @@
 "Checking…" = "A verificar…";
 "Stored in your login keychain." = "Guardada no porta-chaves da sessão.";
 "Create one at platform.openai.com, then paste it below." = "Cria uma em platform.openai.com e cola-a aqui.";
-"Record and transcribe any meeting, right on your Mac." = "Grava e transcreve qualquer meeting, 100% no teu Mac.";
+"Record and transcribe any meeting, right on your Mac." = "Grava e transcreve qualquer reunião, diretamente no teu Mac.";
 "Ready" = "Tudo pronto";
 "Start" = "Começar";
 "Close" = "Fechar";
@@ -115,22 +115,22 @@
 "The recording is too short to transcribe." = "A gravação é demasiado curta para transcrever.";
 "Me" = "Eu";
 "Who's this?" = "Quem é?";
-"Heard in several meetings. Play a sample, then type a name." = "Ouvida em várias meetings. Ouve uma amostra e escreve um nome.";
+"Heard in several meetings. Play a sample, then type a name." = "Ouvida em várias reuniões. Ouve uma amostra e escreve um nome.";
 "People" = "Pessoas";
 "%d voices learned, all on this Mac." = "%d vozes aprendidas, todas neste Mac.";
 "Delete all?" = "Apagar tudo?";
 "Forget all" = "Esquecer todas";
 "Know who said what" = "Sabe quem disse o quê";
-"Ata can tell the other participants apart and learn their voices across meetings. You name a voice once; every transcript uses the name from then on." = "A Ata consegue distinguir os outros participantes e aprender as vozes deles de meeting para meeting. Dás um nome a uma voz uma vez; a partir daí, todas as transcrições usam esse nome.";
+"Ata can tell the other participants apart and learn their voices across meetings. You name a voice once; every transcript uses the name from then on." = "A Ata consegue distinguir os outros participantes e aprender as vozes deles de reunião para reunião. Dás um nome a uma voz uma vez; a partir daí, todas as transcrições usam esse nome.";
 "Voice fingerprints stay on this Mac, even when OpenAI transcribes. Turning this on downloads 21 MB of models once." = "As impressões de voz ficam neste Mac, mesmo quando é a OpenAI a transcrever. Ativar isto descarrega 21 MB de modelos, uma vez.";
 "Turn on voice recognition" = "Ativar o reconhecimento de vozes";
 "Needs macOS 15 or later." = "Precisa do macOS 15 ou posterior.";
 "Listening for voices" = "À escuta de vozes";
-"Voices show up here after your next meetings are transcribed. Ata asks about a voice once it has heard it in at least two meetings." = "As vozes aparecem aqui depois de as próximas meetings serem transcritas. A Ata pergunta por uma voz quando já a ouviu em pelo menos duas meetings.";
+"Voices show up here after your next meetings are transcribed. Ata asks about a voice once it has heard it in at least two meetings." = "As vozes aparecem aqui depois de as tuas próximas reuniões serem transcritas. A Ata pergunta por uma voz quando já a ouviu em pelo menos duas reuniões.";
 "Play a sample" = "Ouvir uma amostra";
 "Name" = "Nome";
 "Type their name…" = "Escreve o nome…";
-"%d meetings · heard %@" = "%d meetings · ouvida %@";
+"%d meetings · heard %@" = "%d reuniões · ouvida %@";
 "Rename…" = "Mudar o nome…";
 "Same person as" = "Mesma pessoa que";
 "Forget this voice" = "Esquecer esta voz";
@@ -140,12 +140,12 @@
 "Wrapping up…" = "A terminar…";
 "Transcribing on this Mac…" = "A transcrever localmente…";
 "Transcribing with OpenAI…" = "A transcrever com a OpenAI…";
-"Meeting detected in %@" = "Meeting detetada no %@";
+"Meeting detected in %@" = "Reunião detetada no %@";
 "Ready to record" = "Pronta para gravar";
 "Finish setting up" = "Termina a configuração";
 "Hit record to capture and transcribe it." = "Carrega para gravar e transcrever.";
-"Record a meeting" = "Gravar meeting";
-"Your microphone and your Mac's audio. Works with any app." = "O teu micro e o som do Mac. Funciona com qualquer app.";
+"Record a meeting" = "Gravar uma reunião";
+"Your microphone and your Mac's audio. Works with any app." = "O teu microfone e o som do Mac. Funciona com qualquer app.";
 "RECENT" = "RECENTES";
 "Folder" = "Pasta";
 "Buy me a coffee" = "Oferece-me um café";
@@ -180,7 +180,7 @@
 "Ata %@ · transcribing with OpenAI" = "Ata %@ · a transcrever com a OpenAI";
 "Ata %@ · everything runs on your Mac" = "Ata %@ · tudo corre no teu Mac";
 "Ask me" = "Perguntar";
-"Stop on its own when the meeting ends" = "Parar sozinho quando a meeting acaba";
+"Stop on its own when the meeting ends" = "Parar sozinha quando a reunião acaba";
 "Engine" = "Motor";
 "On this Mac (whisper.cpp)" = "Neste Mac (whisper.cpp)";
 "OpenAI API" = "API da OpenAI";
@@ -225,7 +225,7 @@
 "Updates" = "Atualizações";
 "Status" = "Estado";
 "Fix…" = "Resolver…";
-"Meetings folder" = "Pasta das meetings";
+"Meetings folder" = "Pasta das reuniões";
 "Always tell the other participants that you are recording. Headphones help the transcript keep the speakers apart." = "Avisa sempre os participantes de que estás a gravar. Usa auscultadores para a transcrição separar melhor quem fala.";
 "Source on GitHub" = "Código no GitHub";
 "Model" = "Modelo";
@@ -255,7 +255,7 @@
 "System audio: %@ failed (%d)." = "Áudio do sistema: %@ falhou (%d).";
 "The local transcription engine (whisper.cpp) is not installed." = "O motor de transcrição local (whisper.cpp) não está instalado.";
 "The transcription model has not been downloaded yet." = "O modelo de transcrição ainda não foi descarregado.";
-"No audio was found for this meeting." = "Não encontrei áudio desta meeting.";
+"No audio was found for this meeting." = "Não foi encontrado áudio desta reunião.";
 "Transcription was stopped." = "A transcrição foi interrompida.";
 "Whisper failed: %@" = "O Whisper falhou: %@";
 "Speaker %@" = "Pessoa %@";
@@ -293,19 +293,19 @@
 "More" = "Mais";
 "Waiting to be transcribed…" = "À espera de ser transcrita…";
 "Transcribing…" = "A transcrever…";
-"Pause" = "Pausa";
+"Pause" = "Pausar";
 "Play the meeting" = "Ouvir a reunião";
 "Playback speed" = "Velocidade de reprodução";
 "The audio of this meeting was not kept." = "O áudio desta reunião não foi guardado.";
 "Your notes" = "As tuas notas";
 "Saved as notes.md in the meeting folder, next to the transcript." = "Guardadas em notes.md na pasta da reunião, ao lado da transcrição.";
 "Writing notes…" = "A escrever as notas…";
-"No summary yet. Ata can write one, with the decisions and action items." = "Ainda sem resumo. O Ata pode escrever um, com as decisões e as tarefas.";
+"No summary yet. Ata can write one, with the decisions and action items." = "Ainda sem resumo. A Ata pode escrever um, com as decisões e as tarefas.";
 "Write notes with %@" = "Escrever notas com %@";
 "Sends the transcript text to OpenAI. The audio stays on this Mac." = "Envia o texto da transcrição para a OpenAI. O áudio fica neste Mac.";
 "Writing notes needs an OpenAI API key." = "Para escrever notas é preciso uma chave da API da OpenAI.";
 "Open Settings" = "Abrir Definições";
-"This meeting was transcribed before Ata could add notes to it. Transcribe it again to get a summary." = "Esta reunião foi transcrita antes de o Ata saber juntar-lhe notas. Transcreve-a de novo para teres um resumo.";
+"This meeting was transcribed before Ata could add notes to it. Transcribe it again to get a summary." = "Esta reunião foi transcrita antes de a Ata saber juntar-lhe notas. Transcreve-a de novo para teres um resumo.";
 "Notes appear here once the meeting is transcribed." = "As notas aparecem aqui quando a reunião estiver transcrita.";
 "Search" = "Pesquisar";
 "Search the transcript" = "Pesquisar na transcrição";
@@ -313,7 +313,7 @@
 "The transcript appears here once the meeting is transcribed." = "A transcrição aparece aqui quando a reunião estiver transcrita.";
 "Play from here" = "Ouvir a partir daqui";
 "Name a voice once and every transcript uses the name, this one included." = "Dá um nome a uma voz uma vez e todas as transcrições passam a usá-lo, incluindo esta.";
-"Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay on this Mac." = "O Ata consegue distinguir os outros participantes e aprender as vozes deles de reunião para reunião. As impressões vocais ficam neste Mac.";
+"Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay on this Mac." = "A Ata consegue distinguir os outros participantes e aprender as vozes deles de reunião para reunião. As impressões vocais ficam neste Mac.";
 "No voices for this meeting yet" = "Ainda sem vozes nesta reunião";
 "Transcribe again to find the voices" = "Transcrever de novo para encontrar as vozes";
 "Play where they speak longest" = "Ouvir o excerto mais longo desta pessoa";
@@ -344,7 +344,7 @@
 
 /* 2.4.1: echo cancellation. */
 "Remove the others' voices from your microphone" = "Tirar a voz dos outros do teu microfone";
-"For calls without headphones: Ata takes what your Mac played out of your microphone before transcribing. The recording itself is not changed." = "Para chamadas sem auscultadores: antes de transcrever, o Ata tira do teu microfone o que o Mac tocou. A gravação não é alterada.";
+"For calls without headphones: Ata takes what your Mac played out of your microphone before transcribing. The recording itself is not changed." = "Para chamadas sem auscultadores: antes de transcrever, a Ata tira do teu microfone o que o Mac tocou. A gravação não é alterada.";
 
 /* 2.5: following the transcript, the waveform. */
 "You below, the others above. Click to jump." = "Tu em baixo, os outros em cima. Clica para saltar.";
@@ -437,7 +437,7 @@
 "Write notes on this iPhone" = "Escrever notas neste iPhone";
 "Written on this iPhone. Nothing leaves it." = "Escrito neste iPhone. Nada sai daqui.";
 "Sends the transcript text to OpenAI. The audio stays on this iPhone." = "Envia o texto da transcrição para a OpenAI. O áudio fica neste iPhone.";
-"Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay on this iPhone." = "O Ata consegue distinguir os outros participantes e aprender as vozes deles de reunião para reunião. As impressões vocais ficam neste iPhone.";
+"Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay on this iPhone." = "A Ata consegue distinguir os outros participantes e aprender as vozes deles de reunião para reunião. As impressões vocais ficam neste iPhone.";
 "Could not write notes on this iPhone. Try again." = "Não foi possível escrever as notas neste iPhone. Tenta de novo.";
 "%d voices learned, all on this iPhone." = "%d vozes aprendidas, todas neste iPhone.";
 "Voice fingerprints stay on this iPhone. Turning this on downloads 21 MB of models once." = "As impressões de voz ficam neste iPhone. Ativar isto descarrega 21 MB de modelos, uma vez.";
@@ -451,10 +451,10 @@
 "Downloading from iCloud…" = "A descarregar do iCloud…";
 "Copying your meetings into iCloud… %d of %d" = "A copiar as tuas reuniões para o iCloud… %d de %d";
 "Copying your meetings from iCloud… %d of %d" = "A copiar as tuas reuniões do iCloud… %d de %d";
-"Ata keeps using iCloud until every meeting is copied to this Mac and checked. Nothing is removed from iCloud." = "O Ata continua a usar o iCloud até todas as reuniões estarem copiadas para este Mac e verificadas. Nada é removido do iCloud.";
-"Ata keeps using iCloud until every meeting is copied to this iPhone and checked. Nothing is removed from iCloud." = "O Ata continua a usar o iCloud até todas as reuniões estarem copiadas para este iPhone e verificadas. Nada é removido do iCloud.";
-"iCloud isn't available, so new meetings are kept on this device. Ata moves them into iCloud when it's back." = "O iCloud não está disponível, por isso as reuniões novas ficam guardadas neste dispositivo. O Ata passa-as para o iCloud quando voltar.";
-"%d items could not be copied from iCloud to this device, so Ata still uses iCloud. Nothing was removed; turn it off again to try again." = "Não foi possível copiar %d itens do iCloud para este dispositivo, por isso o Ata continua a usar o iCloud. Nada foi removido; desliga outra vez para tentar de novo.";
+"Ata keeps using iCloud until every meeting is copied to this Mac and checked. Nothing is removed from iCloud." = "A Ata continua a usar o iCloud até todas as reuniões estarem copiadas para este Mac e verificadas. Nada é removido do iCloud.";
+"Ata keeps using iCloud until every meeting is copied to this iPhone and checked. Nothing is removed from iCloud." = "A Ata continua a usar o iCloud até todas as reuniões estarem copiadas para este iPhone e verificadas. Nada é removido do iCloud.";
+"iCloud isn't available, so new meetings are kept on this device. Ata moves them into iCloud when it's back." = "O iCloud não está disponível, por isso as reuniões novas ficam guardadas neste dispositivo. A Ata passa-as para o iCloud quando voltar.";
+"%d items could not be copied from iCloud to this device, so Ata still uses iCloud. Nothing was removed; turn it off again to try again." = "Não foi possível copiar %d itens do iCloud para este dispositivo, por isso a Ata continua a usar o iCloud. Nada foi removido; desliga outra vez para tentar de novo.";
 "Originals on this Mac" = "Originais neste Mac";
 "They were copied into iCloud and checked. Remove them when you no longer need them." = "Foram copiados para o iCloud e verificados. Apaga-os quando já não precisares deles.";
 "The originals stay where they are. Ata moves to the copy once every meeting is in iCloud and checked." = "Os originais ficam onde estão. A Ata passa para a cópia quando todas as reuniões estiverem no iCloud e verificadas.";
@@ -483,7 +483,7 @@
 "Voice recognition isn't available on this iPhone." = "O reconhecimento de vozes não está disponível neste iPhone.";
 "The whole recording. Tap to jump." = "A gravação toda. Toca para saltar.";
 "Add an AI summary" = "Juntar um resumo de IA";
-"Ata writes a short summary of each meeting with Apple Intelligence, on this iPhone. Nothing leaves it." = "A Ata escreve um resumo curto de cada reunião com a Apple Intelligence, neste iPhone. Nada sai dele.";
+"Ata writes a short summary of each meeting with Apple Intelligence, on this iPhone. Nothing leaves it." = "A Ata escreve um resumo curto de cada reunião com o Apple Intelligence, neste iPhone. Nada sai dele.";
 "Your lines are marked with this name. Ata also tells the other people in the room apart, and you name each voice once in People." = "As tuas falas são marcadas com este nome. A Ata também distingue as outras pessoas na sala, e dás nome a cada voz uma vez em Pessoas.";
 "Transcribe again in" = "Transcrever outra vez em";
 "Heard once" = "Ouvida uma vez";
@@ -517,7 +517,7 @@
 "macOS decides which menu bar icons fit and hides the rest, and an app has no say in the order. In the Dock, Ata is also in ⌘-Tab and in Spotlight. Opening Ata when it is already running always brings this window up, however the icons are set." = "O macOS decide que ícones cabem na barra de menus e esconde os restantes, e uma aplicação não tem voto na ordem. Na Dock, a Ata está também no ⌘-Tab e no Spotlight. Abrir a Ata quando já está a correr traz sempre esta janela à frente, estejam os ícones como estiverem.";
 "Record from anywhere" = "Gravar a partir de qualquer lado";
 "Another app already uses that combination. Try a different one." = "Outra aplicação já usa essa combinação. Experimenta outra.";
-"Starts or stops recording without going near the icon, from whatever app you are in." = "Começa ou pára a gravação sem passar pelo ícone, a partir de qualquer aplicação.";
+"Starts or stops recording without going near the icon, from whatever app you are in." = "Começa ou para a gravação sem passar pelo ícone, a partir de qualquer aplicação.";
 "Check again" = "Verificar outra vez";
 "Invited: %@" = "Convidados: %@";
 "Invited: %@ and %d others" = "Convidados: %@ e mais %d";
@@ -600,16 +600,16 @@
 "Transcribed on your iPhone" = "Transcrito no teu iPhone";
 "Transcripts and voices are made on the device, with or without Pro." = "As transcrições e as vozes são feitas no dispositivo, com ou sem a Pro.";
 "Ata for Mac stays free" = "A Ata para Mac continua gratuita";
-"Meetings recorded on your Mac never count, and the Mac app needs no subscription." = "As reuniões gravadas no Mac nunca contam, e a app para Mac não precisa de assinatura.";
+"Meetings recorded on your Mac never count, and the Mac app needs no subscription." = "As reuniões gravadas no Mac nunca contam, e a app para Mac não precisa de subscrição.";
 "Terms of Use" = "Termos de Utilização";
 "Privacy Policy" = "Política de Privacidade";
-"Subscribe for %@" = "Assinar por %@";
+"Subscribe for %@" = "Subscrever por %@";
 "Unavailable right now" = "Indisponível de momento";
 "Renews monthly until cancelled. Cancel any time in Settings." = "Renova-se todos os meses até ser cancelada. Cancela quando quiseres nas Definições.";
 "Restore Purchases" = "Restaurar compras";
 "The App Store could not confirm this purchase." = "A App Store não conseguiu confirmar esta compra.";
 "Your purchase is waiting for approval. Ata Pro starts as soon as it is approved." = "A tua compra aguarda aprovação. A Ata Pro começa assim que for aprovada.";
-"No Ata Pro subscription was found for this Apple Account." = "Não foi encontrada nenhuma assinatura da Ata Pro nesta Conta Apple.";
+"No Ata Pro subscription was found for this Apple Account." = "Não foi encontrada nenhuma subscrição da Ata Pro nesta Conta Apple.";
 "%@ / %@" = "%@ / %@";
 "month" = "mês";
 "year" = "ano";
@@ -622,7 +622,15 @@
 "1 free meeting left this month" = "Resta 1 reunião gratuita este mês";
 "%d free meetings left this month" = "Restam %d reuniões gratuitas este mês";
 "Active" = "Ativa";
-"Manage subscription" = "Gerir assinatura";
+"Manage subscription" = "Gerir subscrição";
 "Upgrade to Ata Pro" = "Passar para a Ata Pro";
 "Unlimited meetings on this iPhone. Ata for Mac is free and stays free." = "Reuniões ilimitadas neste iPhone. A Ata para Mac é gratuita e continua gratuita.";
 "You have used this month's %d free meetings on iPhone. Ata Pro records without a limit." = "Já usaste as %d reuniões gratuitas deste mês no iPhone. A Ata Pro grava sem limite.";
+
+/* Feedback and accessibility labels */
+"Transcript copied." = "Transcrição copiada.";
+"Notes copied." = "Notas copiadas.";
+"MP3 saved." = "MP3 guardado.";
+"Dismiss" = "Fechar";
+"Back 15 seconds" = "Recuar 15 segundos";
+"Forward 15 seconds" = "Avançar 15 segundos";
