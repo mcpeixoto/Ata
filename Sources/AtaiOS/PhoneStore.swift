@@ -301,16 +301,18 @@ final class PhoneStore: ObservableObject {
         reload()
     }
 
-    /// Title, date and transcript in one lowercased string, for the search field.
-    /// Transcripts are read once and again only when they change.
+    /// Title, date, category and transcript in one lowercased string, for the
+    /// search field. Transcripts are read once and again only when they change;
+    /// the category is added after the cache, since it changes without them.
     func searchText(for m: Meeting) -> String {
+        let category = m.categoryValue.map { "\n" + $0.name.lowercased() } ?? ""
         let url = m.existingTranscriptURL
         let stamp = url.flatMap { (try? FileManager.default.attributesOfItem(atPath: $0.path))?[.modificationDate] as? Date }
-        if let cached = searchCache[m.id], cached.stamp == stamp { return cached.text }
+        if let cached = searchCache[m.id], cached.stamp == stamp { return cached.text + category }
         let transcript = url.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
         let text = [m.title, m.subtitle, transcript].joined(separator: "\n").lowercased()
         searchCache[m.id] = (stamp, text)
-        return text
+        return text + category
     }
 
     // MARK: Import
