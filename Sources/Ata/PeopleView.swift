@@ -45,7 +45,7 @@ struct PeopleView: View {
         #if os(iOS)
         return L("Voice fingerprints stay on this iPhone. Turning this on downloads 21 MB of models once.")
         #else
-        return L("Voice fingerprints stay on this Mac, even when OpenAI transcribes. Turning this on downloads 21 MB of models once.")
+        return L("Voice fingerprints stay on this Mac. Turning this on downloads 21 MB of models once.")
         #endif
     }
 

@@ -516,9 +516,6 @@ private struct PlayerBar: View {
 private struct NotesTab: View {
     @ObservedObject var model: MeetingModel
     let meeting: Meeting
-    @AppStorage(Pref.summaryModel) private var summaryModel = Pref.defaultSummaryModel
-    @AppStorage(Pref.summaryEngine) private var summaryEngine = "auto"
-
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
@@ -576,9 +573,7 @@ private struct NotesTab: View {
                 Text("No summary yet. Ata can write one, with the decisions and action items.")
                     .ataFont(12).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                switch Summarizer.engine(preference: summaryEngine, appleAvailable: AppleModel.isAvailable,
-                                         hasOpenAIKey: Keychain.has(Keychain.openAIKey)) {
-                case .apple?:
+                if AppleModel.isAvailable {
                     #if os(iOS)
                     Button("Write notes on this iPhone") { Task { await model.writeNotes() } }
                     Text("Written on this iPhone. Nothing leaves it.")
@@ -588,25 +583,17 @@ private struct NotesTab: View {
                     Text("Written on this Mac. Nothing leaves it.")
                         .ataFont(10).foregroundStyle(.secondary)
                     #endif
-                case .openAI?:
-                    Button(L("Write notes with %@", summaryModel)) { Task { await model.writeNotes() } }
-                    #if os(iOS)
-                    Text("Sends the transcript text to OpenAI. The audio stays on this iPhone.")
-                        .ataFont(10).foregroundStyle(.secondary)
-                    #else
-                    Text("Sends the transcript text to OpenAI. The audio stays on this Mac.")
-                        .ataFont(10).foregroundStyle(.secondary)
-                    #endif
-                case nil:
-                    if summaryEngine == SummaryEngine.apple.rawValue, let reason = AppleModel.unavailableReason {
+                } else {
+                    if let reason = AppleModel.unavailableReason {
                         Text(reason)
                             .ataFont(11).foregroundStyle(.orange)
                             .fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        Text("Writing notes needs an OpenAI API key.")
-                            .ataFont(11).foregroundStyle(.orange)
                     }
+                    #if os(macOS)
+                    Button("Turn on Apple Intelligence") { SetupModel.openAppleIntelligence() }
+                    #else
                     Button("Open Settings") { WindowManager.shared.showSettings() }
+                    #endif
                 }
             }
         } else {
@@ -1076,15 +1063,6 @@ struct TranscribeAgainMenu: View {
                                                                       model: AppleSpeechEngine.modelID))
                     }
                     .disabled(!AppleSpeechEngine.isAvailable)
-                }
-                Section("OpenAI") {
-                    ForEach(Pref.openAIModels, id: \.self) { model in
-                        Button(model) {
-                            store.retry(meeting, with: TranscribeOverride(engine: Engine.openAI.rawValue,
-                                                                          model: model))
-                        }
-                        .disabled(!Keychain.has(Keychain.openAIKey))
-                    }
                 }
             }
             #endif

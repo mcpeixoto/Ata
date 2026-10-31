@@ -143,7 +143,7 @@ struct PopoverView: View {
         case .idle:
             if store.importing > 0 { return L("Importing audio…") }
             if store.transcribingID != nil {
-                return Engine.current.isLocal ? L("Transcribing on this Mac…") : L("Transcribing with OpenAI…")
+                return L("Transcribing on this Mac…")
             }
             if let app = store.detectedApp { return L("Meeting detected in %@", app) }
             return L("Ready to record")
@@ -271,9 +271,10 @@ struct PopoverView: View {
             .help(L("Buy me a coffee"))
             .accessibilityLabel(L("Buy me a coffee"))
             .padding(.horizontal, 8)
-            GhostButton(title: L("Quit"), systemImage: "power") {
+            GhostButton(title: L("Quit Ata"), systemImage: "power") {
                 NSApp.terminate(nil)
             }
+            .help(L("Stops Ata, including the menu bar icon. Closing a window leaves Ata running there."))
         }
     }
 }

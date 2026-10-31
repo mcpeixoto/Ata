@@ -95,6 +95,21 @@ struct TranscribeOptions {
         engine.isLocal ? 0 : Pricing.transcription(model: openAIModel, seconds: seconds)
     }
 
+    /// The run that actually happens. OpenAI is no longer offered, so a meeting
+    /// saved with that engine is transcribed on this Mac with Whisper Large,
+    /// and the summary is written by Apple Intelligence rather than uploaded.
+    var onThisDevice: TranscribeOptions {
+        var o = self
+        if o.engine == .openAI {
+            o.engine = .local
+            o.localModel = LocalModel.defaultID
+        }
+        if SummaryEngine(rawValue: o.summaryEngine) != .apple {
+            o.summaryEngine = SummaryEngine.apple.rawValue
+        }
+        return o
+    }
+
     static func current() -> TranscribeOptions {
         TranscribeOptions(
             engine: Engine.current,
@@ -302,7 +317,7 @@ enum Transcriber {
     static func transcribe(_ meeting: Meeting, options: TranscribeOptions,
                            progress: @escaping @Sendable (Double) -> Void) async throws -> TranscriptionOutcome {
         let started = Date()
-        var options = options
+        var options = options.onThisDevice
         // The words Ata should get right, resolved now that the voice library
         // can be read: what the user typed, plus everyone they have named.
         options.vocabulary = Vocabulary.terms(userText: options.dictionary,
@@ -418,13 +433,9 @@ enum Transcriber {
                                                                  progress: step)
                 }
             case .openAI:
-                let result = try await OpenAIEngine.transcribe(audio: track.audio, speaker: track.speaker,
-                                                               language: options.language,
-                                                               model: options.openAIModel,
-                                                               prompt: Vocabulary.transcriptionPrompt(options.vocabulary),
-                                                               progress: step)
-                segments += result.segments
-                coarse = coarse || result.coarse
+                // `onThisDevice` rewrites this engine before the switch. Left
+                // here so an older meeting can never be uploaded by mistake.
+                throw TranscriberError.failed(L("OpenAI transcription is no longer available. Ata transcribes on this Mac."))
             case .apple:
                 segments += try await AppleSpeechEngine.transcribe(audio: track.audio, speaker: track.speaker,
                                                                    language: options.language,

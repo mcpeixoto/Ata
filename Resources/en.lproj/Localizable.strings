@@ -79,8 +79,6 @@
 "Notifications" = "Notifications";
 "Tells you when a meeting is detected and when a transcript is ready." = "Tells you when a meeting is detected and when a transcript is ready.";
 "Transcription" = "Transcription";
-"On this Mac — private, free, %@ download" = "On this Mac — private, free, %@ download";
-"OpenAI API — nothing to install, you pay per minute" = "OpenAI API — nothing to install, you pay per minute";
 "Behaviour" = "Behaviour";
 "Detect meetings automatically" = "Detect meetings automatically";
 "When Slack, Zoom, Meet, Teams… start using the microphone." = "When Slack, Zoom, Meet, Teams… start using the microphone.";
@@ -98,14 +96,8 @@
 "Download" = "Download";
 "Try again" = "Try again";
 "OpenAI API key" = "OpenAI API key";
-"Replace" = "Replace";
 "Save" = "Save";
-"Your audio is uploaded to OpenAI for transcription. The key is stored in your login keychain." = "Your audio is uploaded to OpenAI for transcription. The key is stored in your login keychain.";
-"Key works." = "Key works.";
 "Checking…" = "Checking…";
-"Stored in your login keychain." = "Stored in your login keychain.";
-"Create one at platform.openai.com, then paste it below." = "Create one at platform.openai.com, then paste it below.";
-"Record and transcribe any meeting, right on your Mac." = "Record and transcribe any meeting, right on your Mac.";
 "Ready" = "Ready";
 "Start" = "Start";
 "Close" = "Close";
@@ -122,7 +114,6 @@
 "Forget all" = "Forget all";
 "Know who said what" = "Know who said what";
 "Ata can tell the other participants apart and learn their voices across meetings. You name a voice once; every transcript uses the name from then on." = "Ata can tell the other participants apart and learn their voices across meetings. You name a voice once; every transcript uses the name from then on.";
-"Voice fingerprints stay on this Mac, even when OpenAI transcribes. Turning this on downloads 21 MB of models once." = "Voice fingerprints stay on this Mac, even when OpenAI transcribes. Turning this on downloads 21 MB of models once.";
 "Turn on voice recognition" = "Turn on voice recognition";
 "Needs macOS 15 or later." = "Needs macOS 15 or later.";
 "Listening for voices" = "Listening for voices";
@@ -139,7 +130,6 @@
 "Getting ready…" = "Getting ready…";
 "Wrapping up…" = "Wrapping up…";
 "Transcribing on this Mac…" = "Transcribing on this Mac…";
-"Transcribing with OpenAI…" = "Transcribing with OpenAI…";
 "Meeting detected in %@" = "Meeting detected in %@";
 "Ready to record" = "Ready to record";
 "Finish setting up" = "Finish setting up";
@@ -149,7 +139,6 @@
 "RECENT" = "RECENT";
 "Folder" = "Folder";
 "Buy me a coffee" = "Buy me a coffee";
-"Quit" = "Quit";
 "WRAPPING UP" = "WRAPPING UP";
 "RECORDING" = "RECORDING";
 "Delete?" = "Delete?";
@@ -177,19 +166,9 @@
 "No active microphone was found." = "No active microphone was found.";
 "No microphone — retrying…" = "No microphone — retrying…";
 "Reconnecting system audio…" = "Reconnecting system audio…";
-"Ata %@ · transcribing with OpenAI" = "Ata %@ · transcribing with OpenAI";
 "Ata %@ · everything runs on your Mac" = "Ata %@ · everything runs on your Mac";
 "Ask me" = "Ask me";
 "Stop on its own when the meeting ends" = "Stop on its own when the meeting ends";
-"Engine" = "Engine";
-"On this Mac (whisper.cpp)" = "On this Mac (whisper.cpp)";
-"OpenAI API" = "OpenAI API";
-"Recorded audio is uploaded to OpenAI for transcription. Everything else stays on your Mac." = "Recorded audio is uploaded to OpenAI for transcription. Everything else stays on your Mac.";
-"Nothing leaves your Mac. Runs on the GPU." = "Nothing leaves your Mac. Runs on the GPU.";
-"On this Mac (Apple)" = "On this Mac (Apple)";
-"On this Mac (Apple) — needs macOS 26" = "On this Mac (Apple) — needs macOS 26";
-"Free, on this Mac, nothing leaves it. Needs macOS 26." = "Free, on this Mac, nothing leaves it. Needs macOS 26.";
-"Apple's speech recognition needs macOS 26. Choose another engine." = "Apple's speech recognition needs macOS 26. Choose another engine.";
 "Download speech model" = "Download speech model";
 "Not available yet" = "Not available yet";
 "Speech model: %@" = "Speech model: %@";
@@ -200,13 +179,7 @@
 "Language" = "Language";
 "Automatic" = "Automatic";
 "Add an AI summary with decisions and action items" = "Add an AI summary with decisions and action items";
-"Sends the finished transcript text to OpenAI, even when the audio is transcribed locally." = "Sends the finished transcript text to OpenAI, even when the audio is transcribed locally.";
-"API key" = "API key";
-"Key works" = "Key works";
-"No key stored yet." = "No key stored yet.";
 "Remove" = "Remove";
-"Transcription model" = "Transcription model";
-"Summary model" = "Summary model";
 "Audio" = "Audio";
 "Keep the audio after transcribing" = "Keep the audio after transcribing";
 "Compress kept audio to m4a" = "Compress kept audio to m4a";
@@ -276,7 +249,6 @@
 
 /* 2.4: the meeting window, the merged MP3 and the menu bar icon. */
 "Could not save your notes: %@" = "Could not save your notes: %@";
-"Could not write notes. Check your OpenAI key in Settings and try again." = "Could not write notes. Check your OpenAI key in Settings and try again.";
 "Could not save the MP3: %@" = "Could not save the MP3: %@";
 "This meeting was deleted." = "This meeting was deleted.";
 "Notes" = "Notes";
@@ -301,9 +273,6 @@
 "Saved as notes.md in the meeting folder, next to the transcript." = "Saved as notes.md in the meeting folder, next to the transcript.";
 "Writing notes…" = "Writing notes…";
 "No summary yet. Ata can write one, with the decisions and action items." = "No summary yet. Ata can write one, with the decisions and action items.";
-"Write notes with %@" = "Write notes with %@";
-"Sends the transcript text to OpenAI. The audio stays on this Mac." = "Sends the transcript text to OpenAI. The audio stays on this Mac.";
-"Writing notes needs an OpenAI API key." = "Writing notes needs an OpenAI API key.";
 "Open Settings" = "Open Settings";
 "This meeting was transcribed before Ata could add notes to it. Transcribe it again to get a summary." = "This meeting was transcribed before Ata could add notes to it. Transcribe it again to get a summary.";
 "Notes appear here once the meeting is transcribed." = "Notes appear here once the meeting is transcribed.";
@@ -368,12 +337,8 @@
 "Turn on Apple Intelligence in Settings to use it." = "Turn on Apple Intelligence in Settings to use it.";
 "This iPhone does not support Apple Intelligence." = "This iPhone does not support Apple Intelligence.";
 "Ask the people you record first. In many places it is the law." = "Ask the people you record first. In many places it is the law.";
-"Summary engine" = "Summary engine";
-"On this Mac (Apple Intelligence)" = "On this Mac (Apple Intelligence)";
 "Written on this Mac. Nothing leaves it." = "Written on this Mac. Nothing leaves it.";
-"Written on this Mac. If that fails, the transcript text goes to OpenAI." = "Written on this Mac. If that fails, the transcript text goes to OpenAI.";
 "Write notes on this Mac" = "Write notes on this Mac";
-"Could not write notes on this Mac. Try again, or choose OpenAI in Settings." = "Could not write notes on this Mac. Try again, or choose OpenAI in Settings.";
 "In person" = "In person";
 "Call on speaker" = "Call on speaker";
 "Call" = "Call";
@@ -436,9 +401,7 @@
 "Show in Files" = "Show in Files";
 "Write notes on this iPhone" = "Write notes on this iPhone";
 "Written on this iPhone. Nothing leaves it." = "Written on this iPhone. Nothing leaves it.";
-"Sends the transcript text to OpenAI. The audio stays on this iPhone." = "Sends the transcript text to OpenAI. The audio stays on this iPhone.";
 "Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay on this iPhone." = "Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay on this iPhone.";
-"Could not write notes on this iPhone. Try again." = "Could not write notes on this iPhone. Try again.";
 "%d voices learned, all on this iPhone." = "%d voices learned, all on this iPhone.";
 "Voice fingerprints stay on this iPhone. Turning this on downloads 21 MB of models once." = "Voice fingerprints stay on this iPhone. Turning this on downloads 21 MB of models once.";
 "%@ saved on this iPhone" = "%@ saved on this iPhone";
@@ -501,8 +464,6 @@
 "Learning your voice…" = "Learning your voice…";
 "Record my voice" = "Record my voice";
 "Record my voice again" = "Record my voice again";
-"This model returns no timestamps, so the transcript has no per-line times, echo removal is skipped, and voices are not told apart." = "This model returns no timestamps, so the transcript has no per-line times, echo removal is skipped, and voices are not told apart.";
-"The oldest of OpenAI's models, and the only one that returns timestamps. On this Mac, whisper.cpp with Large v3 is more accurate, free and private." = "The oldest of OpenAI's models, and the only one that returns timestamps. On this Mac, whisper.cpp with Large v3 is more accurate, free and private.";
 "Ata is listening to the way I speak, so it can tell my voice from everyone else's in a meeting. I talk at my normal pace, in my normal voice, until this is done." = "Ata is listening to the way I speak, so it can tell my voice from everyone else's in a meeting. I talk at my normal pace, in my normal voice, until this is done.";
 "Ata needs the microphone to hear your voice." = "Ata needs the microphone to hear your voice.";
 "Voice recognition isn't available on this device." = "Voice recognition isn't available on this device.";
@@ -514,7 +475,6 @@
 "Where Ata lives" = "Where Ata lives";
 "Show Ata in the Dock" = "Show Ata in the Dock";
 "Keep the menu bar icon" = "Keep the menu bar icon";
-"macOS decides which menu bar icons fit and hides the rest, and an app has no say in the order. In the Dock, Ata is also in ⌘-Tab and in Spotlight. Opening Ata when it is already running always brings this window up, however the icons are set." = "macOS decides which menu bar icons fit and hides the rest, and an app has no say in the order. In the Dock, Ata is also in ⌘-Tab and in Spotlight. Opening Ata when it is already running always brings this window up, however the icons are set.";
 "Record from anywhere" = "Record from anywhere";
 "Another app already uses that combination. Try a different one." = "Another app already uses that combination. Try a different one.";
 "Starts or stops recording without going near the icon, from whatever app you are in." = "Starts or stops recording without going near the icon, from whatever app you are in.";
@@ -553,7 +513,6 @@
 "Copy follow-up draft" = "Copy follow-up draft";
 "Names and words to spell right" = "Names and words to spell right";
 "Copilot, Attio, Bernardo" = "Copilot, Attio, Bernardo";
-"People you have named are included on their own. With OpenAI these words travel with the audio as spelling hints; in a summary, they are spelled as written here." = "People you have named are included on their own. With OpenAI these words travel with the audio as spelling hints; in a summary, they are spelled as written here.";
 "Note template" = "Note template";
 "Standard" = "Standard";
 "One-to-one" = "One-to-one";
@@ -634,3 +593,24 @@
 "Dismiss" = "Dismiss";
 "Back 15 seconds" = "Back 15 seconds";
 "Forward 15 seconds" = "Forward 15 seconds";
+
+/* 3.2: menu bar home, Whisper Large, Apple Intelligence. */
+"Could not write notes on this iPhone. Turn on Apple Intelligence and try again." = "Could not write notes on this iPhone. Turn on Apple Intelligence and try again.";
+"Could not write notes on this Mac. Turn on Apple Intelligence and try again." = "Could not write notes on this Mac. Turn on Apple Intelligence and try again.";
+"Turn on Apple Intelligence" = "Turn on Apple Intelligence";
+"Ata stays in the menu bar, not the Dock. Close this window and it keeps running up there. Quit Ata from the menu bar icon when you want it to stop." = "Ata stays in the menu bar, not the Dock. Close this window and it keeps running up there. Quit Ata from the menu bar icon when you want it to stop.";
+"Whisper Large runs on this Mac. Nothing you record is uploaded." = "Whisper Large runs on this Mac. Nothing you record is uploaded.";
+"Summaries" = "Summaries";
+"Apple Intelligence" = "Apple Intelligence";
+"Writes the summary — decisions and action items — on this Mac. Nothing leaves it." = "Writes the summary — decisions and action items — on this Mac. Nothing leaves it.";
+"Turn on Apple Intelligence in System Settings and Ata can write the summary." = "Turn on Apple Intelligence in System Settings and Ata can write the summary.";
+"Turn on" = "Turn on";
+"Record and transcribe any meeting. Ata lives in your menu bar." = "Record and transcribe any meeting. Ata lives in your menu bar.";
+"Voice fingerprints stay on this Mac. Turning this on downloads 21 MB of models once." = "Voice fingerprints stay on this Mac. Turning this on downloads 21 MB of models once.";
+"Quit Ata" = "Quit Ata";
+"Stops Ata, including the menu bar icon. Closing a window leaves Ata running there." = "Stops Ata, including the menu bar icon. Closing a window leaves Ata running there.";
+"Ata lives in the menu bar, not the Dock. Closing a window leaves it running there. Quit Ata from the menu bar icon when you want it to stop. The Dock is only for a menu bar that has no room left: macOS hides the icons that don't fit, and an app cannot choose where its icon sits." = "Ata lives in the menu bar, not the Dock. Closing a window leaves it running there. Quit Ata from the menu bar icon when you want it to stop. The Dock is only for a menu bar that has no room left: macOS hides the icons that don't fit, and an app cannot choose where its icon sits.";
+"Whisper Large is the model Ata uses. It runs on this Mac, and nothing you record is uploaded." = "Whisper Large is the model Ata uses. It runs on this Mac, and nothing you record is uploaded.";
+"People you have named are included on their own. In a summary, they are spelled as written here." = "People you have named are included on their own. In a summary, they are spelled as written here.";
+"Written on this Mac by Apple Intelligence. Nothing leaves it." = "Written on this Mac by Apple Intelligence. Nothing leaves it.";
+"OpenAI transcription is no longer available. Ata transcribes on this Mac." = "OpenAI transcription is no longer available. Ata transcribes on this Mac.";

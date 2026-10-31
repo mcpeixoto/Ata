@@ -169,7 +169,7 @@ A correction that only lives in a chat log gets repeated next week.
 A SwiftUI menu bar app for macOS 14.2+ on Apple Silicon (`LSUIElement`), built with SwiftPM —
 no Xcode project. It records the microphone (AVAudioEngine) and system audio
 (a Core Audio process tap) into two 16 kHz mono WAV tracks, then transcribes them with whisper.cpp
-locally or with the OpenAI API, and writes `transcript.md` into
+(Whisper Large) and writes summaries with Apple Intelligence, into `transcript.md` in
 `~/Documents/Meetings/<date> <app>/`.
 
 Layout:
@@ -181,7 +181,7 @@ Layout:
   (`CloudLibrary.swift`, `CloudSync.swift`).
 - `Sources/Ata/` — the whole app. `AppStore` is the single `@MainActor` source of truth
   (recording, detection, the transcription queue, history); `Recorder` + `WavWriter` own
-  capture; `Transcriber` coordinates and `LocalEngine` / `OpenAIEngine` do the work;
+  capture; `Transcriber` coordinates and `LocalEngine` does the work;
   `Updater` installs releases; `SettingsView` / `OnboardingView` / `PopoverView` are the UI.
 - Meeting window (2.4): `MeetingView` / `MeetingModel` (player, notes, transcript, its voices);
   `MergedAudio` writes `meeting.mp3` with LAME, vendored unchanged in `Sources/CLame` (LGPL —

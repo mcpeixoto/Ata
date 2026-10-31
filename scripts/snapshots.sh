@@ -40,7 +40,7 @@ open -n -W build/Ata.app \
   --stdout "$LOG" --stderr "$LOG" \
   --args --snapshots "$RENDER" \
   -AppleLanguages '(en)' -AppleLocale en_US \
-  -myName Alex -language auto -engine local \
+  -myName Alex -language auto -engine local -dockIcon NO -menuBarIcon YES \
   -summarize YES -keepAudio YES -compressAudio YES -audioRetentionDays 90 \
   -categoryFilter "" -autoDetect YES -autoStart NO -autoStop YES -autoUpdate YES -onboarded YES -recogniseVoices YES
 kill "$WATCHDOG" 2>/dev/null || true

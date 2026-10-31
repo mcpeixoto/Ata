@@ -7,11 +7,10 @@ struct OnboardingView: View {
     @AppStorage(Pref.autoDetect) private var autoDetect = true
     @AppStorage(Pref.autoStart) private var autoStart = false
     @AppStorage(Pref.onboarded) private var onboarded = false
-    @AppStorage(Pref.engine) private var engine = Engine.local.rawValue
-    @State private var apiKey = ""
+    @State private var appleReady = AppleModel.isAvailable
 
     /// The window's height. Only the snapshot renderer asks for a taller one.
-    var height: CGFloat = 640
+    var height: CGFloat = 700
 
     private let poll = Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()
 
@@ -48,25 +47,29 @@ struct OnboardingView: View {
                         }
                     }
 
+                    section(L("Where Ata lives")) {
+                        Text("Ata stays in the menu bar, not the Dock. Close this window and it keeps running up there. Quit Ata from the menu bar icon when you want it to stop.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
                     section(L("Transcription")) {
-                        Picker("", selection: Binding(
-                            get: { engine },
-                            set: { engine = $0; setup.setEngine(Engine(rawValue: $0) ?? .local) })) {
-                            Text(L("On this Mac — private, free, %@ download", LocalModel.current.sizeText))
-                                .tag(Engine.local.rawValue)
-                            Text("OpenAI API — nothing to install, you pay per minute")
-                                .tag(Engine.openAI.rawValue)
-                        }
-                        .pickerStyle(.radioGroup)
-                        .labelsHidden()
-                        .font(.system(size: 12))
+                        localRows
+                        Text("Whisper Large runs on this Mac. Nothing you record is uploaded.")
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
-                        Divider()
-
-                        if engine == Engine.openAI.rawValue {
-                            openAIRows
-                        } else {
-                            localRows
+                    section(L("Summaries")) {
+                        CheckRow(ok: appleReady, title: L("Apple Intelligence"),
+                                 detail: appleReady
+                                    ? L("Writes the summary — decisions and action items — on this Mac. Nothing leaves it.")
+                                    : (AppleModel.unavailableReason
+                                       ?? L("Turn on Apple Intelligence in System Settings and Ata can write the summary."))) {
+                            if !appleReady {
+                                Button("Turn on") { SetupModel.openAppleIntelligence() }
+                            }
                         }
                     }
 
@@ -99,8 +102,19 @@ struct OnboardingView: View {
             footer
         }
         .frame(width: 520, height: height)
-        .onAppear { setup.refresh() }
-        .onReceive(poll) { _ in setup.refresh() }
+        .onAppear {
+            setup.refresh()
+            appleReady = AppleModel.isAvailable
+            guard !Snapshots.rendering else { return }
+            // A menu bar app that is not open at login is easy to lose.
+            if !onboarded, !setup.launchAtLogin { setup.setLaunchAtLogin(true) }
+            if !setup.whisper, setup.hasBrew { setup.installWhisper() }
+            if !setup.model { setup.downloadModels() }
+        }
+        .onReceive(poll) { _ in
+            setup.refresh()
+            appleReady = AppleModel.isAvailable
+        }
         .onChange(of: setup.ready) { _, ready in if ready { store.setupChanged() } }
     }
 
@@ -132,44 +146,6 @@ struct OnboardingView: View {
         }
     }
 
-    /// API key entry, for the OpenAI engine.
-    @ViewBuilder
-    private var openAIRows: some View {
-        CheckRow(ok: setup.hasOpenAIKey, title: L("OpenAI API key"),
-                 detail: keyDetail) {
-            if setup.keyCheck == .checking {
-                ProgressView().controlSize(.small)
-            } else {
-                Button(setup.hasOpenAIKey ? L("Replace") : L("Save")) {
-                    setup.setOpenAIKey(apiKey)
-                    apiKey = ""
-                }
-                .disabled(apiKey.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
-        }
-        SecureField("sk-…", text: $apiKey)
-            .textFieldStyle(.roundedBorder)
-            .onSubmit {
-                setup.setOpenAIKey(apiKey)
-                apiKey = ""
-            }
-        Text("Your audio is uploaded to OpenAI for transcription. The key is stored in your login keychain.")
-            .font(.system(size: 11)).foregroundStyle(.orange)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private var keyDetail: String {
-        switch setup.keyCheck {
-        case .failed(let message): return message
-        case .ok: return L("Key works.")
-        case .checking: return L("Checking…")
-        case .idle:
-            return setup.hasOpenAIKey
-                ? L("Stored in your login keychain.")
-                : L("Create one at platform.openai.com, then paste it below.")
-        }
-    }
-
     private var hero: some View {
         ZStack {
             Theme.brand.opacity(0.9)
@@ -177,7 +153,7 @@ struct OnboardingView: View {
                 AppGlyph(size: 64)
                     .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(.white.opacity(0.35)))
                 Text("Welcome to Ata").font(.system(size: 24, weight: .bold, design: .rounded)).foregroundStyle(.white)
-                Text("Record and transcribe any meeting, right on your Mac.")
+                Text("Record and transcribe any meeting. Ata lives in your menu bar.")
                     .font(.system(size: 13)).foregroundStyle(.white.opacity(0.85))
             }
             .padding(.top, 18)

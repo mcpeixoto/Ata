@@ -129,6 +129,9 @@ enum Pref {
     static let recordShortcut = "recordShortcut" // global key combination that starts or stops recording
     static let dockIcon = "dockIcon"         // show Ata in the Dock and ⌘-Tab, like any other app
     static let menuBarIcon = "menuBarIcon"   // keep the menu bar icon (the only way in, unless the Dock icon is on)
+    /// Set once the menu-bar home, Whisper Large and Apple Intelligence
+    /// defaults have been written. A later change in Settings is not overwritten.
+    static let menuBarHome = "menuBarHome"
     static let menuIconSymbol = "menuIconSymbol"     // MenuIcon.Symbol while recording
     static let menuIconTint = "menuIconTint"         // MenuIcon.Tint while recording
     static let menuIconTimer = "menuIconTimer"       // elapsed time next to the icon
@@ -169,10 +172,11 @@ enum Pref {
             myName: defaultName,
             onboarded: false,
             engine: Engine.local.rawValue,
+            localModel: LocalModel.defaultID,
             openAIModel: defaultOpenAIModel,
-            summarize: false,
+            summarize: true,
             summaryModel: defaultSummaryModel,
-            summaryEngine: "auto",
+            summaryEngine: SummaryEngine.apple.rawValue,
             autoUpdate: true,
             audioRetentionDays: 0,
             // On. Knowing who said what is the point of a transcript of a
@@ -230,6 +234,22 @@ enum Pref {
             engine: Engine.apple.rawValue,
             summarize: true,
         ]
+        #endif
+    }
+
+    /// Once, on the Mac: Ata lives in the menu bar, transcribes with Whisper
+    /// Large and writes summaries with Apple Intelligence. Does nothing the
+    /// second time, so turning the Dock icon back on in Settings sticks.
+    static func applyMenuBarHome(to defaults: UserDefaults = .standard) {
+        #if os(macOS)
+        guard !defaults.bool(forKey: menuBarHome) else { return }
+        defaults.set(false, forKey: dockIcon)
+        defaults.set(true, forKey: menuBarIcon)
+        defaults.set(Engine.local.rawValue, forKey: engine)
+        defaults.set(LocalModel.defaultID, forKey: localModel)
+        defaults.set(true, forKey: summarize)
+        defaults.set(SummaryEngine.apple.rawValue, forKey: summaryEngine)
+        defaults.set(true, forKey: menuBarHome)
         #endif
     }
 

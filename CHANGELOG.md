@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.2.0
+
+Ata on the Mac is a menu bar app, and a new install is ready without a pile of choices.
+
+- **Menu bar, not the Dock.** Ata stays in the menu bar. Closing a window closes that window and leaves the icon where it is. Quit Ata, from the menu bar, is what stops it. An older install that had the Dock icon on is put back in the menu bar once; the Dock can be turned on again in Settings when the menu bar has no room.
+- **Whisper Large, on this Mac.** Transcription no longer offers OpenAI. Recordings are transcribed with Whisper Large. Nothing you record is uploaded.
+- **Summaries use Apple Intelligence.** They are on by default. Setup asks you to turn Apple Intelligence on when it is off, and a summary is never sent out to be written.
+- **First launch does the obvious things.** The Whisper Large model starts downloading, Ata offers to open at login, and the welcome window says that closing it does not quit Ata.
+
 ## 3.1.2
 
 The rest of the screen review.
