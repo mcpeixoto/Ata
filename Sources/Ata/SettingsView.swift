@@ -15,12 +15,8 @@ struct SettingsView: View {
     @AppStorage(Pref.saveMP3) private var saveMP3 = true
     @AppStorage(Pref.language) private var language = "auto"
     @AppStorage(Pref.myName) private var myName = ""
-    @AppStorage(Pref.engine) private var engine = Engine.local.rawValue
-    @AppStorage(Pref.openAIModel) private var openAIModel = Pref.defaultOpenAIModel
-    @AppStorage(Pref.summarize) private var summarize = false
+    @AppStorage(Pref.summarize) private var summarize = true
     @AppStorage(Pref.cancelEcho) private var cancelEcho = true
-    @AppStorage(Pref.summaryModel) private var summaryModel = Pref.defaultSummaryModel
-    @AppStorage(Pref.summaryEngine) private var summaryEngine = "auto"
     @AppStorage(Pref.summaryTemplate) private var summaryTemplate = SummaryTemplate.standard.rawValue
     @AppStorage(Pref.dictionary) private var dictionary = ""
     @AppStorage(Pref.autoUpdate) private var autoUpdate = true
@@ -39,34 +35,8 @@ struct SettingsView: View {
     @AppStorage(Pref.menuIconPulse) private var menuIconPulse = false
     @AppStorage(Pref.menuIconProgress) private var menuIconProgress = true
 
-    @State private var apiKey = ""
-
     /// The window's height. Only the snapshot renderer asks for a taller one.
     var height: CGFloat = 660
-
-    private var usesOpenAI: Bool { engine == Engine.openAI.rawValue }
-    private var usesApple: Bool { engine == Engine.apple.rawValue }
-
-    private var engineFootnote: String {
-        if usesOpenAI {
-            return L("Recorded audio is uploaded to OpenAI for transcription. Everything else stays on your Mac.")
-        }
-        if usesApple {
-            return AppleSpeechEngine.isAvailable
-                ? L("Free, on this Mac, nothing leaves it. Needs macOS 26.")
-                : L("Apple's speech recognition needs macOS 26. Choose another engine.")
-        }
-        return L("Nothing leaves your Mac. Runs on the GPU.")
-    }
-
-    /// The summary engine the picker shows. Until the user picks one it is
-    /// "auto", shown as what auto would use.
-    private var summaryEngineShown: String {
-        if let chosen = SummaryEngine(rawValue: summaryEngine) { return chosen.rawValue }
-        return AppleModel.isAvailable ? SummaryEngine.apple.rawValue : SummaryEngine.openAI.rawValue
-    }
-
-    private var summaryUsesOpenAI: Bool { summarize && summaryEngineShown == SummaryEngine.openAI.rawValue }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -78,7 +48,6 @@ struct SettingsView: View {
                 presenceSection
                 menuBarSection
                 transcriptionSection
-                if usesOpenAI || summaryUsesOpenAI { openAISection }
                 audioSection
                 iCloudSection
                 systemSection
@@ -91,21 +60,15 @@ struct SettingsView: View {
         .onAppear {
             setup.refresh()
             cloud.recheck()
-            apiKey = Keychain.has(Keychain.openAIKey) ? Self.keyPlaceholder : ""
         }
     }
-
-    /// Shown instead of the stored key, which is never read back into the UI.
-    private static let keyPlaceholder = "••••••••••••••••••••"
 
     private var header: some View {
         HStack(spacing: 12) {
             AppGlyph(size: 40)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Settings").font(.system(size: 20, weight: .bold, design: .rounded))
-                Text(usesOpenAI
-                     ? L("Ata %@ · transcribing with OpenAI", Updater.currentVersion)
-                     : L("Ata %@ · everything runs on your Mac", Updater.currentVersion))
+                Text(L("Ata %@ · everything runs on your Mac", Updater.currentVersion))
                     .font(.system(size: 11)).foregroundStyle(.secondary)
             }
             Spacer()
@@ -222,7 +185,7 @@ struct SettingsView: View {
             if dockIcon {
                 Toggle("Keep the menu bar icon", isOn: $menuBarIcon)
             }
-            Text("macOS decides which menu bar icons fit and hides the rest, and an app has no say in the order. In the Dock, Ata is also in ⌘-Tab and in Spotlight. Opening Ata when it is already running always brings this window up, however the icons are set.")
+            Text("Ata lives in the menu bar, not the Dock. Closing a window leaves it running there. Quit Ata from the menu bar icon when you want it to stop. The Dock is only for a menu bar that has no room left: macOS hides the icons that don't fit, and an app cannot choose where its icon sits.")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -273,24 +236,10 @@ struct SettingsView: View {
 
     private var transcriptionSection: some View {
         Section("Transcription") {
-            Picker("Engine", selection: Binding(
-                get: { engine },
-                set: { engine = $0; setup.setEngine(Engine(rawValue: $0) ?? .local) })) {
-                Text("On this Mac (whisper.cpp)").tag(Engine.local.rawValue)
-                Text(AppleSpeechEngine.isAvailable ? L("On this Mac (Apple)") : L("On this Mac (Apple) — needs macOS 26"))
-                    .tag(Engine.apple.rawValue)
-                    .disabled(!AppleSpeechEngine.isAvailable)
-                Text("OpenAI API").tag(Engine.openAI.rawValue)
-            }
-            Text(engineFootnote)
-                .font(.system(size: 11))
-                .foregroundStyle(usesOpenAI || (usesApple && !AppleSpeechEngine.isAvailable) ? .orange : .secondary)
+            LocalModelRows()
+            Text("Whisper Large is the model Ata uses. It runs on this Mac, and nothing you record is uploaded.")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            if usesApple {
-                AppleSpeechRows(language: language)
-            } else if !usesOpenAI {
-                LocalModelRows()
-            }
 
             TextField("Your name in the transcript", text: $myName, prompt: Text("Me"))
             Picker("Language", selection: $language) {
@@ -300,7 +249,7 @@ struct SettingsView: View {
                 }
             }
             TextField("Names and words to spell right", text: $dictionary, prompt: Text("Copilot, Attio, Bernardo"))
-            Text("People you have named are included on their own. With OpenAI these words travel with the audio as spelling hints; in a summary, they are spelled as written here.")
+            Text("People you have named are included on their own. In a summary, they are spelled as written here.")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Toggle("Remove the others' voices from your microphone", isOn: $cancelEcho)
@@ -309,11 +258,6 @@ struct SettingsView: View {
                 .fixedSize(horizontal: false, vertical: true)
             Toggle("Add an AI summary with decisions and action items", isOn: $summarize)
             if summarize {
-                Picker("Summary engine", selection: Binding(
-                    get: { summaryEngineShown }, set: { summaryEngine = $0 })) {
-                    Text("On this Mac (Apple Intelligence)").tag(SummaryEngine.apple.rawValue)
-                    Text("OpenAI").tag(SummaryEngine.openAI.rawValue)
-                }
                 Picker("Note template", selection: $summaryTemplate) {
                     ForEach(SummaryTemplate.allCases) { template in
                         Text(template.title).tag(template.rawValue)
@@ -326,25 +270,18 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var summaryFootnote: some View {
-        let note = Self.summaryNote(engine: summaryEngine, appleAvailable: AppleModel.isAvailable,
-                                    appleUnavailableReason: AppleModel.unavailableReason,
-                                    hasOpenAIKey: setup.hasOpenAIKey)
-        Group {
-            switch note {
-            case .sendsToOpenAI:
-                Text("Sends the finished transcript text to OpenAI, even when the audio is transcribed locally.")
-                    .foregroundStyle(.secondary)
-            case .appleUnavailable(let reason):
-                Text(reason).foregroundStyle(Color.orange)
-            case .onThisMac(let fallsBackToOpenAI):
-                Text(fallsBackToOpenAI
-                     ? L("Written on this Mac. If that fails, the transcript text goes to OpenAI.")
-                     : L("Written on this Mac. Nothing leaves it."))
-                    .foregroundStyle(.secondary)
+        if AppleModel.isAvailable {
+            Text("Written on this Mac by Apple Intelligence. Nothing leaves it.")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            if let reason = AppleModel.unavailableReason {
+                Text(reason)
+                    .font(.system(size: 11)).foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            Button("Turn on Apple Intelligence") { SetupModel.openAppleIntelligence() }
         }
-        .font(.system(size: 11))
-        .fixedSize(horizontal: false, vertical: true)
     }
 
     /// The one line under the summary engine picker.
@@ -367,64 +304,6 @@ struct SettingsView: View {
         if shown == .openAI { return .sendsToOpenAI }
         if let reason = appleUnavailableReason { return .appleUnavailable(reason) }
         return .onThisMac(fallsBackToOpenAI: chosen == nil && hasOpenAIKey)
-    }
-
-    private var openAISection: some View {
-        Section("OpenAI") {
-            HStack {
-                SecureField("API key", text: $apiKey, prompt: Text("sk-…"))
-                    .onSubmit { saveKey() }
-                Button("Save") { saveKey() }
-                    .disabled(apiKey.isEmpty || apiKey == Self.keyPlaceholder)
-            }
-            switch setup.keyCheck {
-            case .checking:
-                HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Checking…").font(.system(size: 11)) }
-            case .ok:
-                Label("Key works", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green).font(.system(size: 11))
-            case .failed(let message):
-                Label(message, systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red).font(.system(size: 11))
-                    .fixedSize(horizontal: false, vertical: true)
-            case .idle:
-                HStack {
-                    Text(setup.hasOpenAIKey ? L("Stored in your login keychain.") : L("No key stored yet."))
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
-                    Spacer()
-                    if setup.hasOpenAIKey {
-                        Button("Remove") {
-                            apiKey = ""
-                            setup.setOpenAIKey("")
-                        }
-                        .controlSize(.small)
-                    }
-                }
-            }
-
-            if usesOpenAI {
-                Picker("Transcription model", selection: $openAIModel) {
-                    ForEach(Pref.openAIModels, id: \.self) { Text($0).tag($0) }
-                }
-                if openAIModel != "whisper-1" {
-                    // Without timestamps there is nothing to hang a speaker on, so
-                    // `Transcriber` skips diarization altogether. That used to happen
-                    // in silence, and read as "Ata stopped recognising voices".
-                    Text("This model returns no timestamps, so the transcript has no per-line times, echo removal is skipped, and voices are not told apart.")
-                        .font(.system(size: 11)).foregroundStyle(.orange)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else {
-                    Text("The oldest of OpenAI's models, and the only one that returns timestamps. On this Mac, whisper.cpp with Large v3 is more accurate, free and private.")
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            if summaryUsesOpenAI {
-                Picker("Summary model", selection: $summaryModel) {
-                    ForEach(Pref.summaryModels, id: \.self) { Text($0).tag($0) }
-                }
-            }
-        }
     }
 
     private var audioSection: some View {
@@ -547,12 +426,8 @@ struct SettingsView: View {
         }
     }
 
-    private func saveKey() {
-        guard apiKey != Self.keyPlaceholder else { return }
-        setup.setOpenAIKey(apiKey)
-        if !apiKey.isEmpty { apiKey = Self.keyPlaceholder }
-    }
 }
+
 
 /// Model picker for the local engine, with download and clean-up.
 struct LocalModelRows: View {

@@ -197,6 +197,18 @@ final class SetupModel: ObservableObject {
         }
     }
 
+    /// Apple Intelligence has no in-app prompt. This opens the System Settings
+    /// pane where it is turned on; Ata asks again the next time it is in front.
+    static func openAppleIntelligence() {
+        let candidates = [
+            "x-apple.systempreferences:com.apple.Apple-Intelligence-Settings.extension",
+            "x-apple.systempreferences:com.apple.Siri-Settings.extension",
+        ]
+        for raw in candidates {
+            if let url = URL(string: raw), NSWorkspace.shared.open(url) { return }
+        }
+    }
+
     // MARK: Launch at login
 
     func setLaunchAtLogin(_ on: Bool) {

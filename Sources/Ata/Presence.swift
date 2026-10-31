@@ -29,6 +29,13 @@ enum Presence {
     /// is there instead.
     static func menuBarIconShows(dock: Bool, menuBar: Bool) -> Bool { !dock || menuBar }
 
+    /// The policy when nothing is asking Ata to be a Dock app. Closing the
+    /// last window uses this: a window that was key can leave a Dock icon
+    /// behind, and that icon is what made Ata look like it had not closed.
+    static func policyWhenIdle(dock: Bool) -> NSApplication.ActivationPolicy {
+        dock ? .regular : .accessory
+    }
+
     /// Applies the Dock setting. `.regular` puts Ata in the Dock and in ⌘-Tab;
     /// `.accessory` is the menu bar app it has always been. Safe to call again
     /// with the same value, and safe before any window exists.
@@ -36,7 +43,7 @@ enum Presence {
         // Nil outside a running app — under the test runner, say — where there is
         // no Dock to put an icon in and nothing to apply.
         guard let app = NSApp else { return }
-        let wanted: NSApplication.ActivationPolicy = showsDockIcon ? .regular : .accessory
+        let wanted = policyWhenIdle(dock: showsDockIcon)
         guard app.activationPolicy() != wanted else { return }
         app.setActivationPolicy(wanted)
         // Coming back from .accessory, the app is not frontmost until asked:

@@ -47,6 +47,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         Notifier.shared.setUp()
+        // Before the Dock policy: an older install may have the Dock icon on,
+        // which is what made closing a window look like it did nothing and
+        // made Quit take the menu bar icon with it.
+        Pref.applyMenuBarHome()
         Presence.apply()
         // Whatever app you are in, and whether or not the icon is reachable.
         Hotkey.reload { AppStore.shared.toggleRecording() }
@@ -66,6 +70,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
         if !hasVisibleWindows { WindowManager.shared.showMain() }
         return true
+    }
+
+    /// Closing the welcome window, Settings or a meeting must not quit Ata.
+    /// The menu bar icon is the app; Quit Ata is what stops it.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -116,7 +126,7 @@ final class WindowManager {
     private var meetings: [String: (window: NSWindow, model: MeetingModel, closing: NSObjectProtocol)] = [:]
 
     func showOnboarding() {
-        onboarding = present(onboarding, title: L("Welcome to Ata")) {
+        onboarding = present(onboarding, title: L("Welcome to Ata"), size: NSSize(width: 520, height: 700)) {
             OnboardingView()
                 .environmentObject(AppStore.shared)
                 .environmentObject(AppStore.shared.setup)
@@ -148,8 +158,7 @@ final class WindowManager {
     /// A meeting's own window, one per meeting. `play` starts the audio.
     func showMeeting(_ id: String, play: Bool = false) {
         if let open = meetings[id] {
-            NSApp.activate(ignoringOtherApps: true)
-            open.window.makeKeyAndOrderFront(nil)
+            comeForward(open.window)
             if play { open.model.player.play() }
             return
         }
@@ -185,8 +194,7 @@ final class WindowManager {
     private func present<V: View>(_ existing: NSWindow?, title: String, size: NSSize = NSSize(width: 520, height: 600),
                                   resizable: Bool = false, @ViewBuilder content: () -> V) -> NSWindow {
         if let existing {
-            NSApp.activate(ignoringOtherApps: true)
-            existing.makeKeyAndOrderFront(nil)
+            comeForward(existing)
             return existing
         }
         var style: NSWindow.StyleMask = [.titled, .closable, .fullSizeContentView]
@@ -199,14 +207,36 @@ final class WindowManager {
         w.titleVisibility = .hidden
         w.isMovableByWindowBackground = true
         w.isReleasedWhenClosed = false
+        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: w, queue: .main) { _ in
+            // The window is still visible during willClose. The Dock icon, if
+            // AppKit promoted one, goes away once this is the last window.
+            DispatchQueue.main.async { WindowManager.shared.restoreMenuBar() }
+        }
         let host = NSHostingView(rootView: content())
         // A resizable window takes only its minimum size from SwiftUI, or the
         // view's ideal size would pin the window at that size.
         if resizable { host.sizingOptions = [.minSize] }
         w.contentView = host
         w.center()
-        NSApp.activate(ignoringOtherApps: true)
-        w.makeKeyAndOrderFront(nil)
+        comeForward(w)
         return w
+    }
+
+    /// Brings a window forward without leaving Ata in the Dock. Ordering a
+    /// window front promotes an accessory app to a regular one; with the Dock
+    /// icon off, put that icon away again and keep the window key.
+    private func comeForward(_ window: NSWindow) {
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        guard !Presence.showsDockIcon else { return }
+        NSApp.setActivationPolicy(.accessory)
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    /// After the last window closes, Ata is a menu bar app again.
+    fileprivate func restoreMenuBar() {
+        let windows = [onboarding, settings, main].compactMap { $0 } + meetings.values.map(\.window)
+        if windows.contains(where: \.isVisible) { return }
+        Presence.apply()
     }
 }

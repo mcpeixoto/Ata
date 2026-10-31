@@ -545,20 +545,16 @@ final class MeetingModel: ObservableObject {
         message = nil
         defer { writingNotes = false }
 
-        var options = TranscribeOptions.current()
-        let onThisMac = Summarizer.engine(preference: options.summaryEngine, appleAvailable: AppleModel.isAvailable,
-                                          hasOpenAIKey: Keychain.has(Keychain.openAIKey)) == .apple
-        // The button said nothing leaves this Mac, so "auto" must not fall back to OpenAI here.
-        if onThisMac { options.summaryEngine = SummaryEngine.apple.rawValue }
+        var options = TranscribeOptions.current().onThisDevice
+        // Summaries stay on the device. Apple Intelligence is the only writer.
+        options.summaryEngine = SummaryEngine.apple.rawValue
         let draft = Transcriber.render(stored, meeting: meeting,
                                        names: Speakers.names(for: meeting, myName: options.myName))
         guard let result = await Summarizer.summarize(markdown: draft, options: options) else {
             #if os(iOS)
-            message = L("Could not write notes on this iPhone. Try again.")
+            message = L("Could not write notes on this iPhone. Turn on Apple Intelligence and try again.")
             #else
-            message = onThisMac
-                ? L("Could not write notes on this Mac. Try again, or choose OpenAI in Settings.")
-                : L("Could not write notes. Check your OpenAI key in Settings and try again.")
+            message = L("Could not write notes on this Mac. Turn on Apple Intelligence and try again.")
             #endif
             return
         }

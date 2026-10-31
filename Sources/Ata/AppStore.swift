@@ -504,7 +504,7 @@ final class AppStore: ObservableObject {
         })
         else { return }
 
-        let options = TranscribeOptions.current(for: m)
+        let options = TranscribeOptions.current(for: m).onThisDevice
         switch options.engine {
         case .local:
             guard setup.whisper else {
@@ -527,10 +527,8 @@ final class AppStore: ObservableObject {
         case .apple:
             break // nothing to install first: the engine downloads its language model itself
         case .openAI:
-            guard Keychain.has(Keychain.openAIKey) else {
-                lastError = L("No OpenAI API key. Add one in Settings → Transcription.")
-                return // stays queued until a key is available
-            }
+            // `onThisDevice` has already rewritten this. Never wait on an API key.
+            break
         }
 
         transcribingID = m.id

@@ -79,8 +79,6 @@
 "Notifications" = "Notificações";
 "Tells you when a meeting is detected and when a transcript is ready." = "Avisa quando é detetada uma reunião e quando a transcrição fica pronta.";
 "Transcription" = "Transcrição";
-"On this Mac — private, free, %@ download" = "Neste Mac — privado, grátis, %@ para descarregar";
-"OpenAI API — nothing to install, you pay per minute" = "API da OpenAI — nada para instalar, pagas por minuto";
 "Behaviour" = "Comportamento";
 "Detect meetings automatically" = "Detetar reuniões automaticamente";
 "When Slack, Zoom, Meet, Teams… start using the microphone." = "Quando o Slack, Zoom, Meet, Teams… começam a usar o microfone.";
@@ -98,14 +96,8 @@
 "Download" = "Descarregar";
 "Try again" = "Tentar de novo";
 "OpenAI API key" = "Chave da API da OpenAI";
-"Replace" = "Substituir";
 "Save" = "Guardar";
-"Your audio is uploaded to OpenAI for transcription. The key is stored in your login keychain." = "O teu áudio é enviado para a OpenAI para ser transcrito. A chave fica guardada no porta-chaves da sessão.";
-"Key works." = "A chave funciona.";
 "Checking…" = "A verificar…";
-"Stored in your login keychain." = "Guardada no porta-chaves da sessão.";
-"Create one at platform.openai.com, then paste it below." = "Cria uma em platform.openai.com e cola-a aqui.";
-"Record and transcribe any meeting, right on your Mac." = "Grava e transcreve qualquer reunião, diretamente no teu Mac.";
 "Ready" = "Tudo pronto";
 "Start" = "Começar";
 "Close" = "Fechar";
@@ -122,7 +114,6 @@
 "Forget all" = "Esquecer todas";
 "Know who said what" = "Sabe quem disse o quê";
 "Ata can tell the other participants apart and learn their voices across meetings. You name a voice once; every transcript uses the name from then on." = "A Ata consegue distinguir os outros participantes e aprender as vozes deles de reunião para reunião. Dás um nome a uma voz uma vez; a partir daí, todas as transcrições usam esse nome.";
-"Voice fingerprints stay on this Mac, even when OpenAI transcribes. Turning this on downloads 21 MB of models once." = "As impressões de voz ficam neste Mac, mesmo quando é a OpenAI a transcrever. Ativar isto descarrega 21 MB de modelos, uma vez.";
 "Turn on voice recognition" = "Ativar o reconhecimento de vozes";
 "Needs macOS 15 or later." = "Precisa do macOS 15 ou posterior.";
 "Listening for voices" = "À escuta de vozes";
@@ -139,7 +130,6 @@
 "Getting ready…" = "A preparar…";
 "Wrapping up…" = "A terminar…";
 "Transcribing on this Mac…" = "A transcrever localmente…";
-"Transcribing with OpenAI…" = "A transcrever com a OpenAI…";
 "Meeting detected in %@" = "Reunião detetada no %@";
 "Ready to record" = "Pronta para gravar";
 "Finish setting up" = "Termina a configuração";
@@ -149,7 +139,6 @@
 "RECENT" = "RECENTES";
 "Folder" = "Pasta";
 "Buy me a coffee" = "Oferece-me um café";
-"Quit" = "Sair";
 "WRAPPING UP" = "A TERMINAR";
 "RECORDING" = "A GRAVAR";
 "Delete?" = "Apagar?";
@@ -177,19 +166,9 @@
 "No active microphone was found." = "Não encontrei nenhum microfone ativo.";
 "No microphone — retrying…" = "Sem microfone — a tentar novamente…";
 "Reconnecting system audio…" = "A reconectar o áudio do sistema…";
-"Ata %@ · transcribing with OpenAI" = "Ata %@ · a transcrever com a OpenAI";
 "Ata %@ · everything runs on your Mac" = "Ata %@ · tudo corre no teu Mac";
 "Ask me" = "Perguntar";
 "Stop on its own when the meeting ends" = "Parar sozinha quando a reunião acaba";
-"Engine" = "Motor";
-"On this Mac (whisper.cpp)" = "Neste Mac (whisper.cpp)";
-"OpenAI API" = "API da OpenAI";
-"Recorded audio is uploaded to OpenAI for transcription. Everything else stays on your Mac." = "O áudio gravado é enviado para a OpenAI para ser transcrito. Tudo o resto fica no teu Mac.";
-"Nothing leaves your Mac. Runs on the GPU." = "Nada sai do teu Mac. Corre na GPU.";
-"On this Mac (Apple)" = "Neste Mac (Apple)";
-"On this Mac (Apple) — needs macOS 26" = "Neste Mac (Apple) — requer o macOS 26";
-"Free, on this Mac, nothing leaves it. Needs macOS 26." = "Grátis, neste Mac, nada sai daqui. Requer o macOS 26.";
-"Apple's speech recognition needs macOS 26. Choose another engine." = "O reconhecimento de fala da Apple requer o macOS 26. Escolhe outro motor.";
 "Download speech model" = "Descarregar o modelo de fala";
 "Not available yet" = "Ainda não disponível";
 "Speech model: %@" = "Modelo de fala: %@";
@@ -200,13 +179,7 @@
 "Language" = "Idioma";
 "Automatic" = "Automático";
 "Add an AI summary with decisions and action items" = "Juntar um resumo com decisões e tarefas";
-"Sends the finished transcript text to OpenAI, even when the audio is transcribed locally." = "Envia o texto da transcrição para a OpenAI, mesmo quando o áudio é transcrito localmente.";
-"API key" = "Chave da API";
-"Key works" = "A chave funciona";
-"No key stored yet." = "Ainda não há nenhuma chave guardada.";
 "Remove" = "Remover";
-"Transcription model" = "Modelo de transcrição";
-"Summary model" = "Modelo do resumo";
 "Audio" = "Áudio";
 "Keep the audio after transcribing" = "Guardar o áudio depois de transcrever";
 "Compress kept audio to m4a" = "Comprimir o áudio guardado para m4a";
@@ -276,7 +249,6 @@
 
 /* 2.4: the meeting window, the merged MP3 and the menu bar icon. */
 "Could not save your notes: %@" = "Não foi possível guardar as tuas notas: %@";
-"Could not write notes. Check your OpenAI key in Settings and try again." = "Não foi possível escrever as notas. Confirma a chave da OpenAI nas Definições e tenta de novo.";
 "Could not save the MP3: %@" = "Não foi possível guardar o MP3: %@";
 "This meeting was deleted." = "Esta reunião foi apagada.";
 "Notes" = "Notas";
@@ -301,9 +273,6 @@
 "Saved as notes.md in the meeting folder, next to the transcript." = "Guardadas em notes.md na pasta da reunião, ao lado da transcrição.";
 "Writing notes…" = "A escrever as notas…";
 "No summary yet. Ata can write one, with the decisions and action items." = "Ainda sem resumo. A Ata pode escrever um, com as decisões e as tarefas.";
-"Write notes with %@" = "Escrever notas com %@";
-"Sends the transcript text to OpenAI. The audio stays on this Mac." = "Envia o texto da transcrição para a OpenAI. O áudio fica neste Mac.";
-"Writing notes needs an OpenAI API key." = "Para escrever notas é preciso uma chave da API da OpenAI.";
 "Open Settings" = "Abrir Definições";
 "This meeting was transcribed before Ata could add notes to it. Transcribe it again to get a summary." = "Esta reunião foi transcrita antes de a Ata saber juntar-lhe notas. Transcreve-a de novo para teres um resumo.";
 "Notes appear here once the meeting is transcribed." = "As notas aparecem aqui quando a reunião estiver transcrita.";
@@ -368,12 +337,8 @@
 "Turn on Apple Intelligence in Settings to use it." = "Ativa o Apple Intelligence nas Definições para o usares.";
 "This iPhone does not support Apple Intelligence." = "Este iPhone não suporta o Apple Intelligence.";
 "Ask the people you record first. In many places it is the law." = "Pede autorização a quem vais gravar. Em muitos sítios, é a lei.";
-"Summary engine" = "Motor do resumo";
-"On this Mac (Apple Intelligence)" = "Neste Mac (Apple Intelligence)";
 "Written on this Mac. Nothing leaves it." = "Escrito neste Mac. Nada sai daqui.";
-"Written on this Mac. If that fails, the transcript text goes to OpenAI." = "Escrito neste Mac. Se falhar, o texto da transcrição vai para a OpenAI.";
 "Write notes on this Mac" = "Escrever notas neste Mac";
-"Could not write notes on this Mac. Try again, or choose OpenAI in Settings." = "Não foi possível escrever as notas neste Mac. Tenta de novo, ou escolhe a OpenAI nas Definições.";
 "In person" = "Presencial";
 "Call on speaker" = "Chamada em alta voz";
 "Call" = "Chamada";
@@ -436,9 +401,7 @@
 "Show in Files" = "Mostrar em Ficheiros";
 "Write notes on this iPhone" = "Escrever notas neste iPhone";
 "Written on this iPhone. Nothing leaves it." = "Escrito neste iPhone. Nada sai daqui.";
-"Sends the transcript text to OpenAI. The audio stays on this iPhone." = "Envia o texto da transcrição para a OpenAI. O áudio fica neste iPhone.";
 "Ata can tell the other participants apart and learn their voices across meetings. Fingerprints stay on this iPhone." = "A Ata consegue distinguir os outros participantes e aprender as vozes deles de reunião para reunião. As impressões vocais ficam neste iPhone.";
-"Could not write notes on this iPhone. Try again." = "Não foi possível escrever as notas neste iPhone. Tenta de novo.";
 "%d voices learned, all on this iPhone." = "%d vozes aprendidas, todas neste iPhone.";
 "Voice fingerprints stay on this iPhone. Turning this on downloads 21 MB of models once." = "As impressões de voz ficam neste iPhone. Ativar isto descarrega 21 MB de modelos, uma vez.";
 "%@ saved on this iPhone" = "%@ poupados neste iPhone";
@@ -501,8 +464,6 @@
 "Learning your voice…" = "A aprender a tua voz…";
 "Record my voice" = "Gravar a minha voz";
 "Record my voice again" = "Gravar a minha voz outra vez";
-"This model returns no timestamps, so the transcript has no per-line times, echo removal is skipped, and voices are not told apart." = "Este modelo não devolve tempos, por isso a transcrição fica sem horas em cada linha, o eco não é removido e as vozes não são distinguidas.";
-"The oldest of OpenAI's models, and the only one that returns timestamps. On this Mac, whisper.cpp with Large v3 is more accurate, free and private." = "O mais antigo dos modelos da OpenAI, e o único que devolve tempos. Neste Mac, o whisper.cpp com o Large v3 é mais preciso, gratuito e privado.";
 "Ata is listening to the way I speak, so it can tell my voice from everyone else's in a meeting. I talk at my normal pace, in my normal voice, until this is done." = "A Ata está a ouvir a forma como eu falo, para distinguir a minha voz de todas as outras numa reunião. Falo ao meu ritmo normal, com a minha voz normal, até isto terminar.";
 "Ata needs the microphone to hear your voice." = "A Ata precisa do microfone para ouvir a tua voz.";
 "Voice recognition isn't available on this device." = "O reconhecimento de vozes não está disponível neste dispositivo.";
@@ -514,7 +475,6 @@
 "Where Ata lives" = "Onde a Ata vive";
 "Show Ata in the Dock" = "Mostrar a Ata na Dock";
 "Keep the menu bar icon" = "Manter o ícone na barra de menus";
-"macOS decides which menu bar icons fit and hides the rest, and an app has no say in the order. In the Dock, Ata is also in ⌘-Tab and in Spotlight. Opening Ata when it is already running always brings this window up, however the icons are set." = "O macOS decide que ícones cabem na barra de menus e esconde os restantes, e uma aplicação não tem voto na ordem. Na Dock, a Ata está também no ⌘-Tab e no Spotlight. Abrir a Ata quando já está a correr traz sempre esta janela à frente, estejam os ícones como estiverem.";
 "Record from anywhere" = "Gravar a partir de qualquer lado";
 "Another app already uses that combination. Try a different one." = "Outra aplicação já usa essa combinação. Experimenta outra.";
 "Starts or stops recording without going near the icon, from whatever app you are in." = "Começa ou para a gravação sem passar pelo ícone, a partir de qualquer aplicação.";
@@ -553,7 +513,6 @@
 "Copy follow-up draft" = "Copiar rascunho de follow-up";
 "Names and words to spell right" = "Nomes e palavras para escrever bem";
 "Copilot, Attio, Bernardo" = "Copilot, Attio, Bernardo";
-"People you have named are included on their own. With OpenAI these words travel with the audio as spelling hints; in a summary, they are spelled as written here." = "As pessoas a quem já deste nome entram sozinhas. Com a OpenAI, estas palavras viajam com o áudio como pistas de ortografia; num resumo, são escritas como aqui estão.";
 "Note template" = "Modelo de notas";
 "Standard" = "Padrão";
 "One-to-one" = "Um para um";
@@ -634,3 +593,24 @@
 "Dismiss" = "Fechar";
 "Back 15 seconds" = "Recuar 15 segundos";
 "Forward 15 seconds" = "Avançar 15 segundos";
+
+/* 3.2: menu bar home, Whisper Large, Apple Intelligence. */
+"Could not write notes on this iPhone. Turn on Apple Intelligence and try again." = "Não foi possível escrever as notas neste iPhone. Ativa o Apple Intelligence e tenta outra vez.";
+"Could not write notes on this Mac. Turn on Apple Intelligence and try again." = "Não foi possível escrever as notas neste Mac. Ativa o Apple Intelligence e tenta outra vez.";
+"Turn on Apple Intelligence" = "Ativar o Apple Intelligence";
+"Ata stays in the menu bar, not the Dock. Close this window and it keeps running up there. Quit Ata from the menu bar icon when you want it to stop." = "A Ata fica na barra de menus, não na Dock. Fecha esta janela e ela continua lá em cima. Sai da Ata pelo ícone da barra de menus quando a quiseres parar.";
+"Whisper Large runs on this Mac. Nothing you record is uploaded." = "O Whisper Large corre neste Mac. Nada do que gravas é enviado.";
+"Summaries" = "Resumos";
+"Apple Intelligence" = "Apple Intelligence";
+"Writes the summary — decisions and action items — on this Mac. Nothing leaves it." = "Escreve o resumo — decisões e tarefas — neste Mac. Nada sai daqui.";
+"Turn on Apple Intelligence in System Settings and Ata can write the summary." = "Ativa o Apple Intelligence nas Definições do Sistema e a Ata pode escrever o resumo.";
+"Turn on" = "Ativar";
+"Record and transcribe any meeting. Ata lives in your menu bar." = "Grava e transcreve qualquer reunião. A Ata vive na barra de menus.";
+"Voice fingerprints stay on this Mac. Turning this on downloads 21 MB of models once." = "As impressões de voz ficam neste Mac. Ativar isto descarrega 21 MB de modelos, uma vez.";
+"Quit Ata" = "Sair da Ata";
+"Stops Ata, including the menu bar icon. Closing a window leaves Ata running there." = "Para a Ata, incluindo o ícone da barra de menus. Fechar uma janela deixa a Ata a correr lá.";
+"Ata lives in the menu bar, not the Dock. Closing a window leaves it running there. Quit Ata from the menu bar icon when you want it to stop. The Dock is only for a menu bar that has no room left: macOS hides the icons that don't fit, and an app cannot choose where its icon sits." = "A Ata vive na barra de menus, não na Dock. Fechar uma janela deixa-a a correr lá. Sai da Ata pelo ícone da barra de menus quando a quiseres parar. A Dock é só para uma barra de menus sem espaço: o macOS esconde os ícones que não cabem, e uma aplicação não escolhe onde o seu ícone fica.";
+"Whisper Large is the model Ata uses. It runs on this Mac, and nothing you record is uploaded." = "O Whisper Large é o modelo que a Ata usa. Corre neste Mac, e nada do que gravas é enviado.";
+"People you have named are included on their own. In a summary, they are spelled as written here." = "As pessoas a quem já deste nome entram sozinhas. Num resumo, são escritas como aqui estão.";
+"Written on this Mac by Apple Intelligence. Nothing leaves it." = "Escrito neste Mac pelo Apple Intelligence. Nada sai daqui.";
+"OpenAI transcription is no longer available. Ata transcribes on this Mac." = "A transcrição pela OpenAI já não está disponível. A Ata transcreve neste Mac.";
