@@ -23,13 +23,6 @@ body:
       placeholder: "15.1 on an M2 Air"
     validations:
       required: true
-  - type: dropdown
-    id: engine
-    attributes:
-      label: Transcription engine
-      options: ["On this Mac (whisper.cpp)", "OpenAI API"]
-    validations:
-      required: true
   - type: textarea
     id: logs
     attributes:

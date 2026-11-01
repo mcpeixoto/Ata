@@ -1,128 +1,6 @@
 @testable import Ata
 import XCTest
 
-/// Summaries on this Mac: the chunks the on-device model reads, the Markdown Ata
-/// writes from its answer, and which engine gets the job.
-final class SummaryChunkTests: XCTestCase {
-    private let transcript = (1...200)
-        .map { "**[00:\(String(format: "%02d", $0 % 60))] Alex:** line number \($0) of the meeting, said out loud." }
-        .joined(separator: "\n") + "\n"
-
-    func testChunksStayUnderTheLimit() {
-        let chunks = SummaryChunks.split(transcript, maxCharacters: 500)
-        XCTAssertGreaterThan(chunks.count, 1)
-        for chunk in chunks { XCTAssertLessThanOrEqual(chunk.count, 500) }
-    }
-
-    func testChunksCoverTheTextExactlyOnceInOrder() {
-        XCTAssertEqual(SummaryChunks.split(transcript, maxCharacters: 500).joined(), transcript)
-        XCTAssertEqual(SummaryChunks.split(transcript).joined(), transcript)
-    }
-
-    func testChunksNeverCutALine() {
-        let chunks = SummaryChunks.split(transcript, maxCharacters: 500)
-        for chunk in chunks.dropLast() { XCTAssertTrue(chunk.hasSuffix("\n"), chunk) }
-        let lines = Set(transcript.split(separator: "\n").map(String.init))
-        for chunk in chunks {
-            for line in chunk.split(separator: "\n") { XCTAssertTrue(lines.contains(String(line)), String(line)) }
-        }
-    }
-
-    func testAShortTranscriptIsOneChunk() {
-        XCTAssertEqual(SummaryChunks.split("one\ntwo\n"), ["one\ntwo\n"])
-        XCTAssertEqual(SummaryChunks.split(""), [])
-    }
-
-    func testALineLongerThanTheLimitIsCut() {
-        let long = String(repeating: "word ", count: 50) // 250 characters, no line break
-        let text = "before\n" + long + "\nafter\n"
-        let chunks = SummaryChunks.split(text, maxCharacters: 100)
-        XCTAssertEqual(chunks.joined(), text)
-        for chunk in chunks { XCTAssertLessThanOrEqual(chunk.count, 100) }
-        XCTAssertEqual(chunks.first, "before\n", "the short line before is not glued to the cut one")
-        XCTAssertEqual(chunks[1], String(long.prefix(100)))
-    }
-}
-
-final class SummaryMarkdownTests: XCTestCase {
-    func testTheShapeMatchesTheOpenAISummary() {
-        let md = SummaryMarkdown.render(
-            overview: "The team planned the launch.",
-            decisions: ["Ship on Friday", "Keep the price"],
-            actionItems: ["Alex: write the release notes"],
-            openQuestions: ["Who tells support?"])
-        XCTAssertEqual(md, """
-        **Overview** — The team planned the launch.
-
-        **Decisions**
-        - Ship on Friday
-        - Keep the price
-
-        **Action items**
-        - Alex: write the release notes
-
-        **Open questions**
-        - Who tells support?
-        """)
-    }
-
-    func testEmptySectionsAreLeftOut() {
-        let md = SummaryMarkdown.render(overview: "A short catch-up.", decisions: [],
-                                        actionItems: ["Sam: book the room"], openQuestions: ["  ", ""])
-        XCTAssertEqual(md, "**Overview** — A short catch-up.\n\n**Action items**\n- Sam: book the room")
-    }
-
-    func testAnEmptyOverviewIsLeftOut() {
-        XCTAssertEqual(SummaryMarkdown.render(overview: " ", decisions: ["Ship it"], actionItems: [], openQuestions: []),
-                       "**Decisions**\n- Ship it")
-        XCTAssertEqual(SummaryMarkdown.render(overview: "", decisions: [], actionItems: [], openQuestions: []), "")
-    }
-
-    func testTheModelsOwnBulletsAndLineBreaksAreTidied() {
-        let md = SummaryMarkdown.render(overview: "First line.\nSecond line.", decisions: ["- Ship it", "• Tell Sam"],
-                                        actionItems: [], openQuestions: [])
-        XCTAssertEqual(md, "**Overview** — First line. Second line.\n\n**Decisions**\n- Ship it\n- Tell Sam")
-    }
-}
-
-final class SummaryEngineTests: XCTestCase {
-    private func engine(_ preference: String, apple: Bool, key: Bool) -> SummaryEngine? {
-        Summarizer.engine(preference: preference, appleAvailable: apple, hasOpenAIKey: key)
-    }
-
-    func testAutoPrefersThisMacThenOpenAI() {
-        XCTAssertEqual(engine("auto", apple: true, key: true), .apple)
-        XCTAssertEqual(engine("auto", apple: true, key: false), .apple)
-        XCTAssertEqual(engine("auto", apple: false, key: true), .openAI)
-        XCTAssertNil(engine("auto", apple: false, key: false))
-    }
-
-    func testChoosingThisMacNeverMeansOpenAI() {
-        XCTAssertEqual(engine("apple", apple: true, key: true), .apple)
-        XCTAssertEqual(engine("apple", apple: true, key: false), .apple)
-        XCTAssertNil(engine("apple", apple: false, key: true))
-        XCTAssertNil(engine("apple", apple: false, key: false))
-    }
-
-    func testChoosingOpenAINeedsAKey() {
-        XCTAssertEqual(engine("openai", apple: true, key: true), .openAI)
-        XCTAssertNil(engine("openai", apple: true, key: false))
-        XCTAssertEqual(engine("openai", apple: false, key: true), .openAI)
-        XCTAssertNil(engine("openai", apple: false, key: false))
-    }
-
-    func testAnUnknownPreferenceActsLikeAuto() {
-        XCTAssertEqual(engine("", apple: true, key: true), .apple)
-        XCTAssertEqual(engine("something", apple: false, key: true), .openAI)
-    }
-
-    func testOptionsDefaultToAuto() {
-        let options = TranscribeOptions(engine: .local, myName: "Alex", language: "auto", openAIModel: "whisper-1",
-                                        localModel: "large-v3", summarize: true, summaryModel: "gpt-4o-mini")
-        XCTAssertEqual(options.summaryEngine, "auto")
-    }
-}
-
 final class VocabularyTests: XCTestCase {
     func testTypedWordsAndNamesMergeWithoutDuplicates() {
         let terms = Vocabulary.terms(userText: "Copilot, Attio\nBernardo Reis; copilot",
@@ -132,34 +10,17 @@ final class VocabularyTests: XCTestCase {
 
     func testEmptyIsEmpty() {
         XCTAssertEqual(Vocabulary.terms(userText: " , \n", names: []), [])
-        XCTAssertNil(Vocabulary.transcriptionPrompt([]))
         XCTAssertNil(Vocabulary.spellingInstruction([]))
     }
 
     /// The field report that prompted this: "Copilot" transcribed as "copado".
     func testThePromptIsAListTheModelCanSpellFrom() {
-        XCTAssertEqual(Vocabulary.transcriptionPrompt(["Copilot", "Attio"]), "Copilot, Attio")
         XCTAssertTrue(Vocabulary.spellingInstruction(["Copilot"])!.contains("Copilot"))
     }
 }
 
 final class SummaryTemplateTests: XCTestCase {
-    /// Choosing nothing must change nothing: the standard shape is the one
-    /// Ata has always written.
-    func testStandardIsTheHistoricShape() {
-        let prompt = Summarizer.systemPrompt(template: .standard, vocabulary: [], myName: "Alex")
-        for piece in ["**Overview**", "**Decisions**", "**Action items**", "**Open questions**",
-                      "one bullet per decision"] {
-            XCTAssertTrue(prompt.contains(piece), piece)
-        }
-        XCTAssertFalse(prompt.contains("exactly as written"), "no dictionary, no spelling line")
-    }
-
-    func testATemplateChangesTheShapeAndSteers() {
-        let sales = Summarizer.systemPrompt(template: .sales, vocabulary: ["Copilot"], myName: "Alex")
-        XCTAssertTrue(sales.contains("**Needs and problems**"), sales)
-        XCTAssertTrue(sales.contains("**Objections**"), sales)
-        XCTAssertTrue(sales.contains("Copilot"), "the dictionary reaches the summarizer")
+    func testATemplateSteersTheWriter() {
         XCTAssertTrue(SummaryTemplate.standard.focus.isEmpty)
         XCTAssertTrue(SummaryTemplate.sales.focus.contains("sales call"))
     }

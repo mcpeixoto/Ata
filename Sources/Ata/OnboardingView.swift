@@ -108,7 +108,6 @@ struct OnboardingView: View {
             guard !Snapshots.rendering else { return }
             // A menu bar app that is not open at login is easy to lose.
             if !onboarded, !setup.launchAtLogin { setup.setLaunchAtLogin(true) }
-            if !setup.whisper, setup.hasBrew { setup.installWhisper() }
             if !setup.model { setup.downloadModels() }
         }
         .onReceive(poll) { _ in
@@ -118,20 +117,9 @@ struct OnboardingView: View {
         .onChange(of: setup.ready) { _, ready in if ready { store.setupChanged() } }
     }
 
-    /// whisper.cpp + the model, for the local engine.
+    /// The model, which downloads once.
     @ViewBuilder
     private var localRows: some View {
-        CheckRow(ok: setup.whisper, title: L("whisper.cpp engine"),
-                 detail: setup.whisperStatus ?? (setup.hasBrew
-                    ? L("Installed with Homebrew. Runs on your Mac's GPU.")
-                    : L("Needs Homebrew (brew.sh)."))) {
-            if setup.installingWhisper {
-                ProgressView().controlSize(.small)
-            } else {
-                Button(setup.hasBrew ? L("Install") : L("Open brew.sh")) { setup.installWhisper() }
-            }
-        }
-        Divider()
         CheckRow(ok: setup.model, title: L("Whisper model: %@", LocalModel.current.title),
                  detail: setup.downloadError
                     ?? L("%@, downloaded once. %@", LocalModel.current.sizeText, LocalModel.current.detail)) {

@@ -254,7 +254,7 @@ enum Snapshots {
                             .fixedSize()
                         HStack(spacing: 10) {
                             chip("waveform", "Local Whisper")
-                            chip("sparkles", "OpenAI")
+                            chip("sparkles", "Apple Intelligence")
                             chip("lock.fill", "Private by default")
                         }
                         HStack(spacing: 10) {

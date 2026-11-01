@@ -27,6 +27,8 @@ BIN="$(swift build -c release --arch arm64 --disable-keychain --show-bin-path)/A
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Ata"
+# The transcription program, so nobody has to install anything to use Ata.
+cp "$(./scripts/build-whisper.sh)" "$APP/Contents/MacOS/whisper-cli"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 iconutil -c icns Resources/AppIcon.iconset -o "$APP/Contents/Resources/AppIcon.icns"
 
@@ -48,8 +50,10 @@ done
 if [ "$SIGN_ID" = "-" ]; then
   codesign --force --deep --sign - "$APP"
 else
-  # Hardened runtime is required for notarization. The entitlements let the app
-  # record audio and run whisper-cli as a child process.
+  # Hardened runtime is required for notarization, on the program inside the app
+  # as well, and it has to be signed first: the app's signature covers it. The
+  # entitlements let the app record audio and run whisper-cli as a child process.
+  codesign --force --options runtime --timestamp --sign "$SIGN_ID" "$APP/Contents/MacOS/whisper-cli"
   codesign --force --options runtime --timestamp \
     --entitlements Resources/Ata.entitlements \
     --sign "$SIGN_ID" "$APP"

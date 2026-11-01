@@ -17,18 +17,9 @@ if ! xcrun --find swift >/dev/null 2>&1; then
 fi
 ok "Swift $(swift --version 2>/dev/null | head -1 | sed -E 's/.*version ([0-9.]+).*/\1/')"
 
-# 2. Local transcription engine. Skip it if you plan to use the OpenAI engine —
-#    the app can also install it for you later.
-if command -v brew >/dev/null 2>&1 || [ -x /opt/homebrew/bin/brew ]; then
-  BREW=$(command -v brew || echo /opt/homebrew/bin/brew)
-  if ! "$BREW" list whisper-cpp >/dev/null 2>&1; then
-    echo "  Installing whisper.cpp…"
-    "$BREW" install whisper-cpp >/dev/null
-  fi
-  ok "whisper.cpp"
-else
-  echo "  ! Homebrew not found — get it at https://brew.sh, or use the OpenAI engine instead."
-fi
+# 2. CMake, to build the whisper-cli that ships inside the app.
+command -v cmake >/dev/null 2>&1 || fail "Building Ata needs CMake: brew install cmake, then run ./install.sh again"
+ok "CMake"
 
 # 3. Build and assemble the bundle
 echo "  Building (1–2 min the first time)…"
@@ -43,4 +34,4 @@ ok "Installed in /Applications"
 
 open /Applications/Ata.app
 bold "Done! Look for the waveform icon in the menu bar."
-echo "A welcome window opens the first time, where you grant the permissions and pick a transcription engine."
+echo "A welcome window opens the first time, where you grant the permissions."

@@ -67,7 +67,7 @@ enum MeetingNotes {
     /// Adds a summary written after the meeting was transcribed: into
     /// transcript.json, into transcript.md, and its cost into the latest
     /// transcription so Insights stays right. Returns the updated meeting.
-    static func addSummary(_ text: String, costUSD: Double, to m: Meeting, myName: String) throws -> Meeting {
+    static func addSummary(_ text: String, costUSD: Double = 0, to m: Meeting, myName: String) throws -> Meeting {
         guard var stored = StoredTranscript.load(from: m.storedTranscriptURL) else {
             throw CocoaError(.fileNoSuchFile, userInfo: [NSFilePathErrorKey: m.storedTranscriptURL.path])
         }
@@ -545,9 +545,7 @@ final class MeetingModel: ObservableObject {
         message = nil
         defer { writingNotes = false }
 
-        var options = TranscribeOptions.current().onThisDevice
-        // Summaries stay on the device. Apple Intelligence is the only writer.
-        options.summaryEngine = SummaryEngine.apple.rawValue
+        let options = TranscribeOptions.current()
         let draft = Transcriber.render(stored, meeting: meeting,
                                        names: Speakers.names(for: meeting, myName: options.myName))
         guard let result = await Summarizer.summarize(markdown: draft, options: options) else {
@@ -559,7 +557,7 @@ final class MeetingModel: ObservableObject {
             return
         }
         do {
-            _ = try MeetingNotes.addSummary(result.text, costUSD: result.costUSD, to: meeting, myName: options.myName)
+            _ = try MeetingNotes.addSummary(result, to: meeting, myName: options.myName)
         } catch {
             message = error.localizedDescription
         }

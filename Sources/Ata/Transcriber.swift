@@ -41,13 +41,12 @@ struct Segment {
 enum Engine: String, CaseIterable {
     /// whisper.cpp on this Mac. Nothing leaves the machine.
     case local
-    /// OpenAI's transcription API. Audio is uploaded.
-    case openAI = "openai"
     /// Apple's on-device speech recognition (macOS 26, iOS 26). Nothing leaves the device.
     case apple
 
-    /// Runs on this device: nothing is uploaded and nothing is paid for.
-    var isLocal: Bool { self != .openAI }
+    /// Every engine runs on this device. A stored record naming an engine Ata no
+    /// longer has (older meetings say "openai") isn't one, so it reads as not local.
+    var isLocal: Bool { true }
 
     /// Only whisper.cpp has to be installed before it can transcribe; Apple's
     /// engine downloads its own language model when it first needs it.
@@ -64,15 +63,11 @@ struct TranscribeOptions {
     var engine: Engine
     var myName: String
     var language: String
-    var openAIModel: String
     var localModel: String
     var recogniseVoices: Bool = false
     /// Take the others out of the microphone track before transcribing it; see EchoCanceller.
     var cancelEcho: Bool = true
     var summarize: Bool
-    var summaryModel: String
-    /// `Pref.summaryEngine`: "auto", or the engine the user chose.
-    var summaryEngine: String = "auto"
     /// `Pref.summaryTemplate`: which shape the notes take.
     var summaryTemplate: String = SummaryTemplate.standard.rawValue
     /// `Pref.dictionary` as typed; resolved into `vocabulary` when a run starts.
@@ -85,29 +80,8 @@ struct TranscribeOptions {
     var modelID: String {
         switch engine {
         case .local: return localModel
-        case .openAI: return openAIModel
         case .apple: return AppleSpeechEngine.modelID
         }
-    }
-
-    /// What transcribing this many seconds costs, in US dollars: nothing on this device.
-    func transcriptionCost(seconds: Double) -> Double {
-        engine.isLocal ? 0 : Pricing.transcription(model: openAIModel, seconds: seconds)
-    }
-
-    /// The run that actually happens. OpenAI is no longer offered, so a meeting
-    /// saved with that engine is transcribed on this Mac with Whisper Large,
-    /// and the summary is written by Apple Intelligence rather than uploaded.
-    var onThisDevice: TranscribeOptions {
-        var o = self
-        if o.engine == .openAI {
-            o.engine = .local
-            o.localModel = LocalModel.defaultID
-        }
-        if SummaryEngine(rawValue: o.summaryEngine) != .apple {
-            o.summaryEngine = SummaryEngine.apple.rawValue
-        }
-        return o
     }
 
     static func current() -> TranscribeOptions {
@@ -115,13 +89,10 @@ struct TranscribeOptions {
             engine: Engine.current,
             myName: Pref.myNameOrDefault,
             language: Pref.d.string(forKey: Pref.language) ?? "auto",
-            openAIModel: Pref.d.string(forKey: Pref.openAIModel) ?? Pref.defaultOpenAIModel,
             localModel: LocalModel.current.id,
             recogniseVoices: Pref.d.bool(forKey: Pref.recogniseVoices),
             cancelEcho: Pref.d.bool(forKey: Pref.cancelEcho),
             summarize: Pref.d.bool(forKey: Pref.summarize),
-            summaryModel: Pref.d.string(forKey: Pref.summaryModel) ?? Pref.defaultSummaryModel,
-            summaryEngine: Pref.d.string(forKey: Pref.summaryEngine) ?? "auto",
             summaryTemplate: Pref.d.string(forKey: Pref.summaryTemplate) ?? SummaryTemplate.standard.rawValue,
             dictionary: Pref.d.string(forKey: Pref.dictionary) ?? "")
     }
@@ -131,11 +102,11 @@ struct TranscribeOptions {
         var o = current()
         guard let override = meeting.override else { return o }
         if let language = override.language { o.language = language }
+        // An engine Ata no longer has (a meeting queued with OpenAI) runs on this device.
         guard let engine = Engine(rawValue: override.engine) else { return o }
         o.engine = engine
         switch engine {
         case .local: o.localModel = override.model
-        case .openAI: o.openAIModel = override.model
         case .apple: break // one model, chosen by language
         }
         return o
@@ -317,7 +288,7 @@ enum Transcriber {
     static func transcribe(_ meeting: Meeting, options: TranscribeOptions,
                            progress: @escaping @Sendable (Double) -> Void) async throws -> TranscriptionOutcome {
         let started = Date()
-        var options = options.onThisDevice
+        var options = options
         // The words Ata should get right, resolved now that the voice library
         // can be read: what the user typed, plus everyone they have named.
         options.vocabulary = Vocabulary.terms(userText: options.dictionary,
@@ -405,7 +376,6 @@ enum Transcriber {
         }
 
         var segments: [Segment] = []
-        var coarse = false
         for (i, track) in prepared.enumerated() {
             // Taken over by another device, or Ata is quitting: the next track
             // does not start. Language detection above reports a cancelled run
@@ -432,10 +402,6 @@ enum Transcriber {
                                                                  model: model, language: languages[i],
                                                                  progress: step)
                 }
-            case .openAI:
-                // `onThisDevice` rewrites this engine before the switch. Left
-                // here so an older meeting can never be uploaded by mistake.
-                throw TranscriberError.failed(L("OpenAI transcription is no longer available. Ata transcribes on this Mac."))
             case .apple:
                 segments += try await AppleSpeechEngine.transcribe(audio: track.audio, speaker: track.speaker,
                                                                    language: options.language,
@@ -444,17 +410,12 @@ enum Transcriber {
             }
         }
 
-        // Echo removal compares what both tracks said at the same moment, so it
-        // needs real timestamps.
-        if !coarse {
-            segments = removeEcho(segments, me: Speakers.me)
-        }
+        // Echo removal compares what both tracks said at the same moment.
+        segments = removeEcho(segments, me: Speakers.me)
 
-        // Splitting by speaker needs real timestamps: a timestamp-less OpenAI chunk is
-        // ten minutes of several people, which must not all go to one name.
         // A run without voice recognition leaves no stale speaker map behind.
         try? FileManager.default.removeItem(at: meeting.speakersURL)
-        if options.recogniseVoices, !coarse, let diarizer = Diarization.current {
+        if options.recogniseVoices, let diarizer = Diarization.current {
             progress(0.97)
             segments = await recogniseSpeakers(segments, meeting: meeting, diarizer: diarizer,
                                                system: prepared.first { $0.speaker == Speakers.others }?.audio,
@@ -468,7 +429,7 @@ enum Transcriber {
                                           StoredTranscript.Word(start: $0.start, end: $0.end, text: $0.text)
                                       })
             },
-            coarse: coarse, summary: nil, engine: options.engine.rawValue, model: options.modelID)
+            coarse: false, summary: nil, engine: options.engine.rawValue, model: options.modelID)
 
         // Said at the top of the transcript, where the person reading it will
         // see it, rather than only in a log: a side of this call was never
@@ -484,12 +445,10 @@ enum Transcriber {
             NSLog("Ata: %@", warning)
         }
 
-        var cost = options.transcriptionCost(seconds: audioSeconds)
         if options.summarize, !segments.isEmpty {
             let draft = render(stored, meeting: meeting, names: Speakers.names(for: meeting, myName: options.myName))
             if let summary = await Summarizer.summarize(markdown: draft, options: options) {
-                stored.summary = summary.text
-                cost += summary.costUSD
+                stored.summary = summary
             }
         }
         let md = render(stored, meeting: meeting, names: Speakers.names(for: meeting, myName: options.myName))
@@ -507,14 +466,14 @@ enum Transcriber {
         let archived = try replaceTranscript(of: meeting, with: md)
         try stored.save(to: meeting.storedTranscriptURL)
 
-        let talk = talkTime(segments, me: Speakers.me, coarse: coarse)
+        let talk = talkTime(segments, me: Speakers.me, coarse: false)
         let record = TranscriptionRecord(
             engine: options.engine.rawValue,
             model: options.modelID,
             finishedAt: Date(),
             audioSeconds: audioSeconds,
             processingSeconds: Date().timeIntervalSince(started),
-            costUSD: cost,
+            costUSD: 0,
             words: segments.reduce(0) { $0 + wordCount($1.text) },
             mySpeechSeconds: talk.me,
             othersSpeechSeconds: talk.others,

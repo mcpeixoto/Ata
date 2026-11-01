@@ -284,28 +284,6 @@ struct SettingsView: View {
         }
     }
 
-    /// The one line under the summary engine picker.
-    enum SummaryNote: Equatable {
-        /// OpenAI writes it: say what is uploaded.
-        case sendsToOpenAI
-        /// Apple Intelligence was chosen but can't write it, and why.
-        case appleUnavailable(String)
-        /// Apple Intelligence writes it; with "auto" and a key, OpenAI is the fallback.
-        case onThisMac(fallsBackToOpenAI: Bool)
-    }
-
-    /// Decided from what the picker shows, not from what is stored: "auto" on a
-    /// Mac without Apple Intelligence shows OpenAI, and a line telling you to turn
-    /// Apple Intelligence on under "OpenAI" read as a contradiction.
-    static func summaryNote(engine stored: String, appleAvailable: Bool,
-                            appleUnavailableReason: String?, hasOpenAIKey: Bool) -> SummaryNote {
-        let chosen = SummaryEngine(rawValue: stored)
-        let shown = chosen ?? (appleAvailable ? .apple : .openAI)
-        if shown == .openAI { return .sendsToOpenAI }
-        if let reason = appleUnavailableReason { return .appleUnavailable(reason) }
-        return .onThisMac(fallsBackToOpenAI: chosen == nil && hasOpenAIKey)
-    }
-
     private var audioSection: some View {
         Section("Audio") {
             Toggle("Keep the audio after transcribing", isOn: $keepAudio)
@@ -429,41 +407,22 @@ struct SettingsView: View {
 }
 
 
-/// Model picker for the local engine, with download and clean-up.
+/// Whisper Large: its download, and clean-up of what older versions left on disk.
 struct LocalModelRows: View {
     @EnvironmentObject var setup: SetupModel
     /// Bumped after a change so the model state is read again.
     @State private var generation = 0
+    @State private var confirmRemove = false
 
     private var model: LocalModel { _ = generation; return LocalModel.current }
-    private var others: [LocalModel] { LocalModel.installed.filter { $0.id != model.id } }
+    private var others: [LocalModel] { _ = generation; return LocalModel.installed.filter { $0.id != model.id } }
+    private var othersSize: String {
+        ByteCountFormatter.string(fromByteCount: others.reduce(0) { $0 + $1.bytes }, countStyle: .file)
+    }
 
     var body: some View {
-        Picker("Model", selection: Binding(get: { model.id }, set: {
-            Pref.d.set($0, forKey: Pref.localModel)
-            generation += 1
-            AppStore.shared.setupChanged()
-        })) {
-            ForEach(LocalModel.all) { m in
-                Text(m.id == LocalModel.defaultID ? L("%@ — recommended", m.title) : m.title).tag(m.id)
-            }
-        }
-        if LocalModel.betterAvailable, let better = LocalModel.find(LocalModel.defaultID) {
-            LabeledContent {
-                Button(L("Switch to %@", better.title)) {
-                    Pref.d.set(better.id, forKey: Pref.localModel)
-                    generation += 1
-                    setup.refresh()
-                    setup.downloadModels()
-                }
-            } label: {
-                Text(L("%@ is more accurate, especially on calls and in Portuguese.", better.title))
-                    .font(.system(size: 11)).foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
         LabeledContent {
-            if model.isInstalled {
+            if setup.model {
                 Label("Downloaded", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
             } else if let p = setup.downloadProgress {
                 HStack(spacing: 6) {
@@ -474,20 +433,22 @@ struct LocalModelRows: View {
                 Button(L("Download %@", model.sizeText)) { setup.downloadModels() }
             }
         } label: {
-            Text(model.detail).font(.system(size: 11)).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            Text("Whisper Large")
         }
         if !others.isEmpty {
             LabeledContent {
-                Button("Remove") {
-                    for m in others { try? FileManager.default.removeItem(at: m.path) }
-                    generation += 1
-                    setup.refresh()
-                }
+                Button("Remove") { confirmRemove = true }
+                    .confirmationDialog(L("Remove older models (%@)?", othersSize), isPresented: $confirmRemove) {
+                        Button("Remove", role: .destructive) {
+                            for m in others { try? FileManager.default.removeItem(at: m.path) }
+                            generation += 1
+                            setup.refresh()
+                        }
+                    } message: {
+                        Text("Ata no longer uses them. Your recordings and transcripts are not touched.")
+                    }
             } label: {
-                Text(L("Other models on disk: %@",
-                       ByteCountFormatter.string(fromByteCount: others.reduce(0) { $0 + $1.bytes },
-                                                 countStyle: .file)))
+                Text(L("Other models on disk: %@", othersSize))
                     .font(.system(size: 11)).foregroundStyle(.secondary)
             }
             .id(generation)
@@ -495,45 +456,6 @@ struct LocalModelRows: View {
         if let error = setup.downloadError {
             Text(error).font(.system(size: 11)).foregroundStyle(.red)
         }
-    }
-}
-
-/// Apple's speech model for each language Ata may transcribe: there, to
-/// download, or not offered. macOS downloads it and shares it between apps.
-struct AppleSpeechRows: View {
-    let language: String
-    @StateObject private var models = AppleSpeechModels()
-
-    var body: some View {
-        ForEach(models.rows) { row in
-            LabeledContent {
-                switch row.state {
-                case .checking:
-                    ProgressView().controlSize(.small)
-                case .installed:
-                    Label("Downloaded", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-                case .missing:
-                    Button("Download speech model") { models.download(row.code) }
-                case .downloading(let p):
-                    HStack(spacing: 6) {
-                        ProgressView(value: p).frame(width: 90)
-                        Text("\(Int(p * 100))%").font(.system(size: 10)).monospacedDigit()
-                    }
-                case .unsupported:
-                    Text("Not available yet").font(.system(size: 11)).foregroundStyle(.orange)
-                case .failed(let message):
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(message).font(.system(size: 10)).foregroundStyle(.red)
-                            .lineLimit(2).fixedSize(horizontal: false, vertical: true)
-                        Button("Try again") { models.download(row.code) }.controlSize(.small)
-                    }
-                }
-            } label: {
-                Text(L("Speech model: %@", row.name)).font(.system(size: 11)).foregroundStyle(.secondary)
-            }
-        }
-        .onAppear { models.refresh(language: language) }
-        .onChange(of: language) { _, new in models.refresh(language: new) }
     }
 }
 

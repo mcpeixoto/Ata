@@ -5,7 +5,7 @@ Ata uses, at runtime, the following third-party software and models.
 
 whisper.cpp — MIT licence
   https://github.com/ggerganov/whisper.cpp
-  Installed separately through Homebrew; not bundled.
+  Built from source and bundled inside Ata.app as whisper-cli.
 
 OpenAI Whisper models (ggml conversions) — MIT licence
   https://github.com/openai/whisper

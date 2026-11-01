@@ -44,16 +44,6 @@ final class FollowAlongTests: XCTestCase {
         XCTAssertEqual(WordTiming.estimate(.init(start: 0, end: 0, text: "  ", speaker: Speakers.me)), [])
     }
 
-    func testOpenAIWordsGoToTheSegmentTheyFallIn() {
-        let segments = [(start: 0, end: 2_000, text: "Hello there"), (start: 2_500, end: 4_000, text: "General Kenobi")]
-        let words = [(start: 100, end: 600, text: "Hello"), (start: 700, end: 1_900, text: "there"),
-                     (start: 2_300, end: 2_450, text: "General"),  // in the gap, nearer the second
-                     (start: 3_000, end: 3_900, text: "Kenobi")]
-        let attached = OpenAIEngine.attach(words: words, to: segments)
-        XCTAssertEqual(attached.map { ws in ws.map { $0.text } }, [["Hello", "there"], ["General", "Kenobi"]])
-        XCTAssertEqual(OpenAIEngine.attach(words: words, to: []).count, 0)
-    }
-
     // MARK: The word under the playhead
 
     private func line(_ id: Int, _ start: Int, _ end: Int, _ words: [(Int, String)]) -> MeetingModel.Line {

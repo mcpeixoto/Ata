@@ -27,10 +27,7 @@ struct Insights: Equatable {
     var meetings = 0
     var recordedSeconds = 0.0
     var words = 0
-    var spentThisMonth = 0.0
-    var spentTotal = 0.0
-    /// What the locally transcribed audio would have cost on OpenAI.
-    var savedLocally = 0.0
+    var recordedThisMonth = 0.0
     var mySpeech = 0.0
     var othersSpeech = 0.0
     var weeks: [Week] = []
@@ -76,6 +73,7 @@ struct Insights: Equatable {
             let seconds = m.duration ?? 0
             out.meetings += 1
             out.recordedSeconds += seconds
+            if m.startedAt >= monthStart { out.recordedThisMonth += seconds }
             // By app, not by `m.title`. Now that a title can be a calendar
             // event's, grouping by it would give one bar per meeting — "Weekly
             // sync", "1:1 with Rita", "Design review" — instead of one per app,
@@ -92,9 +90,6 @@ struct Insights: Equatable {
 
             let records = m.transcriptions ?? Backfill.record(for: m, myName: myName).map { [$0] } ?? []
             for (i, r) in records.enumerated() {
-                out.spentTotal += r.costUSD
-                if r.finishedAt >= monthStart { out.spentThisMonth += r.costUSD }
-                if r.isLocal { out.savedLocally += Pricing.localSavings(seconds: r.audioSeconds) }
                 out.timeline.append(Event(meetingTitle: m.title, meetingID: m.id, record: r,
                                           isCurrent: i == records.count - 1))
             }
@@ -147,7 +142,7 @@ enum Backfill {
         }
 
         let record = TranscriptionRecord(
-            engine: text.contains("OpenAI") ? Engine.openAI.rawValue : Engine.local.rawValue,
+            engine: text.contains("OpenAI") ? "openai" : Engine.local.rawValue,
             model: L("earlier"),
             finishedAt: m.endedAt ?? m.startedAt,
             audioSeconds: (m.duration ?? 0) * 2,

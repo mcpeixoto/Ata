@@ -8,7 +8,7 @@ import UserNotifications
 
 /// Checks and fixes everything the app needs in order to work, from inside the app itself.
 ///
-/// The Mac's checklist: system audio, Homebrew, whisper.cpp, launch at login.
+/// The Mac's checklist: system audio, the Whisper model, launch at login.
 /// The iPhone asks for what it needs in its own onboarding; only `Downloader`
 /// below is shared.
 @MainActor
@@ -36,16 +36,6 @@ final class SetupModel: ObservableObject {
 
     @Published private(set) var downloadProgress: Double? // nil = no download running
     @Published private(set) var downloadError: String?
-    @Published private(set) var installingWhisper = false
-    @Published private(set) var whisperStatus: String?
-
-    /// True when the OpenAI engine is selected, in which case whisper.cpp and
-    /// the local model are not needed to be ready.
-    @Published private(set) var usesOpenAI = Engine.current == .openAI
-    @Published private(set) var hasOpenAIKey = Keychain.has(Keychain.openAIKey)
-
-    var hasBrew: Bool { Paths.brew() != nil }
-
     /// Denied, or not asked yet when Ata could ask. When Ata can't read the
     /// state at all, macOS asks on the first recording, so that isn't missing.
     var systemAudioMissing: Bool {
@@ -55,20 +45,14 @@ final class SetupModel: ObservableObject {
     /// Everything needed to record and transcribe with the selected engine.
     var ready: Bool {
         guard mic && !systemAudioMissing else { return false }
-        if usesOpenAI { return hasOpenAIKey }
         return Engine.current.needsWhisper ? (whisper && model) : true
     }
-
-    /// Whether the local engine is installed, regardless of which engine is selected.
-    var localEngineReady: Bool { whisper && model }
 
     var missingSummary: String? {
         var m: [String] = []
         if !mic { m.append(L("microphone")) }
         if systemAudioMissing { m.append(L("system audio")) }
-        if usesOpenAI {
-            if !hasOpenAIKey { m.append(L("OpenAI API key")) }
-        } else if Engine.current.needsWhisper {
+        if Engine.current.needsWhisper {
             if !whisper { m.append(L("transcription engine")) }
             if !model { m.append(L("model")) }
         }
@@ -89,8 +73,6 @@ final class SetupModel: ObservableObject {
         if !Snapshots.rendering && !Diagnostics.requested { restartIfAudioWasJustGranted() }
         whisper = Paths.whisperCLI() != nil
         model = Paths.hasWhisperModel
-        usesOpenAI = Engine.current == .openAI
-        hasOpenAIKey = Keychain.has(Keychain.openAIKey)
         calendarStatus = CalendarAccess.status
         calendar = calendarStatus == .authorized
         if calendar { calendarAskWasSilent = false }
@@ -106,7 +88,6 @@ final class SetupModel: ObservableObject {
         mic = true; systemAudio = true; systemAudioStatus = .authorized; whisper = true; model = true
         notifications = true; launchAtLogin = true
         calendar = true; calendarStatus = .authorized
-        usesOpenAI = false; hasOpenAIKey = true
         Self.frozen = true
     }
 
@@ -218,89 +199,6 @@ final class SetupModel: ObservableObject {
             NSLog("Ata: launch at login: \(error)")
         }
         refresh()
-    }
-
-    // MARK: OpenAI
-
-    enum KeyCheck: Equatable { case idle, checking, ok, failed(String) }
-    @Published private(set) var keyCheck: KeyCheck = .idle
-
-    func setEngine(_ engine: Engine) {
-        Pref.d.set(engine.rawValue, forKey: Pref.engine)
-        keyCheck = .idle
-        refresh()
-        AppStore.shared.setupChanged()
-    }
-
-    /// Stores the key in the keychain (empty string removes it) and verifies it.
-    func setOpenAIKey(_ key: String) {
-        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        Keychain.set(trimmed.isEmpty ? nil : trimmed, for: Keychain.openAIKey)
-        refresh()
-        if trimmed.isEmpty {
-            keyCheck = .idle
-        } else {
-            checkOpenAIKey()
-        }
-    }
-
-    func checkOpenAIKey() {
-        guard let client = OpenAIClient() else {
-            keyCheck = .failed(L("No OpenAI API key. Add one in Settings → Transcription."))
-            return
-        }
-        keyCheck = .checking
-        Task {
-            do {
-                try await client.validate()
-                keyCheck = .ok
-                AppStore.shared.setupChanged()
-            } catch {
-                keyCheck = .failed(error.localizedDescription)
-            }
-        }
-    }
-
-    // MARK: whisper.cpp
-
-    func installWhisper() {
-        guard let brew = Paths.brew() else {
-            NSWorkspace.shared.open(URL(string: "https://brew.sh")!)
-            return
-        }
-        installingWhisper = true
-        whisperStatus = L("Installing with Homebrew…")
-        let p = Process()
-        p.executableURL = brew
-        p.arguments = ["install", "whisper-cpp"]
-        var env = ProcessInfo.processInfo.environment
-        env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-        env["HOMEBREW_NO_ENV_HINTS"] = "1"
-        p.environment = env
-        let pipe = Pipe()
-        p.standardOutput = pipe
-        p.standardError = pipe
-        pipe.fileHandleForReading.readabilityHandler = { [weak self] h in
-            let line = String(decoding: h.availableData, as: UTF8.self)
-                .split(separator: "\n").last.map(String.init)?
-                .trimmingCharacters(in: .whitespaces)
-            guard let line, !line.isEmpty else { return }
-            Task { @MainActor in self?.whisperStatus = String(line.prefix(80)) }
-        }
-        p.terminationHandler = { [weak self] proc in
-            pipe.fileHandleForReading.readabilityHandler = nil
-            Task { @MainActor in
-                guard let self else { return }
-                self.installingWhisper = false
-                self.refresh()
-                self.whisperStatus = self.whisper ? nil
-                    : L("Install failed (code %d). Try in Terminal: brew install whisper-cpp", proc.terminationStatus)
-            }
-        }
-        do { try p.run() } catch {
-            installingWhisper = false
-            whisperStatus = error.localizedDescription
-        }
     }
 
     // MARK: Models

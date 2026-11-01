@@ -32,10 +32,6 @@ stored on that device.
 
 - **Transcription and summaries run on your device** with Apple's speech
   recognition, Apple Intelligence or a local Whisper model.
-- **OpenAI, only if you choose it on the Mac.** If you paste your own OpenAI API
-  key into the Mac app and pick OpenAI as the engine, the audio of the meetings
-  you transcribe is sent to OpenAI under your account and its terms. The key
-  stays in your Mac's keychain. The iPhone app never sends anything to OpenAI.
 - **Model downloads.** The first time it needs them, Ata downloads speech and
   speaker models from Hugging Face. Nothing about you is sent with the request.
 - **Updates on the Mac.** The Mac app checks GitHub for new releases.

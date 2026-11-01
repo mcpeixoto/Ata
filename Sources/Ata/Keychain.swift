@@ -1,10 +1,8 @@
 import Foundation
 import Security
 
-/// Minimal Keychain wrapper for the OpenAI API key.
-///
-/// The key is never written to `UserDefaults` or to any file inside the meeting
-/// folders — it lives only in the login keychain.
+/// Minimal Keychain wrapper. What it holds never goes to `UserDefaults` or to
+/// any file inside the meeting folders.
 enum Keychain {
     private static let service = "ai.interactive.ata"
 
@@ -54,6 +52,6 @@ enum Keychain {
         return SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess
     }
 
-    /// Account name for the OpenAI API key.
-    static let openAIKey = "openai-api-key"
+    /// Where older versions kept an OpenAI API key. Only ever deleted now.
+    static let retiredOpenAIKey = "openai-api-key"
 }
