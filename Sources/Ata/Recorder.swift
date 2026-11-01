@@ -108,6 +108,7 @@ final class Recorder: NSObject {
     /// The "we cannot hear the other side" warning is showing: it clears
     /// itself if their side ever arrives, and never repeats within a call.
     private var silentSystemWarned = false
+    private var silentMicWarned = false
     private var observers: [NSObjectProtocol] = []
     private var watchdog: Timer?
     private var micRetry = 0
@@ -128,12 +129,19 @@ final class Recorder: NSObject {
         let t0 = Self.hostNow()
         startedAt = Date()
         silentSystemWarned = false
+        silentMicWarned = false
         mic = try WavWriter(url: dir.appendingPathComponent("mic.wav"), startHostSeconds: t0)
         sysBox.writer = try WavWriter(url: dir.appendingPathComponent("system.wav"), startHostSeconds: t0)
         running = true
 
         do {
-            try startMic()
+            do {
+                try startMic()
+            } catch RecorderError.noMic {
+                // A Mac with no input device can still record the call. The retry
+                // picks up a microphone plugged in later.
+                restartMic(reason: "no microphone at start")
+            }
             try await startSystem()
         } catch {
             await teardown()
@@ -214,6 +222,27 @@ final class Recorder: NSObject {
               Date().timeIntervalSince(startedAt) > 30, mic.peakLevel >= 0.05 else { return }
         silentSystemWarned = true
         onWarning?(L("Ata can't hear the other side — check the call's output device"))
+    }
+
+    /// The mirror of the above: their side is arriving and yours has been digital
+    /// silence all along, the sign of a muted or wrong input. Quiet rooms aren't
+    /// digital silence, so someone just listening doesn't trip it.
+    nonisolated static func micIsSilent(micPeak: Float, systemPeak: Float, elapsed: TimeInterval) -> Bool {
+        elapsed > 30 && micPeak < 0.01 && systemPeak >= 0.05
+    }
+
+    private func checkForASilentMicrophone() {
+        guard let mic, let sys, !silentMicWarned, !micRestartPending else { return }
+        guard Self.micIsSilent(micPeak: mic.peakLevel, systemPeak: sys.peakLevel,
+                               elapsed: Date().timeIntervalSince(startedAt)) else { return }
+        silentMicWarned = true
+        onWarning?(L("Ata can't hear your microphone — check it isn't muted"))
+    }
+
+    /// Said again on each pass, so a lesser warning can't replace it.
+    private func checkForFailedWrites() {
+        guard mic?.writeFailed == true || sys?.writeFailed == true else { return }
+        onWarning?(L("Ata can't save this recording — the disk may be full. Free up space now."))
     }
 
     // MARK: - Microphone
@@ -368,6 +397,8 @@ final class Recorder: NSObject {
                     self.restartSystem()
                 }
                 self.checkForASilentSide()
+                self.checkForASilentMicrophone()
+                self.checkForFailedWrites()
             }
         }
     }

@@ -1,5 +1,20 @@
 # Changelog
 
+## 3.3.0
+
+Ata on the Mac is simpler to set up, and tells you when something is wrong.
+
+- **Nothing to install.** Transcription now ships inside the app, so Homebrew is no longer needed. Only the Whisper Large model downloads, once, and a quit or a dropped connection no longer starts it over.
+- **OpenAI is gone.** Everything runs on your device. If you once added an OpenAI API key, Ata deletes its copy on this Mac; revoke the key at OpenAI if you no longer use it. Old transcripts and meetings are untouched.
+- **Always Whisper Large.** There is no model to choose. Older models can be removed in Settings.
+- **Three steps to set up.** Allow recording, Apple Intelligence if your Mac has it, done, with an optional 10-second test of both sides.
+- **Closing and quitting.** ⌘Q and ⌘W close windows, and Ata stays in the menu bar. Quit Ata in its menu stops it, and asks first if that would interrupt a recording or a transcription. Opening Ata always shows a window.
+- **Summaries catch up.** Meetings transcribed while Apple Intelligence was off get their summary once it's on.
+- **Recording is easier to see and reach.** The menu bar icon is red while recording, and ⌃⌥⌘R starts or stops from anywhere. Clicking a "meeting detected" banner now opens Ata; only its Record button records.
+- **Clearer problems.** Ata now says when the disk is full during a recording, when your microphone is silent, and why a meeting is still queued. A Mac with no microphone can record the call's sound.
+- **Safer updates.** If a new version doesn't start, the previous one comes back by itself.
+- **Note templates** steer what the summary focuses on. They no longer change its headings.
+
 ## 3.2.0
 
 Ata on the Mac is a menu bar app, and a new install is ready without a pile of choices.

@@ -99,7 +99,13 @@ final class WavWriter: @unchecked Sendable {
     /// Whether a buffer was rewritten at the rate its samples actually arrived.
     var correctedDelivery: Bool { lock.lock(); defer { lock.unlock() }; return _correctedDelivery }
 
+    /// A write failed, usually because the disk is full. Meters keep moving either
+    /// way, so nothing else would show that this audio is not being saved.
+    var writeFailed: Bool { lock.lock(); defer { lock.unlock() }; return _writeFailed }
+
     /// Treats now as the last buffer time (avoids false watchdog alarms right after a restart).
+    private var _writeFailed = false
+
     func touch() { lock.lock(); _lastBufferAt = Date(); lock.unlock() }
 
     // MARK: Writing
@@ -160,6 +166,7 @@ final class WavWriter: @unchecked Sendable {
             frames += Int64(n)
             _contentFrames += Int64(n)
         } catch {
+            _writeFailed = true
             NSLog("Ata: could not write \(url.lastPathComponent): \(error)")
         }
 
@@ -210,7 +217,13 @@ final class WavWriter: @unchecked Sendable {
         var remaining = count
         while remaining > 0 {
             let n = min(remaining, chunk)
-            try? handle.write(contentsOf: n == chunk ? zeros : Data(count: Int(n) * 2))
+            do {
+                try handle.write(contentsOf: n == chunk ? zeros : Data(count: Int(n) * 2))
+            } catch {
+                // Counting it anyway would make the header promise audio that isn't there.
+                _writeFailed = true
+                return
+            }
             frames += n
             remaining -= n
         }

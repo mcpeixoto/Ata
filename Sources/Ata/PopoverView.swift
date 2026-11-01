@@ -43,6 +43,8 @@ struct PopoverView: View {
     @State private var tab: Tab
     @State private var dropping = false
     @AppStorage(Pref.categoryFilter) private var categoryFilter = ""
+    @AppStorage(Pref.summarize) private var summarize = true
+    @AppStorage(Pref.appleBannerDismissed) private var appleBannerDismissed = false
 
     /// True in Ata's own window, which has no reason to offer opening itself.
     private let inWindow: Bool
@@ -56,6 +58,7 @@ struct PopoverView: View {
         VStack(alignment: .leading, spacing: 12) {
             header
             if let missing = setup.missingSummary { setupBanner(missing) }
+            if showsAppleBanner { appleBanner }
             UpdateBanner()
             if tab != .people { NameVoicesBanner { tab = .people } }
             if let err = store.lastError { errorBanner(err) }
@@ -80,7 +83,7 @@ struct PopoverView: View {
         }
         .padding(14)
         .frame(width: 350)
-        .onAppear { setup.refresh(); store.reload() }
+        .onAppear { setup.refresh(); store.reload(); store.writeOwedSummaries() }
         // Audio files dropped on the menu become meetings.
         .dropDestination(for: URL.self) { urls, _ in
             MainActor.assumeIsolated {
@@ -161,6 +164,36 @@ struct PopoverView: View {
             if let app = store.detectedApp { return L("Meeting detected in %@", app) }
             return L("Ready to record")
         }
+    }
+
+    /// Only when turning it on would help, and only until you say no.
+    private var showsAppleBanner: Bool {
+        summarize && !appleBannerDismissed && AppleModel.state == .off && !Snapshots.rendering
+    }
+
+    private var appleBanner: some View {
+        HStack(spacing: 8) {
+            Button { SetupModel.openAppleIntelligence() } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "sparkles").foregroundStyle(.orange)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Turn on Apple Intelligence").font(.system(size: 12, weight: .semibold))
+                        Text("It writes your summaries, on this Mac.").font(.system(size: 11)).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            Button { appleBannerDismissed = true } label: {
+                Image(systemName: "xmark").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help(L("Don't show this again"))
+            .accessibilityLabel(L("Don't show this again"))
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.orange.opacity(0.1)))
     }
 
     private func setupBanner(_ text: String) -> some View {

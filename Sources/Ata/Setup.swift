@@ -71,8 +71,12 @@ final class SetupModel: ObservableObject {
         systemAudioStatus = SystemAudioPermission.status
         systemAudio = systemAudioStatus == .authorized
         if !Snapshots.rendering && !Diagnostics.requested { restartIfAudioWasJustGranted() }
+        let wasReady = ready
         whisper = Paths.whisperCLI() != nil
         model = Paths.hasWhisperModel
+        startDownloadIfNeeded()
+        // Meetings may be queued for exactly this, whichever window is open or not.
+        if !wasReady, ready { DispatchQueue.main.async { AppStore.shared.setupChanged() } }
         calendarStatus = CalendarAccess.status
         calendar = calendarStatus == .authorized
         if calendar { calendarAskWasSilent = false }
@@ -111,6 +115,27 @@ final class SetupModel: ObservableObject {
         }
     }
 
+    /// The one button of the first step: microphone, notifications, then system
+    /// audio last, because granting that one restarts Ata.
+    func allowRecording() {
+        Task {
+            let mic = AVCaptureDevice.authorizationStatus(for: .audio)
+            if mic == .notDetermined {
+                _ = await AVCaptureDevice.requestAccess(for: .audio)
+            } else if mic != .authorized {
+                Self.openPrivacy("Privacy_Microphone")
+                refresh()
+                return
+            }
+            let center = UNUserNotificationCenter.current()
+            if await center.notificationSettings().authorizationStatus == .notDetermined {
+                _ = try? await center.requestAuthorization(options: [.alert, .sound])
+            }
+            refresh()
+            if systemAudioMissing { requestSystemAudio() }
+        }
+    }
+
     func requestMic() {
         Task {
             let status = AVCaptureDevice.authorizationStatus(for: .audio)
@@ -124,8 +149,8 @@ final class SetupModel: ObservableObject {
     }
 
     /// Shows the system prompt the first time; after a refusal, macOS won't ask
-    /// again, so this opens the settings pane instead. No relaunch needed: the
-    /// state is read again as soon as Ata is back in front.
+    /// again, so this opens the settings pane instead. A grant is noticed by
+    /// `refresh`, which restarts Ata; see `restartIfAudioWasJustGranted`.
     func requestSystemAudio() {
         if systemAudioStatus != .denied,
            SystemAudioPermission.ask({ [weak self] _ in Task { @MainActor in self?.refresh() } }) {
@@ -139,6 +164,11 @@ final class SetupModel: ObservableObject {
     /// so a grant given while Ata is running only takes effect after a restart
     /// (measured: the tap delivered nothing until then).
     private let systemAudioAtLaunch = SystemAudioPermission.status
+
+    /// Granted, and the restart it takes is about to happen.
+    private var restartPending: Bool {
+        systemAudioAtLaunch != .authorized && systemAudioStatus == .authorized
+    }
 
     /// Restarts Ata once, by itself, right after system audio was granted —
     /// never during a recording. Called from `refresh`.
@@ -179,11 +209,13 @@ final class SetupModel: ObservableObject {
     }
 
     /// Apple Intelligence has no in-app prompt. This opens the System Settings
-    /// pane where it is turned on; Ata asks again the next time it is in front.
+    /// pane where it is turned on. Siri's pane first: that is where Apple
+    /// Intelligence is on macOS 26, and macOS claims success for a pane it does
+    /// not have, so a wrong one first would never reach the right one.
     static func openAppleIntelligence() {
         let candidates = [
-            "x-apple.systempreferences:com.apple.Apple-Intelligence-Settings.extension",
             "x-apple.systempreferences:com.apple.Siri-Settings.extension",
+            "x-apple.systempreferences:com.apple.Apple-Intelligence-Settings.extension",
         ]
         for raw in candidates {
             if let url = URL(string: raw), NSWorkspace.shared.open(url) { return }
@@ -203,25 +235,46 @@ final class SetupModel: ObservableObject {
 
     // MARK: Models
 
+    /// Starts on its own, but not while system audio is unanswered: that answer
+    /// restarts Ata, and this is too large to throw away a moment in.
+    private func startDownloadIfNeeded() {
+        guard NSApp != nil, !Snapshots.rendering, !Diagnostics.requested,
+              downloadProgress == nil, downloadError == nil, !model || !Paths.hasVADModel,
+              !restartPending, !(systemAudioStatus == .unknown && SystemAudioPermission.canAsk) else { return }
+        downloadModels()
+    }
+
     func downloadModels() {
         guard downloadProgress == nil else { return }
         downloadError = nil
-        downloadProgress = 0
         try? FileManager.default.createDirectory(at: Paths.modelsDir, withIntermediateDirectories: true)
 
-        // VAD first (1 MB), then the main model (1.6 GB).
-        fetch(Paths.vadModelURL, to: Paths.vadModel, skipIf: Paths.hasVADModel, weight: 0) { [weak self] ok in
+        let model = LocalModel.current
+        if !model.isInstalled, !DiskCheck.hasRoom(available: DiskCheck.available(at: Paths.modelsDir), needed: model.bytes) {
+            let free = ByteCountFormatter.string(fromByteCount: DiskCheck.available(at: Paths.modelsDir) ?? 0, countStyle: .file)
+            downloadError = L("Whisper Large needs %@ of free disk space, and %@ is free. Free some up and try again.",
+                              ByteCountFormatter.string(fromByteCount: model.bytes + DiskCheck.margin, countStyle: .file), free)
+            return
+        }
+        downloadProgress = 0
+        // VAD first (1 MB), then the main model (1.1 GB). Each is tried on its
+        // own: a failed VAD must not stop the model, and comes back next time.
+        fetch(Paths.vadModelURL, to: Paths.vadModel, skipIf: Paths.hasVADModel, weight: 0) { [weak self] vadOK in
             guard let self else { return }
-            let model = LocalModel.current
-            self.fetch(model.url, to: model.path, skipIf: model.isInstalled, weight: 1) { ok2 in
+            self.fetch(model.url, to: model.path, skipIf: model.isInstalled, weight: 1) { modelOK in
                 self.downloadProgress = nil
+                if vadOK && modelOK { self.downloadError = nil }
+                if !modelOK && self.downloadError == nil { self.downloadError = L("The download failed. Try again.") }
                 self.refresh()
                 // Meetings may be waiting for exactly this model.
                 AppStore.shared.setupChanged()
-                if !ok2 && self.downloadError == nil { self.downloadError = L("The download failed. Try again.") }
-                _ = ok
             }
         }
+    }
+
+    /// So a quit doesn't start a 1 GB download over.
+    func keepDownloadForLater() {
+        downloader?.keepForLater()
     }
 
     private func fetch(_ url: URL, to dest: URL, skipIf: Bool, weight: Double,
@@ -241,13 +294,16 @@ final class SetupModel: ObservableObject {
 }
 #endif
 
-/// Download with progress, into a temporary file that is only moved into place at the end.
+/// Download with progress, into a temporary file that is only moved into place
+/// at the end. What arrived before a failure or a quit is kept beside the target,
+/// so the next try carries on from there.
 final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
     private let dest: URL
     private let onProgress: @Sendable (Double) -> Void
     private let completion: @Sendable (Error?) -> Void
     private var moveError: Error?
     private var session: URLSession?
+    private var task: URLSessionDownloadTask?
 
     init(dest: URL, progress: @escaping @Sendable (Double) -> Void, completion: @escaping @Sendable (Error?) -> Void) {
         self.dest = dest
@@ -255,10 +311,32 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
         self.completion = completion
     }
 
+    private var resumeFile: URL { dest.appendingPathExtension("resume") }
+
+    /// 206 is what a resumed download ends with: the server sent the rest.
+    static func isComplete(status: Int) -> Bool { status == 200 || status == 206 }
+
     func start(_ url: URL) {
         let s = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
         session = s
-        s.downloadTask(with: url).resume()
+        let saved = try? Data(contentsOf: resumeFile)
+        // Used once: if it no longer works, the next try starts clean.
+        try? FileManager.default.removeItem(at: resumeFile)
+        let t = saved.map { s.downloadTask(withResumeData: $0) } ?? s.downloadTask(with: url)
+        task = t
+        t.resume()
+    }
+
+    /// Waits a moment at most: this runs while Ata is quitting.
+    func keepForLater() {
+        guard let task else { return }
+        let done = DispatchSemaphore(value: 0)
+        let file = resumeFile
+        task.cancel { data in
+            if let data { try? data.write(to: file, options: .atomic) }
+            done.signal()
+        }
+        _ = done.wait(timeout: .now() + 1)
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64,
@@ -269,7 +347,7 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-        if let http = downloadTask.response as? HTTPURLResponse, http.statusCode != 200 {
+        if let http = downloadTask.response as? HTTPURLResponse, !Self.isComplete(status: http.statusCode) {
             moveError = NSError(domain: "Ata", code: http.statusCode,
                                 userInfo: [NSLocalizedDescriptionKey: L("The server replied %d.", http.statusCode)])
             return
@@ -283,6 +361,9 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        if let data = (error as NSError?)?.userInfo[NSURLSessionDownloadTaskResumeData] as? Data {
+            try? data.write(to: resumeFile, options: .atomic)
+        }
         completion(error ?? moveError)
         session.finishTasksAndInvalidate()
     }

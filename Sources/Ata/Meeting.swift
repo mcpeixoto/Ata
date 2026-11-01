@@ -18,6 +18,8 @@ struct Meeting: Codable, Identifiable, Equatable {
     /// Engine and model for the next run, when the user picked "Transcribe
     /// again with…". Cleared once that run starts.
     var override: TranscribeOverride? = nil
+    /// Transcribed while Apple Intelligence was off: the summary comes when it is on.
+    var summaryPending: Bool? = nil
     /// The device that recorded or imported it. Absent in meetings from before
     /// Ata 2.6, which were all made on the Mac that has them: nil means this device.
     var origin: DeviceRef? = nil

@@ -307,7 +307,7 @@ struct MeetingView: View {
     private func status(_ meeting: Meeting) -> some View {
         switch meeting.status {
         case .pending:
-            statusRow(L("Waiting to be transcribed…"), progress: nil)
+            statusRow(store.queueReason ?? L("Waiting to be transcribed…"), progress: nil)
         case .transcribing:
             statusRow(L("Transcribing…"), progress: store.transcribingID == meeting.id ? store.transcribeProgress : nil)
         case .failed:

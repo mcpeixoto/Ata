@@ -319,14 +319,16 @@ enum LocalEngine {
                     cont.resume(returning: log.text)
                 } else if watchdog.didStall() {
                     cont.resume(throwing: TranscriberError.failed(
-                        L("the transcription engine stopped making progress and was stopped; this meeting can be transcribed again")))
+                        L("The transcription stopped making progress and was stopped. Your audio is safe. Try again.")))
                 } else if proc.terminationReason == .uncaughtSignal {
                     // Killed — Ata is quitting. Don't retry, or whisper outlives the app.
                     cont.resume(throwing: TranscriberError.cancelled)
                 } else {
+                    // The detail is for the log. Whisper's own last lines mean nothing to the reader.
                     let tail = log.text.split(separator: "\n").suffix(4).joined(separator: "\n")
+                    NSLog("Ata: whisper-cli exited with %d: %@", proc.terminationStatus, tail)
                     cont.resume(throwing: TranscriberError.failed(
-                        tail.isEmpty ? L("exit code %d", proc.terminationStatus) : tail))
+                        L("The transcription stopped unexpectedly. Your audio is safe. Try again.")))
                 }
             }
             guard box.set(p) else {

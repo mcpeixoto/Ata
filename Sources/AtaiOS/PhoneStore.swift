@@ -389,6 +389,9 @@ final class PhoneStore: ObservableObject {
 
     // MARK: Transcription queue
 
+    /// The phone's engine needs nothing installed first.
+    var queueReason: String? { nil }
+
     /// Whether this iPhone can run the engine a job asks for. The phone transcribes
     /// on the device only, and whisper-cli is a Mac program, so until an on-device
     /// engine is added the queue waits, with the audio kept.
