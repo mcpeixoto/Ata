@@ -280,7 +280,7 @@ final class Updater: ObservableObject {
     private func relaunch(_ app: URL) {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/sh")
-        p.arguments = ["-c", "sleep 1; /usr/bin/open \"\(app.path)\""]
+        p.arguments = ["-c", "sleep 1; /usr/bin/open \"\(app.path)\" --args \(LaunchWindow.quietArgument)"]
         try? p.run()
         NSApp.terminate(nil)
     }

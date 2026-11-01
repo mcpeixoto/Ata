@@ -182,7 +182,7 @@ enum Pref {
     }
 
     /// Defaults for settings that only one platform has.
-    private static var platformDefaults: [String: Any] {
+    static var platformDefaults: [String: Any] {
         #if os(macOS)
         return [
             // Ata has always been a menu bar app, and stays one unless you say
@@ -202,7 +202,9 @@ enum Pref {
             dockIcon: false,
             menuBarIcon: true,
             menuIconSymbol: MenuIcon.Symbol.dot.rawValue,
-            menuIconTint: MenuIcon.Tint.monochrome.rawValue,
+            // Recording someone should be impossible to miss.
+            menuIconTint: MenuIcon.Tint.red.rawValue,
+            recordShortcut: Shortcut.defaultRecord.stored,
             menuIconTimer: true,
             menuIconPulse: false,
             menuIconProgress: true,

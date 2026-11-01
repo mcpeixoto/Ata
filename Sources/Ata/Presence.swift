@@ -1,5 +1,62 @@
 import AppKit
 
+/// ⌘Q closes Ata's windows. The menu bar icon is the app, so the usual "quit"
+/// keystroke must not take it away; Quit Ata in the menu does that.
+enum QuitKey {
+    static func closesWindows(characters: String?, modifiers: NSEvent.ModifierFlags) -> Bool {
+        isCommand(characters, "q", modifiers)
+    }
+
+    static func closesOneWindow(characters: String?, modifiers: NSEvent.ModifierFlags) -> Bool {
+        isCommand(characters, "w", modifiers)
+    }
+
+    private static func isCommand(_ characters: String?, _ key: String, _ modifiers: NSEvent.ModifierFlags) -> Bool {
+        characters?.lowercased() == key
+            && modifiers.intersection(.deviceIndependentFlagsMask).subtracting(.capsLock) == .command
+    }
+}
+
+/// What Quit Ata should warn about. Quitting always keeps the audio; what it
+/// costs is time, and that is worth one question.
+enum QuitWarning: Equatable {
+    case recording, transcribing
+
+    static func needed(recording: Bool, transcribing: Bool) -> QuitWarning? {
+        if recording { return .recording }
+        return transcribing ? .transcribing : nil
+    }
+
+    var title: String {
+        switch self {
+        case .recording: return L("Ata is recording. Quit anyway?")
+        case .transcribing: return L("Ata is transcribing a meeting. Quit anyway?")
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .recording: return L("The recording stops here. It is saved and transcribed the next time Ata opens.")
+        case .transcribing: return L("The transcription starts again from the beginning the next time Ata opens.")
+        }
+    }
+}
+
+/// Whether a launch should show a window. Opening Ata by hand and getting
+/// nothing looks broken, but a window at every login, update or restart is noise.
+enum LaunchWindow {
+    /// Passed by Ata when it restarts itself, so that restart stays silent.
+    static let quietArgument = "--quiet-launch"
+
+    /// `loginItemEvent`: macOS said it launched Ata as a login item. It doesn't
+    /// always say so for `SMAppService`, so a launch moments after startup with
+    /// the login item on counts too.
+    static func shows(arguments: [String], loginItemEvent: Bool, loginItemOn: Bool, uptime: TimeInterval) -> Bool {
+        if arguments.contains(quietArgument) || loginItemEvent { return false }
+        return !(loginItemOn && uptime < 180)
+    }
+}
+
 /// Where Ata can be found: a menu bar icon, a Dock icon, or both.
 ///
 /// Ata ships as a menu bar app (`LSUIElement`), which is right until the menu
@@ -54,8 +111,15 @@ enum Presence {
     /// Turning the Dock icon off would strand an app whose menu bar icon is
     /// also hidden, so the menu bar icon comes back with it.
     static func setDockIcon(_ on: Bool) {
+        let window = NSApp?.keyWindow
         Pref.d.set(on, forKey: Pref.dockIcon)
         if !on { Pref.d.set(true, forKey: Pref.menuBarIcon) }
         apply()
+        // Changing policy can drop the app's focus, and Settings with it, behind
+        // whatever was underneath.
+        DispatchQueue.main.async {
+            NSApp?.activate(ignoringOtherApps: true)
+            window?.makeKeyAndOrderFront(nil)
+        }
     }
 }
