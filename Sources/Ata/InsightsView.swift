@@ -1,16 +1,8 @@
 import Charts
 import SwiftUI
 
-/// The menu's second tab: what you've recorded, who talked, what it cost.
+/// The menu's second tab: what you've recorded and who talked.
 struct InsightsView: View {
-    private static func savedLine(_ amount: String) -> String {
-        #if os(iOS)
-        return L("%@ saved on this iPhone", amount)
-        #else
-        return L("%@ saved on this Mac", amount)
-        #endif
-    }
-
     @EnvironmentObject var store: AppStore
     @State private var data = Insights()
     /// Drives every entrance animation: charts grow and numbers count up from zero.
@@ -74,7 +66,7 @@ struct InsightsView: View {
                     recordedTile
                     meetingsTile
                     wordsTile
-                    spentTile
+                    monthTile
                 }
             } else {
                 Grid(horizontalSpacing: 8, verticalSpacing: 8) {
@@ -84,7 +76,7 @@ struct InsightsView: View {
                     }
                     GridRow {
                         wordsTile
-                        spentTile
+                        monthTile
                     }
                 }
             }
@@ -107,11 +99,9 @@ struct InsightsView: View {
              value: (shown ? data.words : 0).formatted(.number.notation(.compactName)))
     }
 
-    private var spentTile: some View {
-        Tile(symbol: "dollarsign.circle.fill", tint: .pink, title: L("Spent this month"),
-             value: Pricing.format(shown ? data.spentThisMonth : 0),
-             footnote: data.savedLocally > 0.005
-                ? Self.savedLine(Pricing.format(data.savedLocally)) : nil)
+    private var monthTile: some View {
+        Tile(symbol: "calendar", tint: .pink, title: L("This month"),
+             value: hours(shown ? data.recordedThisMonth : 0))
     }
 
     private func hours(_ seconds: Double) -> String {
@@ -312,13 +302,11 @@ private struct TimelineRow: View {
                 .background(Circle().fill((event.record.isLocal ? Theme.meTint : .pink).opacity(0.14)))
             VStack(alignment: .leading, spacing: 0) {
                 Text(event.meetingTitle).ataFont(11, weight: .semibold).lineLimit(1)
-                Text(event.record.model + (event.isCurrent ? "" : " · " + L("replaced")))
+                Text((LocalModel.find(event.record.model)?.title ?? event.record.model) + (event.isCurrent ? "" : " · " + L("replaced")))
                     .ataFont(10).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 4)
             VStack(alignment: .trailing, spacing: 0) {
-                Text(event.record.costUSD > 0 ? Pricing.format(event.record.costUSD) : L("free"))
-                    .ataFont(10, weight: .medium).monospacedDigit()
                 Text(event.record.finishedAt, format: .relative(presentation: .named))
                     .ataFont(9).ataFaint()
             }

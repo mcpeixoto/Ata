@@ -1048,23 +1048,6 @@ struct TranscribeAgainMenu: View {
                     }
                 }
             }
-            #else
-            Menu("Transcribe again with") {
-                Section("On this Mac") {
-                    ForEach(LocalModel.all) { model in
-                        Button(model.isInstalled ? model.title : L("%@ (not downloaded)", model.title)) {
-                            store.retry(meeting, with: TranscribeOverride(engine: Engine.local.rawValue,
-                                                                          model: model.id))
-                        }
-                        .disabled(!model.isInstalled)
-                    }
-                    Button(L("Apple speech recognition")) {
-                        store.retry(meeting, with: TranscribeOverride(engine: Engine.apple.rawValue,
-                                                                      model: AppleSpeechEngine.modelID))
-                    }
-                    .disabled(!AppleSpeechEngine.isAvailable)
-                }
-            }
             #endif
         }
     }

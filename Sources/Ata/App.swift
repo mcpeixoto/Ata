@@ -51,6 +51,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // which is what made closing a window look like it did nothing and
         // made Quit take the menu bar icon with it.
         Pref.applyMenuBarHome()
+        if Pref.retireOpenAI() {
+            Task.detached { Keychain.set(nil, for: Keychain.retiredOpenAIKey) }
+        }
         Presence.apply()
         // Whatever app you are in, and whether or not the icon is reachable.
         Hotkey.reload { AppStore.shared.toggleRecording() }

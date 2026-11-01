@@ -62,19 +62,14 @@ enum Paths {
     static let vadModel = modelsDir.appendingPathComponent("ggml-silero-v5.1.2.bin")
     static let vadModelURL = URL(string: "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin")!
 
-    /// whisper-cli and Homebrew are Mac programs. An iPhone app cannot start
-    /// another program, so there they are never found.
+    /// whisper-cli ships inside Ata.app (`scripts/build-whisper.sh`). Homebrew's is
+    /// only there for `swift test`, which has no app around it. An iPhone app
+    /// cannot start another program, so there it is never found.
     static func whisperCLI() -> URL? {
         #if os(macOS)
+        if let bundled = Bundle.main.url(forAuxiliaryExecutable: "whisper-cli"),
+           FileManager.default.isExecutableFile(atPath: bundled.path) { return bundled }
         return firstExecutable(["/opt/homebrew/bin/whisper-cli", "/usr/local/bin/whisper-cli"])
-        #else
-        return nil
-        #endif
-    }
-
-    static func brew() -> URL? {
-        #if os(macOS)
-        return firstExecutable(["/opt/homebrew/bin/brew", "/usr/local/bin/brew"])
         #else
         return nil
         #endif
@@ -107,11 +102,9 @@ enum Pref {
     static let myName = "myName"             // how you appear in the transcript
     static let onboarded = "onboarded"
     static let engine = "engine"             // "local" | "openai"
+    static let openAIRetired = "openAIRetired"
     static let localModel = "localModel"     // LocalModel.id
-    static let openAIModel = "openAIModel"
     static let summarize = "summarize"       // append an AI summary
-    static let summaryModel = "summaryModel"
-    static let summaryEngine = "summaryEngine" // "auto" | SummaryEngine.rawValue
     static let summaryTemplate = "summaryTemplate" // SummaryTemplate.rawValue
     static let dictionary = "dictionary"       // the user's own names and words, as typed
     static let audioRetentionDays = "audioRetentionDays" // 0 = keep forever
@@ -151,15 +144,6 @@ enum Pref {
         ("fr", "Français"), ("de", "Deutsch"), ("it", "Italiano"),
     ]
 
-    static let defaultOpenAIModel = "whisper-1"
-    static let defaultSummaryModel = "gpt-4o-mini"
-
-    /// OpenAI transcription models offered in Settings.
-    /// Only `whisper-1` returns per-segment timestamps; the others are more
-    /// accurate but give a transcript without per-line times.
-    static let openAIModels = ["whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"]
-    static let summaryModels = ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"]
-
     static func registerDefaults() {
         UserDefaults.standard.register(defaults: platformDefaults.merging([
             language: "auto",
@@ -172,11 +156,7 @@ enum Pref {
             myName: defaultName,
             onboarded: false,
             engine: Engine.local.rawValue,
-            localModel: LocalModel.defaultID,
-            openAIModel: defaultOpenAIModel,
             summarize: true,
-            summaryModel: defaultSummaryModel,
-            summaryEngine: SummaryEngine.apple.rawValue,
             autoUpdate: true,
             audioRetentionDays: 0,
             // On. Knowing who said what is the point of a transcript of a
@@ -238,7 +218,7 @@ enum Pref {
     }
 
     /// Once, on the Mac: Ata lives in the menu bar, transcribes with Whisper
-    /// Large and writes summaries with Apple Intelligence. Does nothing the
+    /// Large and writes summaries. Does nothing the
     /// second time, so turning the Dock icon back on in Settings sticks.
     static func applyMenuBarHome(to defaults: UserDefaults = .standard) {
         #if os(macOS)
@@ -248,8 +228,26 @@ enum Pref {
         defaults.set(Engine.local.rawValue, forKey: engine)
         defaults.set(LocalModel.defaultID, forKey: localModel)
         defaults.set(true, forKey: summarize)
-        defaults.set(SummaryEngine.apple.rawValue, forKey: summaryEngine)
         defaults.set(true, forKey: menuBarHome)
+        #endif
+    }
+
+    /// Once, on the Mac: clears what older versions kept for OpenAI, and the model
+    /// choice that no longer exists. Returns whether it ran, because the API key
+    /// is deleted by the caller, away from launch: a keychain call can block.
+    /// Never touches the Dock choice.
+    @discardableResult
+    static func retireOpenAI(to defaults: UserDefaults = .standard) -> Bool {
+        #if os(macOS)
+        guard !defaults.bool(forKey: openAIRetired) else { return false }
+        for key in ["openAIModel", "summaryModel", "summaryEngine", localModel] {
+            defaults.removeObject(forKey: key)
+        }
+        defaults.set(Engine.local.rawValue, forKey: engine)
+        defaults.set(true, forKey: openAIRetired)
+        return true
+        #else
+        return false
         #endif
     }
 

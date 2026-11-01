@@ -1,49 +1,6 @@
 @testable import Ata
 import XCTest
 
-/// The summary engine footnote in Settings follows what the picker shows.
-final class SummaryNoteTests: XCTestCase {
-    private let reason = "Needs macOS 26 with Apple Intelligence turned on."
-
-    /// "auto" on a Mac without Apple Intelligence is shown as OpenAI, so the
-    /// footnote must not also tell you to turn Apple Intelligence on.
-    func testAutoShownAsOpenAIDoesNotAskForAppleIntelligence() {
-        XCTAssertEqual(SettingsView.summaryNote(engine: "auto", appleAvailable: false,
-                                                appleUnavailableReason: reason, hasOpenAIKey: true),
-                       .sendsToOpenAI)
-        XCTAssertEqual(SettingsView.summaryNote(engine: "auto", appleAvailable: false,
-                                                appleUnavailableReason: reason, hasOpenAIKey: false),
-                       .sendsToOpenAI)
-    }
-
-    func testOpenAIChosenSaysWhatIsSent() {
-        XCTAssertEqual(SettingsView.summaryNote(engine: SummaryEngine.openAI.rawValue, appleAvailable: true,
-                                                appleUnavailableReason: nil, hasOpenAIKey: true),
-                       .sendsToOpenAI)
-        XCTAssertEqual(SettingsView.summaryNote(engine: SummaryEngine.openAI.rawValue, appleAvailable: false,
-                                                appleUnavailableReason: reason, hasOpenAIKey: true),
-                       .sendsToOpenAI)
-    }
-
-    func testAppleChosenButUnavailableSaysWhy() {
-        XCTAssertEqual(SettingsView.summaryNote(engine: SummaryEngine.apple.rawValue, appleAvailable: false,
-                                                appleUnavailableReason: reason, hasOpenAIKey: true),
-                       .appleUnavailable(reason))
-    }
-
-    func testOnThisMacMentionsTheOpenAIFallbackOnlyForAutoWithAKey() {
-        XCTAssertEqual(SettingsView.summaryNote(engine: "auto", appleAvailable: true,
-                                                appleUnavailableReason: nil, hasOpenAIKey: true),
-                       .onThisMac(fallsBackToOpenAI: true))
-        XCTAssertEqual(SettingsView.summaryNote(engine: "auto", appleAvailable: true,
-                                                appleUnavailableReason: nil, hasOpenAIKey: false),
-                       .onThisMac(fallsBackToOpenAI: false))
-        XCTAssertEqual(SettingsView.summaryNote(engine: SummaryEngine.apple.rawValue, appleAvailable: true,
-                                                appleUnavailableReason: nil, hasOpenAIKey: true),
-                       .onThisMac(fallsBackToOpenAI: false))
-    }
-}
-
 /// The summary is drawn line by line so list items hang-indent.
 final class SummaryLinesTests: XCTestCase {
     private func plain(_ line: MeetingNotes.Line) -> String { String(line.text.characters) }

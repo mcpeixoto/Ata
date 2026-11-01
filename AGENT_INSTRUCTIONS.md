@@ -188,6 +188,9 @@ Layout:
   update it only as that README says). The MP3 is an extra file, never a replacement for the tracks.
 - `Resources/` — `Info.plist` (version, repo, donate URL), the iconset, the entitlements,
   and `en.lproj` / `pt.lproj`.
+- `scripts/build-whisper.sh` — builds the `whisper-cli` that ships inside the app: pinned, static,
+  never tuned to the build machine's chip (that would crash an older Mac). Homebrew's copy is only
+  for `swift test`.
 - `scripts/build-app.sh` — assembles `build/Ata.app`. CI runs this exact script; never
   reimplement the bundle layout anywhere else.
 
@@ -211,7 +214,7 @@ Layout:
 - **The version lives in `Resources/Info.plist`.** `CFBundleShortVersionString` must equal
   the tag without the `v`, or the release workflow fails on purpose.
 - **Never commit an API key**, a `.p12`, a `.p8`, or anything out of
-  `~/Documents/Meetings`. The OpenAI key belongs in the keychain via `Keychain.swift`.
+  `~/Documents/Meetings`.
 - This repo is **public**. Assume every commit message, comment and string is read by
   strangers.
 

@@ -31,31 +31,6 @@ final class FilesTests: XCTestCase {
 
     // MARK: Splitting for upload
 
-    func testLongRecordingsSplitIntoTimedPieces() throws {
-        let source = Self.root.appendingPathComponent("long.wav")
-        try wav(seconds: 25, at: source)
-        let chunks = try AudioFiles.split(source, maxSeconds: 10, into: Self.root.appendingPathComponent("chunks"))
-        defer { AudioFiles.cleanUp(chunks) }
-
-        XCTAssertEqual(chunks.map(\.offsetMs), [0, 10_000, 20_000])
-        XCTAssertEqual(chunks.map { WavWriter.duration(of: $0.url) }, [10, 10, 5])
-        XCTAssertTrue(chunks.allSatisfy(\.temporary))
-
-        // The pieces put back together are the original audio, byte for byte.
-        let original = try Data(contentsOf: source).dropFirst(44)
-        let joined = try chunks.reduce(Data()) { $0 + (try Data(contentsOf: $1.url)).dropFirst(44) }
-        XCTAssertEqual(original, joined)
-    }
-
-    func testShortRecordingsAreNotCopied() throws {
-        let source = Self.root.appendingPathComponent("short.wav")
-        try wav(seconds: 3, at: source)
-        let chunks = try AudioFiles.split(source, maxSeconds: 10, into: Self.root.appendingPathComponent("chunks2"))
-        XCTAssertEqual(chunks.count, 1)
-        XCTAssertEqual(chunks[0].url, source)
-        XCTAssertFalse(chunks[0].temporary)
-    }
-
     // MARK: Versions
 
     func testTranscribingAgainKeepsTheOldTranscript() throws {
@@ -126,7 +101,6 @@ final class FilesTests: XCTestCase {
         XCTAssertEqual(i.meetings, 2)
         XCTAssertEqual(i.recordedSeconds, 1_800)
         XCTAssertEqual(i.words, 1_500)                     // current transcripts only
-        XCTAssertEqual(i.spentTotal, 0.12, accuracy: 1e-9)  // every run that cost money
         XCTAssertEqual(i.mySpeech, 200)
         XCTAssertEqual(i.myShare, 0.25, accuracy: 1e-9)
         XCTAssertEqual(i.timeline.count, 3)

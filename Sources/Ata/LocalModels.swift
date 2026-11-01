@@ -41,22 +41,10 @@ struct LocalModel: Identifiable, Equatable {
 
     static func find(_ id: String) -> LocalModel? { all.first { $0.id == id } }
 
-    /// The model to use: the one the user picked; otherwise the default once it
-    /// is downloaded; otherwise any model already on disk, so an install from
-    /// before the default changed keeps working until the better one arrives.
-    static var current: LocalModel {
-        if let picked = Pref.d.string(forKey: Pref.localModel), let m = find(picked) { return m }
-        let preferred = find(defaultID)!
-        if preferred.isInstalled { return preferred }
-        return installed.first ?? preferred
-    }
-
-    /// True when a more accurate model than the one in use exists. Said whether
-    /// the weaker model is in use by accident (the recommended one is not
-    /// downloaded) or on purpose: a choice made once, when Turbo was the default,
-    /// is otherwise never revisited, and Turbo's word error rate is a fifth worse.
-    /// Only ever shown as a suggestion — a deliberate choice is never overridden.
-    static var betterAvailable: Bool { current.id != defaultID }
+    /// The model Ata transcribes with. There is one on purpose: the catalogue only
+    /// remains so that a model left on disk by an older version can be found and
+    /// removed, and for tests that want a smaller one.
+    static var current: LocalModel { find(defaultID)! }
 
     static var installed: [LocalModel] { all.filter(\.isInstalled) }
 }

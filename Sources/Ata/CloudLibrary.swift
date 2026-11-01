@@ -1137,7 +1137,7 @@ enum SettingsMerge {
 final class SettingsSync {
     static let shared = SettingsSync()
 
-    static let keys = [Pref.myName, Pref.language, Pref.summaryEngine, Pref.recogniseVoices]
+    static let keys = [Pref.myName, Pref.language, Pref.recogniseVoices]
     /// When each of them was last changed on this device.
     static let stampsKey = "syncedSettingsChangedAt"
 

@@ -240,15 +240,11 @@ final class AppleSpeechTests: XCTestCase {
         XCTAssertTrue(Engine.apple.isLocal)
         XCTAssertFalse(Engine.apple.needsWhisper)
         XCTAssertTrue(Engine.local.needsWhisper)
-        XCTAssertFalse(Engine.openAI.isLocal)
+        XCTAssertNil(Engine(rawValue: "openai"), "older meetings say this; it runs on the device instead")
 
-        let options = TranscribeOptions(engine: .apple, myName: "Alex", language: "auto", openAIModel: "whisper-1",
-                                        localModel: "large-v3", summarize: false, summaryModel: "gpt-4o-mini")
+        let options = TranscribeOptions(engine: .apple, myName: "Alex", language: "auto",
+                                        localModel: "large-v3", summarize: false)
         XCTAssertEqual(options.modelID, AppleSpeechEngine.modelID)
-        XCTAssertEqual(options.transcriptionCost(seconds: 3_600), 0)
-        var cloud = options
-        cloud.engine = .openAI
-        XCTAssertGreaterThan(cloud.transcriptionCost(seconds: 3_600), 0)
 
         let record = TranscriptionRecord(engine: "apple", model: AppleSpeechEngine.modelID, finishedAt: Date(),
                                          audioSeconds: 60, processingSeconds: 5, costUSD: 0, words: 100,

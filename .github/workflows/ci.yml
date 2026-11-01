@@ -33,6 +33,12 @@ jobs:
       - name: Check localizations are in sync
         run: ./scripts/check-localization.sh
 
+      - name: Cache the bundled whisper-cli
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/Ata-build
+          key: whisper-${{ hashFiles('scripts/build-whisper.sh') }}
+
       - name: Assemble Ata.app
         run: ./scripts/build-app.sh
 
@@ -43,6 +49,8 @@ jobs:
           test -d build/Ata.app/Contents/Resources/pt.lproj
           test -f build/Ata.app/Contents/Resources/AppIcon.icns
           codesign --verify --deep --strict build/Ata.app
+          build/Ata.app/Contents/MacOS/whisper-cli --help >/dev/null
+          ! otool -L build/Ata.app/Contents/MacOS/whisper-cli | grep -E 'homebrew|/usr/local'
           # FoundationModels exists only on macOS 26. Linked strongly, Ata would not
           # launch at all on 14 or 15, so it must be weak (or not linked).
           link=$(otool -l build/Ata.app/Contents/MacOS/Ata | awk '/^ *cmd /{c=$2} /name .*FoundationModels/{print c}')

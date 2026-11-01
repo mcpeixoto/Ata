@@ -393,7 +393,6 @@ final class PhoneStore: ObservableObject {
     /// on the device only, and whisper-cli is a Mac program, so until an on-device
     /// engine is added the queue waits, with the audio kept.
     static func canRun(_ options: TranscribeOptions) -> Bool {
-        if options.engine == .openAI { return false }
         if options.engine == .local { return Paths.whisperCLI() != nil }
         return true
     }

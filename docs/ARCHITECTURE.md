@@ -19,11 +19,9 @@ flowchart LR
     QUEUE --> AEC[EchoCanceller<br/>others out of the mic]
     AEC --> T[Transcriber]
     T --> LOCAL[LocalEngine<br/>whisper.cpp + Metal]
-    T --> OPENAI[OpenAIEngine<br/>chunked upload]
     LOCAL --> MERGE[Merge tracks · drop echo]
-    OPENAI --> MERGE
     MERGE --> MD[transcript.md]
-    MD -. optional .-> SUM[Summarizer<br/>OpenAI chat]
+    MD -. optional .-> SUM[Summarizer<br/>Apple Intelligence]
     SUM -.-> MD
     MD --> AUDIO[Keep + compress to m4a<br/>or delete]
 ```
@@ -105,7 +103,7 @@ The options for a job — engine, model, language, your name, whether to summari
 when the job starts, so changing a setting mid-run can't produce a transcript that mixes two
 configurations.
 
-## 4. Transcribing — `Transcriber`, `LocalEngine`, `OpenAIEngine`
+## 4. Transcribing — `Transcriber`, `LocalEngine`
 
 First, **`EchoCanceller`** cleans a copy of the microphone track. Without headphones the
 microphone hears the other participants through the speakers, and their words used to come out a
@@ -137,20 +135,16 @@ The cleaned copy is then what gets transcribed and what your voice fingerprint i
   - A track in one language is a single run, as before. whisper.cpp's own `auto` decides once
     per file, from the first 30 s, so it can't follow a switch.
 
-- **`LocalEngine`** runs `whisper-cli` (from Homebrew's `whisper-cpp`) with the large-v3-turbo
-  model and, when available, Silero VAD. It reads progress from whisper's stderr and the segments
+- **`LocalEngine`** runs the `whisper-cli` inside the app (built by `scripts/build-whisper.sh`) with
+  the Large v3 model and, when available, Silero VAD. It reads progress from whisper's stderr and the segments
   from its JSON output.
-- **`OpenAIEngine`** splits each WAV into ten-minute pieces — a byte-range copy plus a new header,
-  no re-encoding — to stay under OpenAI's 25 MB upload limit, uploads them, and shifts every
-  segment's timestamps by its piece's offset.
 
 Then it merges both tracks into one timeline, and drops any echo that survived as text: microphone
-segments that overlap in time with an "others" segment and share most of its words. This needs
-real timestamps, so it's skipped for OpenAI models that don't return them. Since 2.4.1 it's the
+segments that overlap in time with an "others" segment and share most of its words. Since 2.4.1 it's the
 second line of defence; `EchoCanceller` is the first.
 
-Finally it writes `transcript.md`. If summaries are on, `Summarizer` sends the finished text to
-OpenAI's chat API and the summary goes above the transcript. The transcript is already on disk at
+Finally it writes `transcript.md`. If summaries are on, `Summarizer` hands the finished text to
+Apple Intelligence and the summary goes above the transcript. The transcript is already on disk at
 that point, so a failed summary costs nothing.
 
 ## 5. Afterwards — audio handling
@@ -177,8 +171,7 @@ summarizes an already-transcribed meeting through `Summarizer`, stores the summa
 Naming a voice there goes through `PeopleModel.rename`, like the People tab.
 
 **Following along (2.5).**
-- `transcript.json` keeps word times: from whisper-cli's tokens, or OpenAI whisper-1's word
-  timestamps. Older lines get estimates from `WordTiming`.
+- `transcript.json` keeps word times: from whisper-cli's tokens. Older lines get estimates from `WordTiming`.
 - Every word in the Transcript tab is an `ata-seek://` link that plays from there.
 - `PlaybackCursor` maps the 20 Hz playhead to `(line, word)` by binary search, and publishes
   only when the word changes, so only that line redraws.
@@ -190,7 +183,7 @@ window through `Speakers.leftOut`. `transcript.json` and the audio keep everythi
 a voice back restores its lines.
 
 **Summaries** (`Summarizer`) go to Apple's on-device model (`AppleSummarizer`, FoundationModels,
-macOS 26) when it's available and writes the app's language, and to OpenAI otherwise.
+macOS 26) when it's available and writes the app's language. Otherwise there is no summary.
 - The on-device model has a ~4k-token window, so transcripts are summarized in ~6,000-character
   chunks (`SummaryChunks`) and the partial notes merged.
 - The output is a guided `MeetingSummary` that `SummaryMarkdown` renders.
@@ -263,7 +256,6 @@ copy fails, the original is put back.
 | `~/Library/Mobile Documents/iCloud~ai~interactive~ata/Documents/` | meetings and voices, with "Keep meetings in iCloud" on |
 | `~/Library/Application Support/Ata/icloud-copy.json` | what has been copied into iCloud |
 | `~/Library/Application Support/Ata/models/` | the Whisper and VAD models |
-| login keychain, service `ai.interactive.ata` | the OpenAI API key |
 | `~/Library/Application Support/Ata/voices/` | voice fingerprints and samples (override with `ATA_SUPPORT_DIR`) |
 | `~/Library/Application Support/FluidAudio/` | the speaker-recognition models |
 | `<meeting>/meeting.mp3`, `<meeting>/notes.md` | the mixed meeting audio, and your own notes |
@@ -323,7 +315,7 @@ downloaded when it's played (`MeetingPlayer`) or transcribed (`Transcriber`). A 
 and never counts as this device's. Conflicts (`NSFileVersion`) keep the newest version, except
 `notes.md`, where every other version is saved beside it as `notes (other device).md`. Claims
 (`Meeting.claim`) keep the two devices from transcribing the same meeting, and only the device
-that recorded a meeting prunes, compresses or mixes its audio. Your name, language, summary engine
+that recorded a meeting prunes, compresses or mixes its audio. Your name, language
 and voice recognition go through `NSUbiquitousKeyValueStore` (`SettingsSync`), latest change wins,
 where the entitlement allows.
 

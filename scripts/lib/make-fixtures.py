@@ -69,11 +69,9 @@ LOCAL = ("local", "large-v3-q5_0")
 # The five most recent: these appear in the menu screenshots.
 meeting("fixture-slack", "Slack", 40, 32, status="transcribing")
 meeting("fixture-zoom", "Zoom", 190, 47, audio_mb=22,
-        records=[record("openai", "whisper-1", now - timedelta(minutes=140), 47, 0.0, 0.41)
-                 | {"costUSD": 0.564, "archivedAs": "earlier whisper-1.md"},
-                 record(*LOCAL, now - timedelta(minutes=120), 47, 0.0, 0.41)])
+        records=[record(*LOCAL, now - timedelta(minutes=120), 47, 0.0, 0.41)])
 meeting("fixture-meet", "Chrome", 1500, 28, audio_mb=13, category="personal",
-        records=[record("openai", "gpt-4o-transcribe", now - timedelta(minutes=1460), 28, 0.341, 0.52)])
+        records=[record(*LOCAL, now - timedelta(minutes=1460), 28, 0.0, 0.52)])
 meeting("fixture-teams", "Teams", 2950, 61, audio_mb=28,
         records=[record(*LOCAL, now - timedelta(minutes=2880), 61, 0.0, 0.33)])
 meeting("fixture-ft", "FaceTime", 4400, 12, audio_mb=6,
@@ -85,9 +83,7 @@ for i in range(22):
     days = 4 + i * 2.4 + random.random()
     minutes = random.choice([15, 25, 30, 45, 50, 60, 75])
     finished = now - timedelta(days=days) + timedelta(minutes=minutes + 5)
-    use_openai = i % 6 == 0
-    rec = (record("openai", "whisper-1", finished, minutes, round(minutes * 2 * 0.006, 3), 0.4)
-           if use_openai else record(*LOCAL, finished, minutes, 0.0, random.uniform(0.3, 0.5)))
+    rec = record(*LOCAL, finished, minutes, 0.0, random.uniform(0.3, 0.5))
     meeting(f"fixture-old-{i:02d}", apps[i % len(apps)], int(days * 1440), minutes, records=[rec])
 
 # Voices for the People tab: two recurring voices to name, three named people.

@@ -14,7 +14,7 @@
 
 **Ata** is a tiny menu bar app that records your meetings — Slack, Zoom, Meet, Teams, FaceTime,
 anything in the browser — and turns them into clean Markdown transcripts.
-On your Mac with Whisper, or through the OpenAI API. Your call.
+All of it on your Mac: Whisper for the words, Apple Intelligence for the summary.
 
 [**Download**](https://github.com/mcpeixoto/Ata/releases/latest) ·
 [How it works](docs/ARCHITECTURE.md) ·
@@ -48,9 +48,10 @@ On your Mac with Whisper, or through the OpenAI API. Your call.
 
 - **Works with every meeting app.** It records your microphone and your Mac's own audio, so there's
   no bot joining the call and no per-app integration to break.
-- **Private by default.** The default engine is whisper.cpp on your GPU — the audio never leaves
-  your Mac. No account, no telemetry, no server.
-- **Or zero setup.** Prefer not to download a 1.6 GB model? Paste an OpenAI key and you're done.
+- **Private, always.** Whisper runs on your GPU and the audio never leaves your Mac. No account,
+  no telemetry, no server.
+- **Nothing to set up.** Everything Ata needs ships inside the app, except a 1.1 GB Whisper model
+  it downloads once.
 - **Notices the meeting for you.** When Zoom or Slack grabs the mic, Ata asks if it should record —
   or just starts, if you tell it to.
 - **Summaries, if you want them.** Overview, decisions, action items and open questions, above the
@@ -69,7 +70,7 @@ On your Mac with Whisper, or through the OpenAI API. Your call.
 
 1. Download **`Ata-<version>.dmg`** from the [latest release](https://github.com/mcpeixoto/Ata/releases/latest).
 2. Drag Ata into Applications and open it.
-3. Grant the microphone and system-audio permissions in the welcome window, and pick an engine.
+3. Grant the microphone and system-audio permissions in the welcome window.
 
 Ata asks for two permissions: the **microphone**, and **System Audio Recording Only** — the
 sound your Mac plays, never your screen. Allow both once and Ata restarts itself to start using
@@ -97,26 +98,19 @@ installs it in `/Applications` and opens it. There's no Xcode project — it's a
 <p align="center">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/onboarding-dark.png">
-  <img src="docs/images/onboarding-light.png" alt="The welcome window: permissions, engine choice and behaviour" width="440">
+  <img src="docs/images/onboarding-light.png" alt="The welcome window: permissions and setup" width="440">
 </picture>
 </p>
 
-## Two ways to transcribe
+## How it transcribes
 
-| | **On this Mac** (default) | **OpenAI API** |
-|---|---|---|
-| Where the audio goes | nowhere — it never leaves your Mac | uploaded to OpenAI |
-| Cost | free | per minute of audio |
-| Setup | whisper.cpp + a model (0.6–1.6 GB, your pick), installed for you from the welcome window | paste an API key |
-| Speed | about 11 min per hour of audio with Large v3, 3 min with Turbo (M4) | depends on your connection |
-| Timestamps | per line | per line with `whisper-1`; none with the `gpt-4o-transcribe` models |
+Whisper Large, on your Mac. Nothing is uploaded and nothing costs anything. It takes about 11 minutes
+per hour of audio on an M4, per track. Right-click a meeting to **transcribe it again**; earlier
+transcripts are kept in the meeting's `versions/` folder.
 
-Switch any time in **Settings → Transcription**, where you can also pick the local model —
-from a small, fast one to the most accurate — and right-click any meeting to **transcribe it
-again with a different model**. Earlier transcripts are kept in the meeting's `versions/`
-folder. The **AI summary** works with either engine; it
-always goes through OpenAI because it needs a language model, and it sends only the finished text.
-Your API key lives in the login keychain — never in a file, never in a meeting folder.
+**Summaries** are written by Apple Intelligence, which needs macOS 26 on a Mac that supports it.
+Without it you still get every transcript; only the summary is missing, and it is written once
+Apple Intelligence is turned on.
 
 ## What you get
 
@@ -164,7 +158,7 @@ Click a meeting in the menu to open it:
   when: the others above, you below. Click any **word** of the transcript to jump to that
   moment; the word being said is highlighted as you listen.
 - **Notes**: the AI summary, with the decisions and action items, written on your Mac by Apple
-  Intelligence on macOS 26, or by OpenAI. No summary yet? **Write notes** creates one from the
+  Intelligence on macOS 26. No summary yet? **Write notes** creates one from the
   transcript text. Below it is space for your own notes, saved as `notes.md`.
 - **Transcript**, searchable.
 - **People**: every voice in this meeting, with a play button and a name field. Name a voice here
@@ -195,9 +189,9 @@ a voice in two meetings it asks who it is: play a few seconds, type a name. From
 person is named in every transcript, including the ones already written.
 
 - Runs entirely on your Mac, on the Neural Engine, about 100× faster than real time.
-- Voice fingerprints and samples never leave the Mac — not even when OpenAI transcribes — except into
+- Voice fingerprints and samples never leave the Mac, except into
   your own iCloud, with your meetings, if you turn on **Keep meetings in iCloud**.
-- Off by default. Needs macOS 15. Downloads 21 MB of models the first time.
+- On by default. Needs macOS 15. Downloads 21 MB of models the first time.
 
 <details>
 <summary><b>See every setting</b></summary>
@@ -233,12 +227,9 @@ working copy is put back if the install fails halfway.
 
 ## Privacy
 
-With the local engine, Ata talks to the network only to download models once (Whisper, and the
+Ata talks to the network only to download models once (Whisper, and the
 voice-recognition models if you turn that on) and to ask the GitHub API for the latest release
 once a day. That's it.
-
-With the OpenAI engine, the recorded audio is sent to OpenAI's transcription endpoint, and the UI
-says so wherever you choose it.
 
 > **Always tell people you're recording.** The law differs by country — and it's the decent thing
 > to do either way.

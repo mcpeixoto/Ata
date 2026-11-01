@@ -12,7 +12,6 @@ Things that are especially interesting:
 
 - any way for the local engine to send audio or text off the Mac;
 - any way to get the updater to install something that isn't a notarized build from this project;
-- leaks of the OpenAI API key out of the keychain;
 - recordings ending up anywhere other than the meetings folder.
 
 ## Supported versions

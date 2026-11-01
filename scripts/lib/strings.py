@@ -35,7 +35,7 @@ SOURCES = ["Sources/Ata", "Sources/AtaiOS", "Sources/AtaWidgets", "Sources/AtaWa
 
 # Strings that are deliberately not translated: names, and language names
 # written in their own language.
-KEEP = {"Ata", "OpenAI", "English", "Português", "Español", "Français", "Deutsch", "Italiano"}
+KEEP = {"Ata", "English", "Português", "Español", "Français", "Deutsch", "Italiano"}
 
 paths = []
 for source in SOURCES:

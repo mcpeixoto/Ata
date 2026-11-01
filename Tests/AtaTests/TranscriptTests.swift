@@ -47,11 +47,10 @@ final class TalkTimeTests: XCTestCase {
 final class OverrideTests: XCTestCase {
     func testAOneOffModelChoiceWinsOverSettings() {
         var m = Meeting(id: "t", startedAt: Date(), endedAt: nil, duration: nil, app: nil, status: .pending, error: nil)
-        m.override = TranscribeOverride(engine: "openai", model: "gpt-4o-transcribe")
+        m.override = TranscribeOverride(engine: "apple", model: AppleSpeechEngine.modelID)
         let o = TranscribeOptions.current(for: m)
-        XCTAssertEqual(o.engine, .openAI)
-        XCTAssertEqual(o.openAIModel, "gpt-4o-transcribe")
-        XCTAssertEqual(o.modelID, "gpt-4o-transcribe")
+        XCTAssertEqual(o.engine, .apple)
+        XCTAssertEqual(o.modelID, AppleSpeechEngine.modelID)
 
         m.override = TranscribeOverride(engine: "local", model: "large-v3")
         let local = TranscribeOptions.current(for: m)

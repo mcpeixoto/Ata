@@ -278,9 +278,4 @@ final class SmallRulesTests: XCTestCase {
         XCTAssertEqual(Pref.myNameOrDefault, "Rita")
     }
 
-    func testGPT4oModelsGetShorterChunks() {
-        XCTAssertEqual(OpenAIEngine.chunkSeconds(for: "whisper-1"), 600)
-        XCTAssertEqual(OpenAIEngine.chunkSeconds(for: "gpt-4o-transcribe"), 300)
-        XCTAssertEqual(OpenAIEngine.chunkSeconds(for: "gpt-4o-mini-transcribe"), 300)
-    }
 }

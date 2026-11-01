@@ -42,7 +42,7 @@ enum AppleModel {
     }
 }
 
-/// The summary in the shape `Summarizer` asks OpenAI for, so a summary reads the
+/// The summary in Ata's one Markdown shape, so a summary reads the
 /// same whoever wrote it.
 enum SummaryMarkdown {
     static func render(overview: String, decisions: [String], actionItems: [String],

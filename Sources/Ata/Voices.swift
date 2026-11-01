@@ -3,8 +3,7 @@ import Foundation
 /// A voice Ata has heard in one or more meetings.
 ///
 /// Only a numeric fingerprint (a speaker embedding) and a few seconds of
-/// sample audio are kept, both under Application Support and never uploaded —
-/// not even when OpenAI transcribes.
+/// sample audio are kept, both under Application Support and never uploaded.
 struct Voice: Codable, Equatable, Identifiable {
     var id: UUID
     /// Nil until the user names it.
