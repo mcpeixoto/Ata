@@ -549,11 +549,8 @@ final class MeetingModel: ObservableObject {
         let draft = Transcriber.render(stored, meeting: meeting,
                                        names: Speakers.names(for: meeting, myName: options.myName))
         guard let result = await Summarizer.summarize(markdown: draft, options: options) else {
-            #if os(iOS)
-            message = L("Could not write notes on this iPhone. Turn on Apple Intelligence and try again.")
-            #else
-            message = L("Could not write notes on this Mac. Turn on Apple Intelligence and try again.")
-            #endif
+            // Turning it on is only the answer when it is off.
+            message = AppleModel.unavailableReason ?? L("Apple Intelligence could not write notes for this meeting. Try again.")
             return
         }
         do {

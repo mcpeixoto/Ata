@@ -238,11 +238,10 @@ final class Updater: ObservableObject {
                 try? FileManager.default.moveItem(at: backup, to: installed)
                 throw error
             }
-            try? FileManager.default.removeItem(at: backup)
-
-            relaunch(installed)
+            relaunch(installed, backup: backup)
         } catch {
-            state = .failed(error.localizedDescription)
+            NSLog("Ata: update failed: \(error)")
+            state = .failed(L("The update could not be installed, and Ata is unchanged. Try again, or download it from the releases page."))
         }
     }
 
@@ -277,12 +276,44 @@ final class Updater: ObservableObject {
         return value == "not set" ? nil : value
     }
 
-    private func relaunch(_ app: URL) {
+    private func relaunch(_ app: URL, backup: URL) {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/sh")
-        p.arguments = ["-c", "sleep 1; /usr/bin/open \"\(app.path)\" --args \(LaunchWindow.quietArgument)"]
-        try? p.run()
+        p.arguments = ["-c", Self.relaunchScript(app: app.path, backup: backup.path)]
+        do {
+            try p.run()
+        } catch {
+            // Nothing would bring Ata back, so don't leave. Next launch runs the new copy.
+            NSLog("Ata: could not schedule the relaunch: \(error)")
+            try? FileManager.default.removeItem(at: backup)
+            state = .failed(L("The update is installed. Quit Ata and open it again to finish."))
+            return
+        }
         NSApp.terminate(nil)
+    }
+
+    /// Runs after Ata has quit, which is the only moment a build that won't start
+    /// can still be undone: the new copy gets `settle` seconds to be running, and
+    /// otherwise the old one goes back. The old one is only thrown away once the new one has run.
+    nonisolated static func relaunchScript(app: String, backup: String, open: String = "/usr/bin/open",
+                                           settle: Int = 20) -> String {
+        let a = shellQuoted(app), b = shellQuoted(backup), o = shellQuoted(open)
+        return """
+        sleep 1
+        \(o) \(a) --args \(LaunchWindow.quietArgument)
+        sleep \(settle)
+        if /usr/bin/pgrep -f \(shellQuoted(app + "/Contents/MacOS/Ata")) >/dev/null; then
+          /bin/rm -rf \(b)
+        else
+          /bin/rm -rf \(a)
+          /bin/mv \(b) \(a)
+          \(o) \(a) --args \(LaunchWindow.quietArgument)
+        fi
+        """
+    }
+
+    nonisolated private static func shellQuoted(_ text: String) -> String {
+        "'" + text.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
     // MARK: - Process helpers
@@ -326,6 +357,9 @@ final class Updater: ObservableObject {
                 cont.resume(throwing: error)
                 return
             }
+            // A tool that hangs (spctl waits on the network) would leave the update
+            // "installing" for good. Ended, it reads as a failure like any other.
+            DispatchQueue.global().asyncAfter(deadline: .now() + 120) { if p.isRunning { p.terminate() } }
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             p.waitUntilExit()
             let text = String(decoding: data, as: UTF8.self)

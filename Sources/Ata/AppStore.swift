@@ -16,6 +16,8 @@ final class AppStore: ObservableObject {
     @Published private(set) var micLevel: Float = 0
     @Published private(set) var systemLevel: Float = 0
     @Published private(set) var warning: String?
+    private var writingOwedSummaries = false
+    private var triedOwedSummaries = Set<String>()
     @Published private(set) var detectedApp: String?
     @Published private(set) var meetings: [Meeting] = []
     @Published private(set) var transcribingID: String?
@@ -270,8 +272,19 @@ final class AppStore: ObservableObject {
             started?(false)
             return
         }
+        // Asked here, during a call, the grant would only count after a restart:
+        // the other side of this meeting would never be captured.
+        guard !setup.systemAudioMissing else {
+            lastError = L("Allow system audio first, or Ata can't hear the other side.")
+            WindowManager.shared.showOnboarding()
+            started?(false)
+            return
+        }
+        if let free = DiskCheck.available(at: Paths.meetingsDir), free < DiskCheck.lowForRecording {
+            lastError = L("The disk is almost full (%@ free). Ata may not be able to save a long recording.",
+                          ByteCountFormatter.string(fromByteCount: free, countStyle: .file))
+        }
         phase = .starting
-        lastError = nil
         Notifier.shared.clear("detected")
 
         Task {
@@ -549,6 +562,12 @@ final class AppStore: ObservableObject {
                     }
                 }
                 if let m = await RunEnd.save(job.id, as: .done, apply: RunEnd.done(outcome)) {
+                    if SummaryBackfill.shouldMark(summarize: options.summarize, appleAvailable: AppleModel.isAvailable,
+                                                  words: m.transcriptions?.last?.words ?? 0) {
+                        var owed = m
+                        owed.summaryPending = true
+                        Library.save(owed)
+                    }
                     await self.handleAudio(of: m)
                     Notifier.shared.transcriptReady(m)
                 }
@@ -654,9 +673,42 @@ final class AppStore: ObservableObject {
         }
     }
 
+    /// Why nothing is happening to a queued meeting, when something is stopping it.
+    var queueReason: String? {
+        QueueReason.text(whisper: setup.whisper, model: setup.model,
+                         progress: setup.downloadProgress, error: setup.downloadError)
+    }
+
+    /// Writes the summaries owed from when Apple Intelligence was off, one at a
+    /// time. Tried once per launch: one that fails keeps failing until something changes.
+    func writeOwedSummaries() {
+        guard AppleModel.isAvailable, !writingOwedSummaries else { return }
+        let owed = meetings.filter { $0.summaryPending == true && !triedOwedSummaries.contains($0.id) }
+        guard !owed.isEmpty else { return }
+        writingOwedSummaries = true
+        Task {
+            defer { writingOwedSummaries = false; reload() }
+            for m in owed {
+                triedOwedSummaries.insert(m.id)
+                guard let stored = StoredTranscript.load(from: m.storedTranscriptURL) else { continue }
+                let options = TranscribeOptions.current()
+                if stored.summary == nil {
+                    let draft = Transcriber.render(stored, meeting: m, names: Speakers.names(for: m, myName: options.myName))
+                    guard let text = await Summarizer.summarize(markdown: draft, options: options),
+                          (try? MeetingNotes.addSummary(text, to: m, myName: options.myName)) != nil else { continue }
+                }
+                if var fresh = Library.load(m.id) {
+                    fresh.summaryPending = nil
+                    Library.save(fresh)
+                }
+            }
+        }
+    }
+
     /// Once setup is complete, work through whatever is queued.
     func setupChanged() {
         setup.refresh()
+        writeOwedSummaries()
         pump()
     }
 }

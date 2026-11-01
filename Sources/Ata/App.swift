@@ -75,7 +75,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store.bootstrap()
         watchQuitKey()
         forgetQuitKeyInMenu()
-        if !Pref.d.bool(forKey: Pref.onboarded) || !store.setup.ready {
+        // Once only: after that, an unfinished setup is a banner in the menu, not
+        // a window at every login.
+        if !Pref.d.bool(forKey: Pref.onboarded) {
             WindowManager.shared.showOnboarding()
         } else if LaunchWindow.shows(arguments: CommandLine.arguments, loginItemEvent: launchedAsLoginItem,
                                      loginItemOn: store.setup.launchAtLogin,
@@ -135,6 +137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         // Whatever is quitting Ata: the last words typed are waiting on a timer.
         WindowManager.shared.saveOpenNotes()
+        AppStore.shared.setup.keepDownloadForLater()
         // Only a live recording needs an asynchronous shutdown. Anything else
         // quits at once: replying later from a Task deadlocks when terminate()
         // itself was called from a Task — the updater does exactly that — and
@@ -182,10 +185,17 @@ final class WindowManager {
     private var meetings: [String: (window: NSWindow, model: MeetingModel, closing: NSObjectProtocol)] = [:]
 
     func showOnboarding() {
-        onboarding = present(onboarding, title: L("Welcome to Ata"), size: NSSize(width: 520, height: 700)) {
+        let isNew = onboarding == nil
+        let window = present(onboarding, title: L("Welcome to Ata"), size: NSSize(width: 520, height: 520)) {
             OnboardingView()
                 .environmentObject(AppStore.shared)
                 .environmentObject(AppStore.shared.setup)
+        }
+        onboarding = window
+        guard isNew else { return }
+        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window,
+                                               queue: .main) { _ in
+            Pref.d.set(true, forKey: Pref.onboarded)
         }
     }
 

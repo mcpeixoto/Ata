@@ -16,6 +16,14 @@ enum AppleModel {
         return false
     }
 
+    /// What can be done about Apple Intelligence on this device right now.
+    static var state: AppleIntelligenceState {
+        #if canImport(FoundationModels)
+        if #available(macOS 26.0, iOS 26.0, *) { return AppleSummarizer.state }
+        #endif
+        return .unsupported
+    }
+
     /// Why the model can't be used right now, for a footnote in Settings; nil when it can.
     static var unavailableReason: String? {
         #if canImport(FoundationModels)
@@ -122,6 +130,12 @@ enum SummaryChunks {
     }
 }
 
+/// What can be done about Apple Intelligence here. Nothing can ask for it: an app
+/// can only read this and open the pane where it is turned on.
+enum AppleIntelligenceState: Equatable {
+    case ready, off, preparing, unsupported
+}
+
 #if canImport(FoundationModels)
 /// What the model fills in. Ata writes the Markdown itself from this, so the
 /// shape never depends on the model following formatting instructions.
@@ -140,6 +154,16 @@ struct MeetingSummary {
 
 @available(macOS 26.0, iOS 26.0, *)
 enum AppleSummarizer {
+    static var state: AppleIntelligenceState {
+        let model = SystemLanguageModel.default
+        switch model.availability {
+        case .available: return writesAppLanguage(model) ? .ready : .unsupported
+        case .unavailable(.modelNotReady): return .preparing
+        case .unavailable(.appleIntelligenceNotEnabled): return .off
+        case .unavailable: return .unsupported
+        }
+    }
+
     static var unavailableReason: String? {
         let model = SystemLanguageModel.default
         switch model.availability {
@@ -176,6 +200,22 @@ enum AppleSummarizer {
                           template: SummaryTemplate = .standard, vocabulary: [String] = []) async -> String? {
         guard unavailableReason == nil else { return nil }
         do {
+            return try await attempt(markdown: markdown, myName: myName, maxCharacters: maxCharacters,
+                                     template: template, vocabulary: vocabulary)
+        } catch LanguageModelSession.GenerationError.exceededContextWindowSize where maxCharacters > 1500 {
+            // The window counts tokens and this counts characters, so a dense
+            // stretch can overflow it. Smaller pieces fit.
+            return await summarize(markdown: markdown, myName: myName, maxCharacters: maxCharacters / 2,
+                                   template: template, vocabulary: vocabulary)
+        } catch {
+            NSLog("Ata: summary on this Mac failed: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private static func attempt(markdown: String, myName: String, maxCharacters: Int,
+                                template: SummaryTemplate, vocabulary: [String]) async throws -> String? {
+        do {
             var partials: [MeetingSummary] = []
             for chunk in SummaryChunks.split(markdown, maxCharacters: maxCharacters) {
                 let partial = try await respond(to: chunk, instructions: chunkInstructions(myName: myName, template: template, vocabulary: vocabulary))
@@ -195,9 +235,6 @@ enum AppleSummarizer {
             }
             guard let text = partials.first.map(rendered), !text.isEmpty else { return nil }
             return text
-        } catch {
-            NSLog("Ata: summary on this Mac failed: \(error.localizedDescription)")
-            return nil
         }
     }
 

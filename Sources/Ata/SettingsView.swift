@@ -91,6 +91,15 @@ struct SettingsView: View {
             .disabled(!autoDetect)
             Toggle("Stop on its own when the meeting ends", isOn: $autoStop)
                 .disabled(!autoDetect)
+            if autoDetect, !autoStart, !setup.notifications {
+                LabeledContent {
+                    Button("Allow") { setup.requestNotifications() }
+                } label: {
+                    Text("Without notifications, Ata can't ask you when it notices a meeting.")
+                        .font(.system(size: 11)).foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
             LabeledContent("Record from anywhere") {
                 ShortcutField(shortcut: $recordShortcut) { new in
                     Hotkey.set(new) { AppStore.shared.toggleRecording() }
@@ -385,10 +394,11 @@ struct SettingsView: View {
                 UpdateControl()
             }
             LabeledContent("Status") {
-                if setup.ready {
-                    Label("Ready", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-                } else {
-                    Button("Fix…") { WindowManager.shared.showOnboarding() }
+                HStack {
+                    if setup.ready {
+                        Label("Ready", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                    }
+                    Button(setup.ready ? L("Review setup") : L("Fix…")) { WindowManager.shared.showOnboarding() }
                 }
             }
             LabeledContent("Meetings folder") {

@@ -103,6 +103,8 @@ enum Pref {
     static let onboarded = "onboarded"
     static let engine = "engine"             // "local" | "openai"
     static let openAIRetired = "openAIRetired"
+    static let loginItemOffered = "loginItemOffered"
+    static let appleBannerDismissed = "appleBannerDismissed"
     static let localModel = "localModel"     // LocalModel.id
     static let summarize = "summarize"       // append an AI summary
     static let summaryTemplate = "summaryTemplate" // SummaryTemplate.rawValue

@@ -6,11 +6,11 @@ enum TranscriberError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .whisperMissing: return L("The local transcription engine (whisper.cpp) is not installed.")
+        case .whisperMissing: return L("Ata's transcription program is missing. Install Ata again to fix it.")
         case .modelMissing: return L("The transcription model has not been downloaded yet.")
         case .noAudio: return L("No audio was found for this meeting.")
         case .cancelled: return L("Transcription was stopped.")
-        case .failed(let log): return L("Whisper failed: %@", log)
+        case .failed(let reason): return reason
         }
     }
 }

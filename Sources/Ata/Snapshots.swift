@@ -77,8 +77,8 @@ enum Snapshots {
                                   width: 540, height: 1800, appearance: appearance)
             write(frame(settings, appearance), to: out, name: "settings-\(appearance.name)")
 
-            let onboarding = render(OnboardingView(height: 1320).environmentObject(store).environmentObject(store.setup),
-                                    width: 520, height: 1320, appearance: appearance)
+            let onboarding = render(OnboardingView(height: 520, previewStep: .done).environmentObject(store).environmentObject(store.setup),
+                                    width: 520, height: 520, appearance: appearance)
             write(frame(onboarding, appearance), to: out, name: "onboarding-\(appearance.name)")
 
             if appearance == .dark {
