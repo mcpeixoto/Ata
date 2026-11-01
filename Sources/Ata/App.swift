@@ -30,6 +30,17 @@ struct AtaApp: App {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var launchedAsLoginItem = false
+    private var quitKeyMonitor: Any?
+
+    /// The launch event is only there to read this early.
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        let event = NSAppleEventManager.shared().currentAppleEvent
+        launchedAsLoginItem = event?.eventID == AEEventID(kAEOpenApplication)
+            && event?.paramDescriptor(forKeyword: AEKeyword(keyAEPropData))?.enumCodeValue
+                == OSType(keyAELaunchedAsLogInItem)
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         if Snapshots.requested {
             Snapshots.run()
@@ -46,6 +57,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Updater.shared.runFromCommandLine()
             return
         }
+        // Before anything reads a setting: the shortcut below has a default.
+        Pref.registerDefaults()
         Notifier.shared.setUp()
         // Before the Dock policy: an older install may have the Dock icon on,
         // which is what made closing a window look like it did nothing and
@@ -60,8 +73,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         CalendarWatcher.shared.start()
         let store = AppStore.shared
         store.bootstrap()
+        watchQuitKey()
+        forgetQuitKeyInMenu()
         if !Pref.d.bool(forKey: Pref.onboarded) || !store.setup.ready {
             WindowManager.shared.showOnboarding()
+        } else if LaunchWindow.shows(arguments: CommandLine.arguments, loginItemEvent: launchedAsLoginItem,
+                                     loginItemOn: store.setup.launchAtLogin,
+                                     uptime: ProcessInfo.processInfo.systemUptime) {
+            WindowManager.shared.showMain()
+        }
+    }
+
+    /// Seen before the menus, so it works with no menu bar showing as well.
+    private func watchQuitKey() {
+        quitKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            if QuitKey.closesWindows(characters: event.charactersIgnoringModifiers, modifiers: event.modifierFlags) {
+                MainActor.assumeIsolated { WindowManager.shared.closeAll() }
+                return nil
+            }
+            // A menu bar app has no File menu to give it ⌘W.
+            if QuitKey.closesOneWindow(characters: event.charactersIgnoringModifiers, modifiers: event.modifierFlags),
+               let window = NSApp.keyWindow {
+                window.performClose(nil)
+                return nil
+            }
+            return event
+        }
+    }
+
+    /// In the Dock, Ata has a menu bar with a Quit item that still quits; it just
+    /// must not advertise ⌘Q. SwiftUI can rebuild the menu, hence each time.
+    func applicationDidBecomeActive(_ notification: Notification) {
+        forgetQuitKeyInMenu()
+    }
+
+    private func forgetQuitKeyInMenu() {
+        let items = NSApp.mainMenu?.items.compactMap(\.submenu).flatMap(\.items) ?? []
+        for item in items where item.action == #selector(NSApplication.terminate(_:)) {
+            item.keyEquivalent = ""
+            item.keyEquivalentModifierMask = []
         }
     }
 
@@ -71,7 +121,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// This is the one route that works however the icons are set, so it is
     /// wired up whether or not Ata is in the Dock.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        if !hasVisibleWindows { WindowManager.shared.showMain() }
+        // Not `hasVisibleWindows`: the menu bar's own panel can count as one.
+        WindowManager.shared.showFrontmostOrMain()
         return true
     }
 
@@ -82,6 +133,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // Whatever is quitting Ata: the last words typed are waiting on a timer.
+        WindowManager.shared.saveOpenNotes()
         // Only a live recording needs an asynchronous shutdown. Anything else
         // quits at once: replying later from a Task deadlocks when terminate()
         // itself was called from a Task — the updater does exactly that — and
@@ -140,11 +193,33 @@ final class WindowManager {
         onboarding?.close()
     }
 
+    /// Everything Ata has open. ⌘Q comes here.
+    func closeAll() {
+        for window in allWindows where window.isVisible { window.close() }
+        NSApp.keyWindow?.close() // the menu bar's panel, when that is what's in front
+    }
+
+    func saveOpenNotes() {
+        for open in meetings.values { open.model.saveNotes() }
+    }
+
+    func showFrontmostOrMain() {
+        if let window = allWindows.first(where: \.isVisible) {
+            comeForward(window)
+        } else {
+            showMain()
+        }
+    }
+
+    private var allWindows: [NSWindow] {
+        [onboarding, settings, main].compactMap { $0 } + meetings.values.map(\.window)
+    }
+
     /// Ata's own window: the same thing the menu bar shows, in a window you can
     /// reach from the Dock, from ⌘-Tab and from Spotlight.
     func showMain() {
         main = present(main, title: L("Ata"), size: NSSize(width: 350, height: 620)) {
-            PopoverView()
+            PopoverView(inWindow: true)
                 .environmentObject(AppStore.shared)
                 .environmentObject(AppStore.shared.setup)
         }
@@ -231,6 +306,9 @@ final class WindowManager {
     private func comeForward(_ window: NSWindow) {
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+        // macOS may refuse an activation it did not expect, which would leave the
+        // window behind others, where a menu bar app has no ⌘-Tab entry to find it.
+        window.orderFrontRegardless()
         guard !Presence.showsDockIcon else { return }
         NSApp.setActivationPolicy(.accessory)
         window.makeKeyAndOrderFront(nil)
@@ -238,8 +316,10 @@ final class WindowManager {
 
     /// After the last window closes, Ata is a menu bar app again.
     fileprivate func restoreMenuBar() {
-        let windows = [onboarding, settings, main].compactMap { $0 } + meetings.values.map(\.window)
-        if windows.contains(where: \.isVisible) { return }
+        if allWindows.contains(where: \.isVisible) { return }
         Presence.apply()
+        // With no window left, a menu bar app holding the focus swallows keystrokes
+        // until you click something. Hand it back to whatever you were in.
+        if !Presence.showsDockIcon, NSApp.isActive { NSApp.hide(nil) }
     }
 }

@@ -140,10 +140,14 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sen
                 #if os(macOS)
                 // The calendar prompt is the Mac's: the iPhone does not watch a
                 // calendar, and its store has no such entry point.
-                case (ID.soon, ID.record), (ID.soon, UNNotificationDefaultActionIdentifier):
+                case (ID.soon, ID.record):
                     store.startRecording(event: MeetingEventCoding.event(info["event"] as? String))
+                case (ID.soon, UNNotificationDefaultActionIdentifier),
+                     (ID.detected, UNNotificationDefaultActionIdentifier):
+                    // Clicking the banner to look at it must not start recording people.
+                    WindowManager.shared.showMain()
                 #endif
-                case (ID.detected, ID.record), (ID.detected, UNNotificationDefaultActionIdentifier):
+                case (ID.detected, ID.record):
                     store.startRecording(app: app)
                 case (ID.recording, ID.stop):
                     store.stopRecording()

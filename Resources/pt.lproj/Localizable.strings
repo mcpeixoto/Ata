@@ -270,7 +270,6 @@
 "The MP3 encoder could not start." = "Não foi possível iniciar o codificador de MP3.";
 "Open meeting" = "Abrir reunião";
 "Play" = "Ouvir";
-"Menu bar" = "Barra de menus";
 "While recording" = "Durante a gravação";
 "Icon" = "Ícone";
 "Color" = "Cor";
@@ -575,7 +574,6 @@
 "Voice fingerprints stay on this Mac. Turning this on downloads 21 MB of models once." = "As impressões de voz ficam neste Mac. Ativar isto descarrega 21 MB de modelos, uma vez.";
 "Quit Ata" = "Sair da Ata";
 "Stops Ata, including the menu bar icon. Closing a window leaves Ata running there." = "Para a Ata, incluindo o ícone da barra de menus. Fechar uma janela deixa a Ata a correr lá.";
-"Ata lives in the menu bar, not the Dock. Closing a window leaves it running there. Quit Ata from the menu bar icon when you want it to stop. The Dock is only for a menu bar that has no room left: macOS hides the icons that don't fit, and an app cannot choose where its icon sits." = "A Ata vive na barra de menus, não na Dock. Fechar uma janela deixa-a a correr lá. Sai da Ata pelo ícone da barra de menus quando a quiseres parar. A Dock é só para uma barra de menus sem espaço: o macOS esconde os ícones que não cabem, e uma aplicação não escolhe onde o seu ícone fica.";
 "Whisper Large is the model Ata uses. It runs on this Mac, and nothing you record is uploaded." = "O Whisper Large é o modelo que a Ata usa. Corre neste Mac, e nada do que gravas é enviado.";
 "People you have named are included on their own. In a summary, they are spelled as written here." = "As pessoas a quem já deste nome entram sozinhas. Num resumo, são escritas como aqui estão.";
 "Written on this Mac by Apple Intelligence. Nothing leaves it." = "Escrito neste Mac pelo Apple Intelligence. Nada sai daqui.";
@@ -583,3 +581,12 @@
 "Whisper Large" = "Whisper Large";
 "Remove older models (%@)?" = "Remover modelos antigos (%@)?";
 "Ata no longer uses them. Your recordings and transcripts are not touched." = "A Ata já não os usa. As gravações e as transcrições não são alteradas.";
+"Open in a window" = "Abrir numa janela";
+"Keep running" = "Continuar aberta";
+"Ata is recording. Quit anyway?" = "A Ata está a gravar. Sair na mesma?";
+"Ata is transcribing a meeting. Quit anyway?" = "A Ata está a transcrever uma reunião. Sair na mesma?";
+"The recording stops here. It is saved and transcribed the next time Ata opens." = "A gravação termina aqui. Fica guardada e é transcrita da próxima vez que a Ata abrir.";
+"The transcription starts again from the beginning the next time Ata opens." = "A transcrição recomeça do início da próxima vez que a Ata abrir.";
+"Ata is also in the Dock, and stays there when its windows close. Useful when the menu bar has no room: macOS hides the icons that don't fit." = "A Ata também está na Dock e fica lá quando as janelas fecham. Útil quando a barra de menus não tem espaço: o macOS esconde os ícones que não cabem.";
+"Closing a window or pressing ⌘Q leaves Ata in the menu bar, ready for the next meeting. Quit Ata, in its menu, is what stops it." = "Fechar uma janela ou carregar em ⌘Q deixa a Ata na barra de menus, pronta para a próxima reunião. Para a parar, use Sair da Ata no menu dela.";
+"Advanced" = "Avançado";

@@ -46,11 +46,11 @@ struct SettingsView: View {
                 calendarSection
                 categorySection
                 presenceSection
-                menuBarSection
                 transcriptionSection
                 audioSection
                 iCloudSection
                 systemSection
+                advancedSection
                 aboutSection
             }
             .formStyle(.grouped)
@@ -91,6 +91,26 @@ struct SettingsView: View {
             .disabled(!autoDetect)
             Toggle("Stop on its own when the meeting ends", isOn: $autoStop)
                 .disabled(!autoDetect)
+            LabeledContent("Record from anywhere") {
+                ShortcutField(shortcut: $recordShortcut) { new in
+                    Hotkey.set(new) { AppStore.shared.toggleRecording() }
+                }
+                .frame(width: 140, height: 22)
+                // An NSView has no text baseline, so LabeledContent lined the
+                // field's bottom edge up with the label's baseline and the field
+                // sat below it. Give it one, a little under its middle, where its
+                // own 11–12 pt text sits.
+                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
+                .alignmentGuide(.lastTextBaseline) { $0[VerticalAlignment.center] + 4 }
+            }
+            if recordShortcut != nil, !Hotkey.isRegistered, !Snapshots.rendering {
+                Text("Another app already uses that combination. Try a different one.")
+                    .font(.system(size: 11)).foregroundStyle(.orange)
+            } else {
+                Text("Starts or stops recording without going near the icon, from whatever app you are in.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -185,35 +205,30 @@ struct SettingsView: View {
             if dockIcon {
                 Toggle("Keep the menu bar icon", isOn: $menuBarIcon)
             }
-            Text("Ata lives in the menu bar, not the Dock. Closing a window leaves it running there. Quit Ata from the menu bar icon when you want it to stop. The Dock is only for a menu bar that has no room left: macOS hides the icons that don't fit, and an app cannot choose where its icon sits.")
+            Text(dockIcon
+                 ? L("Ata is also in the Dock, and stays there when its windows close. Useful when the menu bar has no room: macOS hides the icons that don't fit.")
+                 : L("Closing a window or pressing ⌘Q leaves Ata in the menu bar, ready for the next meeting. Quit Ata, in its menu, is what stops it."))
                 .font(.system(size: 11)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            LabeledContent("Record from anywhere") {
-                ShortcutField(shortcut: $recordShortcut) { new in
-                    Hotkey.set(new) { AppStore.shared.toggleRecording() }
-                }
-                .frame(width: 140, height: 22)
-                // An NSView has no text baseline, so LabeledContent lined the
-                // field's bottom edge up with the label's baseline and the field
-                // sat below it. Give it one, a little under its middle, where its
-                // own 11–12 pt text sits.
-                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
-                .alignmentGuide(.lastTextBaseline) { $0[VerticalAlignment.center] + 4 }
-            }
-            if recordShortcut != nil, !Hotkey.isRegistered {
-                Text("Another app already uses that combination. Try a different one.")
-                    .font(.system(size: 11)).foregroundStyle(.orange)
-            } else {
-                Text("Starts or stops recording without going near the icon, from whatever app you are in.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var advancedSection: some View {
+        Section {
+            DisclosureGroup(L("Advanced")) {
+                menuBarRows
+                Toggle("Compress kept audio to m4a", isOn: $compressAudio)
+                    .disabled(!keepAudio)
+                Toggle("Also save the whole meeting as one MP3", isOn: Binding(
+                    get: { saveMP3 }, set: { saveMP3 = $0; if $0 { store.backfillMergedAudio() } }))
+                    .disabled(!keepAudio)
             }
         }
     }
 
-    private var menuBarSection: some View {
-        Section("Menu bar") {
+    @ViewBuilder
+    private var menuBarRows: some View {
             LabeledContent("While recording") {
                 MenuIconPreview(style: MenuIcon.Style(symbol: menuIconSymbol, tint: menuIconTint,
                                                       timer: menuIconTimer, pulse: menuIconPulse))
@@ -231,7 +246,6 @@ struct SettingsView: View {
             Toggle("Show the recording time", isOn: $menuIconTimer)
             Toggle("Pulse while recording", isOn: $menuIconPulse)
             Toggle("Show transcription progress", isOn: $menuIconProgress)
-        }
     }
 
     private var transcriptionSection: some View {
@@ -287,11 +301,6 @@ struct SettingsView: View {
     private var audioSection: some View {
         Section("Audio") {
             Toggle("Keep the audio after transcribing", isOn: $keepAudio)
-            Toggle("Compress kept audio to m4a", isOn: $compressAudio)
-                .disabled(!keepAudio)
-            Toggle("Also save the whole meeting as one MP3", isOn: Binding(
-                get: { saveMP3 }, set: { saveMP3 = $0; if $0 { store.backfillMergedAudio() } }))
-                .disabled(!keepAudio)
             Text(keepAudio
                  ? (compressAudio
                     ? L("Recordings are kept next to each transcript, about 10× smaller than the raw WAV.")

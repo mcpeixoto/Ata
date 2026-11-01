@@ -44,8 +44,12 @@ struct PopoverView: View {
     @State private var dropping = false
     @AppStorage(Pref.categoryFilter) private var categoryFilter = ""
 
-    init(tab: Tab = .record) {
+    /// True in Ata's own window, which has no reason to offer opening itself.
+    private let inWindow: Bool
+
+    init(tab: Tab = .record, inWindow: Bool = false) {
         _tab = State(initialValue: tab)
+        self.inWindow = inWindow
     }
 
     var body: some View {
@@ -125,6 +129,15 @@ struct PopoverView: View {
                 Text(statusLine).font(.system(size: 11)).foregroundStyle(.secondary)
             }
             Spacer()
+            if !inWindow {
+                Button { WindowManager.shared.showMain() } label: {
+                    Image(systemName: "macwindow").font(.system(size: 14))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help(L("Open in a window"))
+                .accessibilityLabel(L("Open in a window"))
+            }
             Button { WindowManager.shared.showSettings() } label: {
                 Image(systemName: "gearshape").font(.system(size: 14))
             }
@@ -255,6 +268,21 @@ struct PopoverView: View {
 
     // MARK: Footer
 
+    /// Asks only when quitting would interrupt something.
+    private func quit() {
+        if let warning = QuitWarning.needed(recording: store.phase == .recording,
+                                            transcribing: store.transcribingID != nil) {
+            NSApp.activate(ignoringOtherApps: true)
+            let alert = NSAlert()
+            alert.messageText = warning.title
+            alert.informativeText = warning.detail
+            alert.addButton(withTitle: L("Quit Ata"))
+            alert.addButton(withTitle: L("Keep running"))
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
+        NSApp.terminate(nil)
+    }
+
     private var footer: some View {
         HStack(spacing: 2) {
             GhostButton(title: L("Folder"), systemImage: "folder") {
@@ -271,9 +299,7 @@ struct PopoverView: View {
             .help(L("Buy me a coffee"))
             .accessibilityLabel(L("Buy me a coffee"))
             .padding(.horizontal, 8)
-            GhostButton(title: L("Quit Ata"), systemImage: "power") {
-                NSApp.terminate(nil)
-            }
+            GhostButton(title: L("Quit Ata"), systemImage: "power") { quit() }
             .help(L("Stops Ata, including the menu bar icon. Closing a window leaves Ata running there."))
         }
     }

@@ -270,7 +270,6 @@
 "The MP3 encoder could not start." = "The MP3 encoder could not start.";
 "Open meeting" = "Open meeting";
 "Play" = "Play";
-"Menu bar" = "Menu bar";
 "While recording" = "While recording";
 "Icon" = "Icon";
 "Color" = "Color";
@@ -575,7 +574,6 @@
 "Voice fingerprints stay on this Mac. Turning this on downloads 21 MB of models once." = "Voice fingerprints stay on this Mac. Turning this on downloads 21 MB of models once.";
 "Quit Ata" = "Quit Ata";
 "Stops Ata, including the menu bar icon. Closing a window leaves Ata running there." = "Stops Ata, including the menu bar icon. Closing a window leaves Ata running there.";
-"Ata lives in the menu bar, not the Dock. Closing a window leaves it running there. Quit Ata from the menu bar icon when you want it to stop. The Dock is only for a menu bar that has no room left: macOS hides the icons that don't fit, and an app cannot choose where its icon sits." = "Ata lives in the menu bar, not the Dock. Closing a window leaves it running there. Quit Ata from the menu bar icon when you want it to stop. The Dock is only for a menu bar that has no room left: macOS hides the icons that don't fit, and an app cannot choose where its icon sits.";
 "Whisper Large is the model Ata uses. It runs on this Mac, and nothing you record is uploaded." = "Whisper Large is the model Ata uses. It runs on this Mac, and nothing you record is uploaded.";
 "People you have named are included on their own. In a summary, they are spelled as written here." = "People you have named are included on their own. In a summary, they are spelled as written here.";
 "Written on this Mac by Apple Intelligence. Nothing leaves it." = "Written on this Mac by Apple Intelligence. Nothing leaves it.";
@@ -583,3 +581,12 @@
 "Whisper Large" = "Whisper Large";
 "Remove older models (%@)?" = "Remove older models (%@)?";
 "Ata no longer uses them. Your recordings and transcripts are not touched." = "Ata no longer uses them. Your recordings and transcripts are not touched.";
+"Open in a window" = "Open in a window";
+"Keep running" = "Keep running";
+"Ata is recording. Quit anyway?" = "Ata is recording. Quit anyway?";
+"Ata is transcribing a meeting. Quit anyway?" = "Ata is transcribing a meeting. Quit anyway?";
+"The recording stops here. It is saved and transcribed the next time Ata opens." = "The recording stops here. It is saved and transcribed the next time Ata opens.";
+"The transcription starts again from the beginning the next time Ata opens." = "The transcription starts again from the beginning the next time Ata opens.";
+"Ata is also in the Dock, and stays there when its windows close. Useful when the menu bar has no room: macOS hides the icons that don't fit." = "Ata is also in the Dock, and stays there when its windows close. Useful when the menu bar has no room: macOS hides the icons that don't fit.";
+"Closing a window or pressing ⌘Q leaves Ata in the menu bar, ready for the next meeting. Quit Ata, in its menu, is what stops it." = "Closing a window or pressing ⌘Q leaves Ata in the menu bar, ready for the next meeting. Quit Ata, in its menu, is what stops it.";
+"Advanced" = "Advanced";

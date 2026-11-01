@@ -13,6 +13,9 @@ struct Shortcut: Equatable, Sendable {
 
     static let allowedModifiers: NSEvent.ModifierFlags = [.command, .option, .control, .shift]
 
+    /// ⌃⌥⌘R: R for record, with enough modifiers that no other app is likely to want it.
+    static let defaultRecord = Shortcut(keyCode: 15, modifiers: [.control, .option, .command])
+
     init(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) {
         self.keyCode = keyCode
         self.modifiers = modifiers.intersection(Self.allowedModifiers)

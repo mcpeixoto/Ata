@@ -281,7 +281,9 @@ are not committed to `docs/images` yet.
 
 ## Ship
 
-Public repo, so: PR → CI green → `gh pr merge --squash --auto --delete-branch`. Then bump
+Public repo, so: PR → CI green → merge. **Here use `gh pr checks <n> --watch && gh pr merge <n> --squash --delete-branch`,
+not `--auto`:** `main` has no branch protection, so there are no required checks and `--auto` merges at
+once with CI still running (PR #57, 2026-11-01). Then bump
 `CFBundleShortVersionString` in `Resources/Info.plist`, add a `CHANGELOG.md` section, and
 tag:
 

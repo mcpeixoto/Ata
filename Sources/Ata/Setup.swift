@@ -150,7 +150,7 @@ final class SetupModel: ObservableObject {
         let path = Bundle.main.bundlePath
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/sh")
-        p.arguments = ["-c", "sleep 1; /usr/bin/open \"\(path)\""]
+        p.arguments = ["-c", "sleep 1; /usr/bin/open \"\(path)\" --args \(LaunchWindow.quietArgument)"]
         try? p.run()
         NSApp.terminate(nil)
     }
