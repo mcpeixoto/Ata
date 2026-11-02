@@ -96,15 +96,12 @@ struct PopoverView: View {
             footer
         }
         .padding(14)
-        // The menu bar panel is a fixed 350pt card. Ata's own window is
-        // resizable and fills whatever size it was given; a flexible width
-        // here would also stretch the menu.
-        .frame(minWidth: inWindow ? 360 : nil,
-               maxWidth: inWindow ? .infinity : nil,
-               minHeight: inWindow ? 480 : nil,
-               maxHeight: inWindow ? .infinity : nil,
-               alignment: .topLeading)
-        .frame(width: inWindow ? nil : 350)
+        // The menu is a fixed 350pt card. A single frame whose sizes are nil
+        // in that case is not the same as leaving it off: the menu host
+        // measures ideal height, that frame reports a short one, and Insights
+        // is clipped through the middle. The window fills whatever size it
+        // was given; a flexible width here would also stretch the menu.
+        .modifier(PopoverSizing(inWindow: inWindow))
         .onAppear { setup.refresh(); store.reload(); store.writeOwedSummaries() }
         // Audio files dropped on the menu become meetings.
         .dropDestination(for: URL.self) { urls, _ in
@@ -142,6 +139,24 @@ struct PopoverView: View {
         NSApp.activate()
         guard panel.runModal() == .OK else { return }
         store.importAudio(panel.urls)
+    }
+
+    /// Menu bar card versus Ata's own window. Kept as two real frames so the
+    /// menu never goes through a frame whose constraints are all nil.
+    private struct PopoverSizing: ViewModifier {
+        let inWindow: Bool
+
+        func body(content: Content) -> some View {
+            if inWindow {
+                content.frame(minWidth: 360,
+                              maxWidth: .infinity,
+                              minHeight: 480,
+                              maxHeight: .infinity,
+                              alignment: .topLeading)
+            } else {
+                content.frame(width: 350)
+            }
+        }
     }
 
     /// In the window, the tab fills the space between the header and the

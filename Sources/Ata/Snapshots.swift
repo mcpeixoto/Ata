@@ -124,8 +124,20 @@ enum Snapshots {
         window.orderFrontRegardless()
 
         // Let SwiftUI lay out and settle its first animation frame.
+        // Insights fills in on appear, and the height measured before that
+        // pass is the empty card. Drawing that frame clips the real tab
+        // through the middle, so measure again once the content is there.
         RunLoop.main.run(until: Date().addingTimeInterval(0.6))
         host.layoutSubtreeIfNeeded()
+        if height == nil {
+            let settled = host.fittingSize
+            if settled.height > host.frame.height + 1 {
+                let resized = NSSize(width: width, height: settled.height)
+                window.setContentSize(resized)
+                host.frame = NSRect(origin: .zero, size: resized)
+                host.layoutSubtreeIfNeeded()
+            }
+        }
 
         let bounds = host.bounds
         let pixels = NSSize(width: bounds.width * scale, height: bounds.height * scale)
