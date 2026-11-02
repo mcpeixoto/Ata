@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.3.1
+
+The People tab, rebuilt on the Mac and the iPhone.
+
+- **One line per voice.** Play, name, how often and when you last heard them. Nothing else until you open a row.
+- **One open row at a time.** Opening a voice with no name puts you straight in its name field, with suggestions from your calendar and every other action in plain sight: Same person as, This is me, Don't ask, Leave out, Forget. They used to sit behind a right-click on the Mac.
+- **It fits.** On the Mac the list scrolls inside the menu and the window instead of running off the screen. Once there are six voices or more, a search box finds anyone, including hidden voices and ones the list holds back, and ignores accents.
+- **It keeps up.** Naming or merging a voice from this tab updates the list at once and rewrites its transcripts in the background.
+- **Forget this voice now asks twice,** now that it is one tap away.
+
 ## 3.3.0
 
 Ata on the Mac is simpler to set up, and tells you when something is wrong.

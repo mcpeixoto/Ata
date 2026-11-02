@@ -674,11 +674,7 @@ final class VoiceLibrary {
     }
 
     /// Unnamed voices heard often enough to be worth naming, most frequent first.
-    var worthAsking: [Voice] {
-        voices.filter { $0.name == nil && !$0.isMe && !$0.isDismissed && !$0.isExcluded
-            && $0.meetings >= Self.askAfterMeetings }
-            .sorted { $0.meetings > $1.meetings }
-    }
+    var worthAsking: [Voice] { PeopleList.asking(voices) }
 
     // MARK: - Maths
 

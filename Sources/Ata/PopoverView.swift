@@ -48,10 +48,13 @@ struct PopoverView: View {
 
     /// True in Ata's own window, which has no reason to offer opening itself.
     private let inWindow: Bool
+    /// A row of the People tab already open, for the screenshots.
+    private let openPerson: PeopleList.Row?
 
-    init(tab: Tab = .record, inWindow: Bool = false) {
+    init(tab: Tab = .record, inWindow: Bool = false, openPerson: PeopleList.Row? = nil) {
         _tab = State(initialValue: tab)
         self.inWindow = inWindow
+        self.openPerson = openPerson
     }
 
     var body: some View {
@@ -76,7 +79,7 @@ struct PopoverView: View {
             case .insights:
                 InsightsView()
             case .people:
-                PeopleView()
+                PeopleView(open: openPerson)
             }
             Divider().opacity(0.5)
             footer

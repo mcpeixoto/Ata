@@ -51,6 +51,14 @@ enum Snapshots {
                                 width: 350, appearance: appearance)
             write(frame(people, appearance), to: out, name: "menu-people-\(appearance.name)")
 
+            // One voice open: a name to give it, and what else can be done to it.
+            PeopleModel.shared.reload()
+            let first = PeopleModel.shared.sections(query: "").first?.voices.first
+            let opened = render(PopoverView(tab: .people, openPerson: first.map { .voice($0.id) })
+                .environmentObject(store).environmentObject(store.setup),
+                                width: 350, appearance: appearance)
+            write(frame(opened, appearance), to: out, name: "menu-people-open-\(appearance.name)")
+
             // Mid-meeting.
             store.applySnapshotFixture(recordingApp: "Zoom", elapsed: 23 * 60 + 14, mic: 0.64, system: 0.47,
                                        transcribingID: nil, progress: 0)
