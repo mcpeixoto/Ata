@@ -81,7 +81,6 @@
 "Close" = "Close";
 "Me" = "Me";
 "Who's this?" = "Who's this?";
-"Heard in several meetings. Play a sample, then type a name." = "Heard in several meetings. Play a sample, then type a name.";
 "People" = "People";
 "%d voices learned, all on this Mac." = "%d voices learned, all on this Mac.";
 "Delete all?" = "Delete all?";
@@ -279,7 +278,6 @@
 
 /* 2.5: voices you don't want named or transcribed. */
 "Hidden voices" = "Hidden voices";
-"Not asked about, or left out of every transcript." = "Not asked about, or left out of every transcript.";
 "Don't ask about this voice" = "Don't ask about this voice";
 "Leave out of transcripts" = "Leave out of transcripts";
 "Put back in transcripts" = "Put back in transcripts";
@@ -408,7 +406,6 @@
 "Your lines are marked with this name. Ata also tells the other people in the room apart, and you name each voice once in People." = "Your lines are marked with this name. Ata also tells the other people in the room apart, and you name each voice once in People.";
 "Transcribe again in" = "Transcribe again in";
 "Heard once" = "Heard once";
-"Ata asks for a name once it has heard a voice in two meetings. You can name one now anyway — or say it's you." = "Ata asks for a name once it has heard a voice in two meetings. You can name one now anyway — or say it's you.";
 "This iPhone can't run Apple's on-device speech recognition." = "This iPhone can't run Apple's on-device speech recognition.";
 "Apple's on-device speech recognition needs macOS 26 and a Mac that can run its models. Choose whisper.cpp in Settings → Transcription." = "Apple's on-device speech recognition needs macOS 26 and a Mac that can run its models. Choose whisper.cpp in Settings → Transcription.";
 "Voices are found while a meeting is transcribed. This one was transcribed before voice recognition was on, or there was no speech to tell apart." = "Voices are found while a meeting is transcribed. This one was transcribed before voice recognition was on, or there was no speech to tell apart.";
@@ -608,3 +605,12 @@
 "Whisper Large needs %@ of free disk space, and %@ is free. Free some up and try again." = "Whisper Large needs %@ of free disk space, and %@ is free. Free some up and try again.";
 "The update could not be installed, and Ata is unchanged. Try again, or download it from the releases page." = "The update could not be installed, and Ata is unchanged. Try again, or download it from the releases page.";
 "The update is installed. Quit Ata and open it again to finish." = "The update is installed. Quit Ata and open it again to finish.";
+"Search voices" = "Search voices";
+"Search voices…" = "Search voices…";
+"No voices match" = "No voices match";
+"%d more. Search to find them." = "%d more. Search to find them.";
+"Voices" = "Voices";
+"Closed" = "Closed";
+"1 meeting · heard %@" = "1 meeting · heard %@";
+"Forget this voice?" = "Forget this voice?";
+"Your voice isn't recorded yet" = "Your voice isn't recorded yet";

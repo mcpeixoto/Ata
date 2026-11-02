@@ -81,7 +81,6 @@
 "Close" = "Fechar";
 "Me" = "Eu";
 "Who's this?" = "Quem é?";
-"Heard in several meetings. Play a sample, then type a name." = "Ouvida em várias reuniões. Ouve uma amostra e escreve um nome.";
 "People" = "Pessoas";
 "%d voices learned, all on this Mac." = "%d vozes aprendidas, todas neste Mac.";
 "Delete all?" = "Apagar tudo?";
@@ -279,7 +278,6 @@
 
 /* 2.5: voices you don't want named or transcribed. */
 "Hidden voices" = "Vozes escondidas";
-"Not asked about, or left out of every transcript." = "Sem pergunta pelo nome, ou deixadas de fora de todas as transcrições.";
 "Don't ask about this voice" = "Não perguntar por esta voz";
 "Leave out of transcripts" = "Deixar de fora das transcrições";
 "Put back in transcripts" = "Voltar a pôr nas transcrições";
@@ -408,7 +406,6 @@
 "Your lines are marked with this name. Ata also tells the other people in the room apart, and you name each voice once in People." = "As tuas falas são marcadas com este nome. A Ata também distingue as outras pessoas na sala, e dás nome a cada voz uma vez em Pessoas.";
 "Transcribe again in" = "Transcrever outra vez em";
 "Heard once" = "Ouvida uma vez";
-"Ata asks for a name once it has heard a voice in two meetings. You can name one now anyway — or say it's you." = "A Ata pede um nome quando já ouviu uma voz em duas reuniões. Podes dar nome a uma agora, se quiseres — ou dizer que és tu.";
 "This iPhone can't run Apple's on-device speech recognition." = "Este iPhone não consegue correr o reconhecimento de fala da Apple.";
 "Apple's on-device speech recognition needs macOS 26 and a Mac that can run its models. Choose whisper.cpp in Settings → Transcription." = "O reconhecimento de fala da Apple no dispositivo requer o macOS 26 e um Mac capaz de correr os modelos dela. Escolhe o whisper.cpp em Definições → Transcrição.";
 "Voices are found while a meeting is transcribed. This one was transcribed before voice recognition was on, or there was no speech to tell apart." = "As vozes são encontradas enquanto a reunião é transcrita. Esta foi transcrita antes de o reconhecimento de vozes estar ligado, ou não havia fala para distinguir.";
@@ -608,3 +605,12 @@
 "Whisper Large needs %@ of free disk space, and %@ is free. Free some up and try again." = "O Whisper Large precisa de %@ de espaço livre e só há %@. Liberte espaço e tente de novo.";
 "The update could not be installed, and Ata is unchanged. Try again, or download it from the releases page." = "Não foi possível instalar a atualização e a Ata ficou como estava. Tente de novo ou descarregue-a da página de versões.";
 "The update is installed. Quit Ata and open it again to finish." = "A atualização está instalada. Saia da Ata e abra-a de novo para terminar.";
+"Search voices" = "Procurar vozes";
+"Search voices…" = "Procurar vozes…";
+"No voices match" = "Nenhuma voz encontrada";
+"%d more. Search to find them." = "Mais %d. Procura para as encontrar.";
+"Voices" = "Vozes";
+"Closed" = "Fechada";
+"1 meeting · heard %@" = "1 reunião · ouvida %@";
+"Forget this voice?" = "Esquecer esta voz?";
+"Your voice isn't recorded yet" = "A tua voz ainda não foi gravada";

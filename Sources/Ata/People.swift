@@ -32,28 +32,55 @@ final class PeopleModel: ObservableObject {
     @Published private(set) var voices: [Voice] = []
     @Published private(set) var playing: UUID?
 
+    /// When a change reaches the transcripts it affects. A meeting's own window
+    /// reads its transcript straight after, so that is the default; the People tab
+    /// has a list to keep moving, and a voice can be in a hundred meetings.
+    enum Redraw { case now, background }
+
     private var library = VoiceLibrary()
     private var player: AVAudioPlayer?
 
     var enabled: Bool { Pref.d.bool(forKey: Pref.recogniseVoices) }
 
     var worthAsking: [Voice] { library.worthAsking }
-    var named: [Voice] {
-        voices.filter { $0.name != nil && !$0.isMe && !$0.isExcluded }.sorted { $0.meetings > $1.meetings }
-    }
+    var named: [Voice] { PeopleList.named(voices) }
     var me: Voice? { voices.first(where: \.isMe) }
 
     /// The calendar event of each meeting that has one, for the suggestions
     /// below. Built from the meeting.json files `Library.loadAll` reads anyway.
     /// A meeting still on its way down from iCloud comes back as a placeholder
     /// with no event — read, never waited for.
-    private var eventsByMeeting: [String: MeetingEvent] = [:]
+    @Published private var eventsByMeeting: [String: MeetingEvent] = [:]
+    private var eventsLoad: Task<Void, Never>?
+    /// Transcripts being drawn in the background, one change after another.
+    private var redraws: Task<Void, Never>?
 
     func reload() {
         library = VoiceLibrary()
         voices = library.voices
-        eventsByMeeting = Dictionary(uniqueKeysWithValues:
-            Library.loadAll().compactMap { m in m.event.map { (m.id, $0) } })
+        // Every meeting's file: never on the main thread, and only a hint until it lands.
+        eventsLoad?.cancel()
+        eventsLoad = Task.detached(priority: .utility) { [weak self] in
+            let events = Dictionary(Library.loadAll().compactMap { m in m.event.map { (m.id, $0) } },
+                                    uniquingKeysWith: { first, _ in first })
+            guard !Task.isCancelled else { return }
+            await MainActor.run { self?.eventsByMeeting = events }
+        }
+    }
+
+    /// The tab's list, for a search or none.
+    func sections(query: String) -> [PeopleList.Section] {
+        PeopleList.sections(voices: voices, query: query, heardOnceShown: Self.heardOnceShown)
+    }
+
+    /// Who "Same person as" offers for this voice.
+    func mergeTargets(for voice: Voice) -> [Voice] {
+        PeopleList.mergeTargets(for: voice, voices: voices, likely: sameAs(voice))
+    }
+
+    /// Returns once every change so far has reached its transcripts.
+    func finishRedraws() async {
+        await redraws?.value
     }
 
     /// Who the calendar says this voice might be, best first. Suggestions only:
@@ -75,13 +102,13 @@ final class PeopleModel: ObservableObject {
 
     /// The user tapped a name the calendar offered. The old name, if there was
     /// one, is kept as an alias — so the next invitation still finds them.
-    func accept(_ suggestion: VoiceSuggestions.Candidate, for voice: Voice) {
+    func accept(_ suggestion: VoiceSuggestions.Candidate, for voice: Voice, redraw: Redraw = .now) {
         let previous = voice.name
         library.rename(voice.id, to: suggestion.name)
         if let previous, !previous.isEmpty { library.addAlias(voice.id, previous) }
         if let email = suggestion.email { library.addAlias(voice.id, email) }
         persist()
-        rerender(meetings: voice.meetingIDs)
+        apply(redraw, meetings: voice.meetingIDs)
     }
 
     func addAlias(_ voice: Voice, _ alias: String) {
@@ -138,18 +165,18 @@ final class PeopleModel: ObservableObject {
         persist()
     }
 
-    func rename(_ voice: Voice, to name: String) {
+    func rename(_ voice: Voice, to name: String, redraw: Redraw = .now) {
         library.rename(voice.id, to: name)
         persist()
-        rerender(meetings: voice.meetingIDs)
+        apply(redraw, meetings: voice.meetingIDs)
     }
 
-    func merge(_ source: Voice, into target: Voice) {
-        // Meetings that pointed at the source now point at the target.
-        for id in source.meetingIDs { repoint(meetingID: id, from: source.id, to: target.id) }
+    func merge(_ source: Voice, into target: Voice, redraw: Redraw = .now) {
         library.merge(source.id, into: target.id)
         persist()
-        rerender(meetings: source.meetingIDs + target.meetingIDs)
+        // Meetings that pointed at the source now point at the target.
+        apply(redraw, meetings: source.meetingIDs + target.meetingIDs,
+              repoint: source.meetingIDs.map { Repoint(meetingID: $0, from: source.id, to: target.id) })
     }
 
     /// Stop asking for this voice's name.
@@ -161,17 +188,17 @@ final class PeopleModel: ObservableObject {
     /// "This voice is me", or no longer me: the next meeting in the room knows
     /// which of its speakers is you. Transcripts are redrawn because the voice
     /// leaves, or rejoins, the people listed in them.
-    func setMe(_ voice: Voice, _ on: Bool) {
+    func setMe(_ voice: Voice, _ on: Bool, redraw: Redraw = .now) {
         library.setMe(voice.id, on)
         persist()
-        rerender(meetings: voice.meetingIDs)
+        apply(redraw, meetings: voice.meetingIDs)
     }
 
     /// Leave this voice out of every transcript, or put it back; transcripts are redrawn.
-    func setExcluded(_ voice: Voice, _ on: Bool) {
+    func setExcluded(_ voice: Voice, _ on: Bool, redraw: Redraw = .now) {
         library.setExcluded(voice.id, on)
         persist()
-        rerender(meetings: voice.meetingIDs)
+        apply(redraw, meetings: voice.meetingIDs)
     }
 
     /// How many one-off voices the tab shows. A meeting or two is the point of
@@ -184,24 +211,18 @@ final class PeopleModel: ObservableObject {
     /// — the more so on an iPhone, where a first recording is usually the only
     /// one there is.
     var heardOnce: [Voice] {
-        Array(voices.filter { $0.name == nil && !$0.isMe && !$0.isDismissed && !$0.isExcluded
-            && $0.meetings < VoiceLibrary.askAfterMeetings }
-            .sorted { $0.lastSeen > $1.lastSeen }
-            .prefix(Self.heardOnceShown))
+        Array(PeopleList.heardOnce(voices).prefix(Self.heardOnceShown))
     }
 
     /// Voices that are neither named nor asked about: dismissed, or left out.
-    var hidden: [Voice] {
-        voices.filter { !$0.isMe && ($0.isExcluded || ($0.name == nil && $0.isDismissed)) }
-            .sorted { $0.meetings > $1.meetings }
-    }
+    var hidden: [Voice] { PeopleList.hidden(voices) }
 
     /// The voice's file and sample go with it.
-    func forget(_ voice: Voice) {
-        for id in voice.meetingIDs { repoint(meetingID: id, from: voice.id, to: nil) }
+    func forget(_ voice: Voice, redraw: Redraw = .now) {
         library.forget(voice.id)
         persist()
-        rerender(meetings: voice.meetingIDs)
+        apply(redraw, meetings: voice.meetingIDs,
+              repoint: voice.meetingIDs.map { Repoint(meetingID: $0, from: voice.id, to: nil) })
     }
 
     /// Deletes every fingerprint and sample. Transcripts fall back to "Speaker 1, 2…".
@@ -248,19 +269,50 @@ final class PeopleModel: ObservableObject {
         voices = library.voices
     }
 
-    private func repoint(meetingID: String, from old: UUID, to new: UUID?) {
-        guard let m = Library.loadAll().first(where: { $0.id == meetingID }),
-              var map = MeetingVoices.load(for: m) else { return }
-        for i in map.speakers.indices where map.speakers[i].voiceID == old { map.speakers[i].voiceID = new }
-        try? map.save(for: m)
+    /// A meeting whose speakers pointed at one voice and now point at another, or none.
+    private struct Repoint {
+        let meetingID: String
+        let from: UUID
+        let to: UUID?
+    }
+
+    /// Brings the meetings a change touched into line with the library, which is
+    /// already saved. In the background, each change waits for the one before: two
+    /// quick renames must not finish in the wrong order.
+    private func apply(_ redraw: Redraw, meetings: [String], repoint: [Repoint] = []) {
+        let myName = Pref.myNameOrDefault
+        switch redraw {
+        case .now:
+            Self.write(repoint, meetings: meetings, myName: myName)
+        case .background:
+            let previous = redraws
+            redraws = Task.detached(priority: .userInitiated) {
+                await previous?.value
+                Self.write(repoint, meetings: meetings, myName: myName)
+            }
+        }
+    }
+
+    private nonisolated static func write(_ repoint: [Repoint], meetings: [String], myName: String) {
+        for change in repoint {
+            guard let m = Library.load(change.meetingID), var map = MeetingVoices.load(for: m) else { continue }
+            for i in map.speakers.indices where map.speakers[i].voiceID == change.from {
+                map.speakers[i].voiceID = change.to
+            }
+            try? map.save(for: m)
+        }
+        rerender(meetings: meetings, myName: myName)
+    }
+
+    private nonisolated static func rerender(meetings ids: [String], myName: String) {
+        for id in Set(ids) {
+            guard let m = Library.load(id), m.status == .done else { continue }
+            try? Transcriber.rerender(m, myName: myName)
+        }
     }
 
     private func rerender(meetings ids: [String]) {
-        let wanted = Set(ids)
-        let myName = Pref.myNameOrDefault
-        for m in Library.loadAll() where wanted.contains(m.id) && m.status == .done {
-            try? Transcriber.rerender(m, myName: myName)
-        }
+        Self.rerender(meetings: ids, myName: Pref.myNameOrDefault)
     }
 }
 
