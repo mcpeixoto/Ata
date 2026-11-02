@@ -71,18 +71,40 @@ struct PopoverView: View {
             .labelsHidden()
             switch tab {
             case .record:
-                recordCard
-                if !store.meetings.isEmpty { recent }
+                if inWindow {
+                    windowPane {
+                        VStack(alignment: .leading, spacing: 12) {
+                            recordCard
+                            if !store.meetings.isEmpty { recent }
+                        }
+                    }
+                } else {
+                    recordCard
+                    if !store.meetings.isEmpty { recent }
+                }
             case .insights:
-                InsightsView()
+                if inWindow {
+                    windowPane { InsightsView() }
+                } else {
+                    InsightsView()
+                }
             case .people:
-                PeopleView()
+                PeopleView(fills: inWindow)
+                    .frame(maxWidth: .infinity, maxHeight: inWindow ? .infinity : nil, alignment: .topLeading)
             }
             Divider().opacity(0.5)
             footer
         }
         .padding(14)
-        .frame(width: 350)
+        // The menu bar panel is a fixed 350pt card. Ata's own window is
+        // resizable and fills whatever size it was given; a flexible width
+        // here would also stretch the menu.
+        .frame(minWidth: inWindow ? 360 : nil,
+               maxWidth: inWindow ? .infinity : nil,
+               minHeight: inWindow ? 480 : nil,
+               maxHeight: inWindow ? .infinity : nil,
+               alignment: .topLeading)
+        .frame(width: inWindow ? nil : 350)
         .onAppear { setup.refresh(); store.reload(); store.writeOwedSummaries() }
         // Audio files dropped on the menu become meetings.
         .dropDestination(for: URL.self) { urls, _ in
@@ -120,6 +142,16 @@ struct PopoverView: View {
         NSApp.activate()
         guard panel.runModal() == .OK else { return }
         store.importAudio(panel.urls)
+    }
+
+    /// In the window, the tab fills the space between the header and the
+    /// footer and scrolls, so shrinking the window cannot clip Quit.
+    private func windowPane<V: View>(@ViewBuilder _ content: () -> V) -> some View {
+        ScrollView {
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     // MARK: Header

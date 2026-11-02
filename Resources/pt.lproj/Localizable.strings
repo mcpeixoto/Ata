@@ -97,7 +97,16 @@
 "Type their name…" = "Escreve o nome…";
 "%d meetings · heard %@" = "%d reuniões · ouvida %@";
 "Rename…" = "Mudar o nome…";
-"Same person as" = "Mesma pessoa que";
+"Search people" = "Procurar pessoas";
+"Merge with…" = "Juntar com…";
+"Pick who %@ really is. Transcripts use that name." = "Escolhe quem %@ é na realidade. As transcrições passam a usar esse nome.";
+"No one matches" = "Nenhuma pessoa com esse nome";
+"Suggested" = "Sugestões";
+"Merge" = "Juntar";
+"%@ becomes %@." = "%@ passa a ser %@.";
+"%d meetings" = "%d reuniões";
+"Same meetings · %d" = "As mesmas reuniões · %d";
+"Back" = "Voltar";
 "Forget this voice" = "Esquecer esta voz";
 "Insights" = "Estatísticas";
 "Settings" = "Definições";

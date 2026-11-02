@@ -374,7 +374,7 @@ final class VoiceLibrary {
         // collapsing into one name. When it is wrong — one person heard as two —
         // the library ends up with a near-identical pair, which the lead rule
         // above now recognises as one person rather than minting a third copy of
-        // them every meeting after. "Same person as" merges the pair for good.
+        // them every meeting after. "Merge with…" folds the pair into one person.
         for (s, speaker) in speakers.enumerated() where !takenSpeakers.contains(s) && !speaker.embedding.isEmpty {
             let next = (voices.compactMap(\.number).max() ?? 0) + 1
             let voice = Voice(id: UUID(), name: nil, centroid: Self.normalised(speaker.embedding), observations: 1,

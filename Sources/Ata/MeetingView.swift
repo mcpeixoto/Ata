@@ -828,8 +828,10 @@ private struct LineRow: View, Equatable {
 private struct PeopleTab: View {
     @EnvironmentObject var store: AppStore
     @ObservedObject var model: MeetingModel
+    @StateObject private var people = PeopleModel.shared
     let meeting: Meeting
     @AppStorage(Pref.recogniseVoices) private var recognise = true
+    @State private var merging: MeetingModel.Speaker?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -840,12 +842,58 @@ private struct PeopleTab: View {
                     .ataFont(11).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 VStack(spacing: 2) {
-                    ForEach(model.speakers) { SpeakerRow(model: model, speaker: $0) }
+                    ForEach(model.speakers) { speaker in
+                        SpeakerRow(model: model, speaker: speaker, onMerge: merge(speaker))
+                    }
                 }
                 .padding(6)
                 .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color.primary.opacity(0.045)))
             }
         }
+        .sheet(item: $merging) { speaker in
+            Group {
+                if let voice = speaker.voice {
+                    MergeVoicePicker(source: voice, voices: people.voices,
+                                     suggested: people.sameAs(voice),
+                                     // The Mac sheet has a fixed frame, so the
+                                     // list can fill it. A phone sheet does not,
+                                     // so the list takes a capped height instead.
+                                     fills: {
+                                         #if os(macOS)
+                                         true
+                                         #else
+                                         false
+                                         #endif
+                                     }(),
+                                     maxListHeight: 420,
+                                     onMerge: { other in
+                                         model.merge(speaker, into: other)
+                                         merging = nil
+                                     },
+                                     onCancel: { merging = nil })
+                        .padding(16)
+                        #if os(macOS)
+                        // The sheet takes this size. The list scrolls inside it,
+                        // so a long library cannot grow the meeting window.
+                        .frame(width: 380, height: 520)
+                        #endif
+                }
+            }
+            #if os(iOS)
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            #endif
+        }
+    }
+
+    /// Nil when this speaker has no fingerprint, is already you, or the
+    /// library has nobody else named to fold them into.
+    private func merge(_ speaker: MeetingModel.Speaker) -> (() -> Void)? {
+        guard speaker.label != Speakers.me, let voice = speaker.voice,
+              people.voices.contains(where: {
+                  $0.id != voice.id && $0.name?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+              }) else { return nil }
+        return { merging = speaker }
     }
 
     private static var voicesPitch: String {
@@ -894,8 +942,8 @@ private struct PeopleTab: View {
 
 private struct SpeakerRow: View {
     @ObservedObject var model: MeetingModel
-    @StateObject private var people = PeopleModel.shared
     let speaker: MeetingModel.Speaker
+    var onMerge: (() -> Void)? = nil
     @State private var name = ""
     @State private var editing = false
     @FocusState private var focused: Bool
@@ -955,21 +1003,14 @@ private struct SpeakerRow: View {
                 .controlSize(.small)
             }
             if let voice = speaker.voice {
-                let others = people.voices.filter { $0.id != voice.id && $0.name != nil }
-                if !others.isEmpty, speaker.label != Speakers.me {
-                    Menu {
-                        ForEach(others) { other in
-                            Button(other.name ?? "") { model.merge(speaker, into: other) }
-                        }
-                    } label: {
-                        Image(systemName: "person.2")
+                if onMerge != nil {
+                    Button { onMerge?() } label: {
+                        Image(systemName: "arrow.triangle.merge")
+                            .font(.system(size: 13, weight: .medium))
                     }
-                    .menuStyle(.button)
-                .buttonStyle(.borderless)
-                    .menuIndicator(.hidden)
-                    .fixedSize()
-                    .help(L("Same person as"))
-                    .accessibilityLabel(L("Same person as"))
+                    .buttonStyle(.borderless)
+                    .help(L("Merge with…"))
+                    .accessibilityLabel(L("Merge with…"))
                 }
                 Menu {
                     Button(voice.isMe ? L("Not me") : L("This is me")) {

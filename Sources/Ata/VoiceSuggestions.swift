@@ -21,7 +21,7 @@ enum VoiceSuggestions {
         /// gets without the user saying so.
         let smallestEvent: Int
         /// A voice already in the library answers to this name. The user
-        /// probably wants "Same person as", not a second copy of them, so these
+        /// probably wants "Merge with…", not a second copy of them, so these
         /// rank last and the UI says why.
         let matchesExistingVoice: Names.Match
 

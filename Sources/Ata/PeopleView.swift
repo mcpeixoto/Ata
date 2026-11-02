@@ -1,10 +1,20 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 /// The menu's third tab: voices Ata has learned, and the ones it would like a name for.
 struct PeopleView: View {
+    /// In Ata's own window the list fills the space under the tab bar and
+    /// scrolls. The menu bar panel stays only as tall as it needs to be.
+    var fills: Bool = false
+
     @StateObject private var people = PeopleModel.shared
     @AppStorage(Pref.recogniseVoices) private var enabled = true
     @State private var confirmForgetAll = false
+    @State private var merging: Voice?
+    @State private var query = ""
+    @State private var showHidden = false
 
     private static func learnedLine(_ count: Int) -> String {
         if CloudLibrary.isActive { return L("%d voices learned, kept in your iCloud with your meetings.", count) }
@@ -50,6 +60,64 @@ struct PeopleView: View {
     }
 
     var body: some View {
+        main
+            .frame(maxWidth: .infinity, maxHeight: fills ? .infinity : nil, alignment: .topLeading)
+            .onAppear { people.reload() }
+            .onChange(of: people.voices) { _, voices in
+                // The voice being merged can disappear under us (a merge on
+                // another device, or Forget). Leaving the picker up would
+                // offer a person who is already gone.
+                guard let merging else { return }
+                if !voices.contains(where: { $0.id == merging.id }) { self.merging = nil }
+            }
+        #if os(iOS)
+            .sheet(item: $merging) { source in
+                // A fixed list height, not a flexible one: a sheet does not
+                // hand the picker a bounded height, so a flexible scroll would
+                // grow with every voice and run off the phone.
+                MergeVoicePicker(source: source, voices: people.voices,
+                                 suggested: people.sameAs(source), fills: false,
+                                 maxListHeight: 420,
+                                 onMerge: { target in
+                                     people.merge(source, into: target)
+                                     merging = nil
+                                 },
+                                 onCancel: { merging = nil })
+                    .id(source.id)
+                    .padding(16)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
+        #endif
+    }
+
+    @ViewBuilder private var main: some View {
+        #if os(macOS)
+        // The menu bar has no room for a second window, so merging replaces
+        // the list in place. A phone presents the same picker as a sheet.
+        if let source = merging {
+            mergePicker(source, fills: fills)
+        } else {
+            browser
+        }
+        #else
+        browser
+        #endif
+    }
+
+    private func mergePicker(_ source: Voice, fills: Bool) -> some View {
+        MergeVoicePicker(source: source, voices: people.voices,
+                         suggested: people.sameAs(source), fills: fills,
+                         maxListHeight: mergeListCap,
+                         onMerge: { target in
+                             people.merge(source, into: target)
+                             merging = nil
+                         },
+                         onCancel: { merging = nil })
+            .id(source.id)
+    }
+
+    private var browser: some View {
         VStack(alignment: .leading, spacing: 10) {
             if !enabled {
                 off
@@ -64,43 +132,194 @@ struct PeopleView: View {
             if enabled, people.voices.isEmpty, people.me == nil {
                 waiting
             } else if enabled {
-                if !people.worthAsking.isEmpty {
-                    section(L("Who's this?"), footnote: L("Heard in several meetings. Play a sample, then type a name.")) {
-                        ForEach(people.worthAsking) { VoiceRow(voice: $0, asking: true) }
+                if showsSearch { searchField }
+                scrollingList { lists }
+                learnedFooter
+            }
+        }
+    }
+
+    /// Search once the library is long enough to need it, and always in the
+    /// window, where there is room and the list is what the window is for.
+    /// Unnamed voices count too: "Voice 14" is how you find one of many.
+    private var showsSearch: Bool {
+        fills || people.voices.count > PeoplePaneLayout.uncappedRows || people.worthAsking.count > 3
+    }
+
+    private var searching: Bool { !Names.normalise(query).isEmpty }
+
+    private func shown(_ voices: [Voice]) -> [Voice] {
+        voices.filter { MergeCandidates.matches($0, query: query) }
+    }
+
+    /// Rows actually on screen. Hidden voices count as one header until opened,
+    /// so a drawer of dismissed strangers does not force the whole tab to scroll.
+    private var openRowCount: Int {
+        let hiddenRows = people.hidden.isEmpty ? 0
+            : ((showHidden || searching) ? shown(people.hidden).count : 1)
+        return shown(people.worthAsking).count + shown(people.heardOnce).count
+            + shown(people.named).count + hiddenRows
+    }
+
+    private var capsList: Bool {
+        // Snapshots draw the whole tab at its own height. A fixed cap here
+        // would be a tall empty well in the README image.
+        #if os(macOS)
+        if Snapshots.rendering { return false }
+        #endif
+        return openRowCount > PeoplePaneLayout.uncappedRows || shown(people.worthAsking).count > 3
+    }
+
+    private var searchField: some View {
+        TextField("Search people", text: $query)
+            .textFieldStyle(.roundedBorder)
+            .controlSize(.small)
+            .ataFont(11)
+    }
+
+    private var lists: some View {
+        let asking = shown(people.worthAsking)
+        let once = shown(people.heardOnce)
+        let named = shown(people.named)
+        let hidden = shown(people.hidden)
+        return VStack(alignment: .leading, spacing: 10) {
+            if searching, asking.isEmpty, once.isEmpty, named.isEmpty, hidden.isEmpty {
+                Text("No one matches")
+                    .ataFont(11).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+            }
+            if !asking.isEmpty {
+                section(L("Who's this?"), count: sectionCount(asking.count),
+                        footnote: L("Heard in several meetings. Play a sample, then type a name.")) {
+                    ForEach(asking) { row($0, asking: true) }
+                }
+            }
+            if !once.isEmpty {
+                section(L("Heard once"), count: sectionCount(once.count),
+                        footnote: L("Ata asks for a name once it has heard a voice in two meetings. You can name one now anyway — or say it's you.")) {
+                    ForEach(once) { row($0, asking: true) }
+                }
+            }
+            if !named.isEmpty {
+                section(L("People"), count: sectionCount(named.count), footnote: nil) {
+                    LazyVStack(spacing: 2) {
+                        ForEach(named) { row($0, asking: false) }
                     }
                 }
-                if !people.heardOnce.isEmpty {
-                    section(L("Heard once"), footnote: L("Ata asks for a name once it has heard a voice in two meetings. You can name one now anyway — or say it's you.")) {
-                        ForEach(people.heardOnce) { VoiceRow(voice: $0, asking: true) }
+            }
+            hiddenSection(hidden)
+        }
+    }
+
+    /// A count is only useful once the list is long. A handful of people
+    /// already shows every row, and a number beside the title is noise.
+    private func sectionCount(_ count: Int) -> Int? {
+        (people.voices.count > PeoplePaneLayout.uncappedRows || searching) ? count : nil
+    }
+
+    @ViewBuilder private func hiddenSection(_ hidden: [Voice]) -> some View {
+        if !hidden.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Button { showHidden.toggle() } label: {
+                    HStack(spacing: 5) {
+                        Text(L("Hidden voices").uppercased())
+                            .ataFont(9, weight: .semibold).foregroundStyle(.secondary)
+                        Text(verbatim: "\(hidden.count)")
+                            .ataFont(9, weight: .medium).foregroundStyle(.secondary)
+                        Spacer(minLength: 4)
+                        Image(systemName: (showHidden || searching) ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
                     }
+                    .contentShape(Rectangle())
                 }
-                if !people.named.isEmpty {
-                    section(L("People"), footnote: nil) {
-                        ForEach(people.named) { VoiceRow(voice: $0, asking: false) }
-                    }
-                }
-                if !people.hidden.isEmpty {
-                    section(L("Hidden voices"), footnote: L("Not asked about, or left out of every transcript.")) {
-                        ForEach(people.hidden) { HiddenVoiceRow(voice: $0) }
-                    }
-                }
-                HStack {
-                    Text(Self.learnedLine(people.voices.count))
+                .buttonStyle(.plain)
+                .accessibilityLabel(L("Hidden voices"))
+                if showHidden || searching {
+                    Text("Not asked about, or left out of every transcript.")
                         .ataFont(10).foregroundStyle(.secondary)
-                    Spacer()
-                    Button(confirmForgetAll ? L("Delete all?") : L("Forget all")) {
-                        if confirmForgetAll { people.forgetAll(); confirmForgetAll = false } else {
-                            confirmForgetAll = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { confirmForgetAll = false }
-                        }
+                    VStack(spacing: 2) {
+                        ForEach(hidden) { HiddenVoiceRow(voice: $0, onMerge: mergeAction(for: $0)) }
                     }
-                    .buttonStyle(.plain)
-                    .ataFont(10, weight: .medium)
-                    .foregroundStyle(confirmForgetAll ? .red : .secondary)
+                    .padding(6)
+                    .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color.primary.opacity(0.045)))
                 }
             }
         }
-        .onAppear { people.reload() }
+    }
+
+    private func row(_ voice: Voice, asking: Bool) -> some View {
+        VoiceRow(voice: voice, asking: asking, onMerge: mergeAction(for: voice))
+    }
+
+    /// Nil when there is nobody to merge into, so the control is not offered
+    /// for a library of one.
+    private func mergeAction(for voice: Voice) -> (() -> Void)? {
+        guard people.voices.contains(where: { $0.id != voice.id && ($0.name?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) }) else {
+            return nil
+        }
+        return { merging = voice }
+    }
+
+    private var learnedFooter: some View {
+        HStack {
+            Text(Self.learnedLine(people.voices.count))
+                .ataFont(10).foregroundStyle(.secondary)
+            Spacer()
+            Button(confirmForgetAll ? L("Delete all?") : L("Forget all")) {
+                if confirmForgetAll { people.forgetAll(); confirmForgetAll = false } else {
+                    confirmForgetAll = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) { confirmForgetAll = false }
+                }
+            }
+            .buttonStyle(.plain)
+            .ataFont(10, weight: .medium)
+            .foregroundStyle(confirmForgetAll ? .red : .secondary)
+        }
+    }
+
+    /// The menu list's height. Snapshots draw the whole tab, uncapped, so the
+    /// README shows every row rather than a scroll cut off mid-list.
+    private var menuListCap: CGFloat {
+        #if os(macOS)
+        if Snapshots.rendering { return 4_000 }
+        let screen = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame.height ?? 900
+        return PeoplePaneLayout.listCap(screenHeight: screen, reserve: PeoplePaneLayout.menuReserve)
+        #else
+        return 800
+        #endif
+    }
+
+    private var mergeListCap: CGFloat {
+        #if os(macOS)
+        if Snapshots.rendering { return 4_000 }
+        let screen = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame.height ?? 900
+        return PeoplePaneLayout.listCap(screenHeight: screen, reserve: PeoplePaneLayout.mergeReserve)
+        #else
+        return 800
+        #endif
+    }
+
+    /// Scroll only once the rows would push the rest of the panel off the
+    /// screen. A short library keeps its own height, which is what the menu
+    /// is sized to.
+    @ViewBuilder private func scrollingList<V: View>(@ViewBuilder content: () -> V) -> some View {
+        #if os(iOS)
+        content()
+        #else
+        if fills {
+            ScrollView { content() }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        } else if capsList {
+            ScrollView { content() }
+                .frame(maxWidth: .infinity, alignment: .top)
+                .frame(height: menuListCap)
+                .scrollIndicators(.visible, axes: .vertical)
+        } else {
+            content()
+        }
+        #endif
     }
 
     private var off: some View {
@@ -155,9 +374,15 @@ struct PeopleView: View {
         .padding(.vertical, 22)
     }
 
-    private func section<C: View>(_ title: String, footnote: String?, @ViewBuilder content: () -> C) -> some View {
+    private func section<C: View>(_ title: String, count: Int? = nil, footnote: String?, @ViewBuilder content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title.uppercased()).ataFont(9, weight: .semibold).foregroundStyle(.secondary)
+            HStack(spacing: 5) {
+                Text(title.uppercased()).ataFont(9, weight: .semibold).foregroundStyle(.secondary)
+                if let count {
+                    Text(verbatim: "\(count)")
+                        .ataFont(9, weight: .medium).foregroundStyle(.secondary)
+                }
+            }
             if let footnote {
                 Text(footnote).ataFont(10).foregroundStyle(.secondary)
             }
@@ -168,10 +393,185 @@ struct PeopleView: View {
     }
 }
 
+/// Searchable list of people a voice can be folded into. One tap selects,
+/// Merge confirms: the list can be long, and the tap deletes the voice.
+struct MergeVoicePicker: View {
+    let source: Voice
+    let voices: [Voice]
+    let suggested: [Voice]
+    var fills: Bool
+    var maxListHeight: CGFloat
+    let onMerge: (Voice) -> Void
+    let onCancel: () -> Void
+
+    @State private var query = ""
+    @State private var chosen: UUID?
+    @FocusState private var focused: Bool
+
+    private var arranged: MergeCandidates.Result {
+        MergeCandidates.arrange(source: source, voices: voices, suggested: suggested, query: query)
+    }
+
+    var body: some View {
+        let arranged = arranged
+        VStack(alignment: .leading, spacing: 8) {
+            header
+            TextField("Search people", text: $query)
+                .textFieldStyle(.roundedBorder)
+                .controlSize(.small)
+                .ataFont(11)
+                .focused($focused)
+                .onSubmit { confirm(arranged) }
+            if arranged.isEmpty {
+                Text("No one matches")
+                    .ataFont(11).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 12)
+            } else {
+                candidateList(arranged)
+            }
+            if let target = selected(in: arranged) {
+                confirmBar(target)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: fills ? .infinity : nil, alignment: .topLeading)
+        .onAppear { focused = true }
+        .onExitCommand { onCancel() }
+        .onChange(of: query) { _, _ in
+            if let chosen, !MergeCandidates.arrange(source: source, voices: voices,
+                                                     suggested: suggested, query: query).contains(chosen) {
+                self.chosen = nil
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 6) {
+            Button { onCancel() } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel(L("Back"))
+            .keyboardShortcut(.cancelAction)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Merge with…").ataFont(13, weight: .semibold)
+                Text(L("Pick who %@ really is. Transcripts use that name.", source.displayName))
+                    .ataFont(10).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    @ViewBuilder private func candidateList(_ arranged: MergeCandidates.Result) -> some View {
+        let rows = VStack(alignment: .leading, spacing: 8) {
+            if !arranged.suggested.isEmpty {
+                group(L("Suggested"), arranged.suggested, suggested: true)
+            }
+            if !arranged.others.isEmpty {
+                group(L("People"), arranged.others, suggested: false)
+            }
+        }
+        scrolling(rowCount: arranged.count) { rows }
+    }
+
+    private func group(_ title: String, _ voices: [Voice], suggested: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title.uppercased()).ataFont(9, weight: .semibold).foregroundStyle(.secondary)
+            ForEach(voices) { voice in
+                candidate(voice, suggested: suggested)
+            }
+        }
+    }
+
+    private func candidate(_ voice: Voice, suggested: Bool) -> some View {
+        let on = chosen == voice.id
+        return Button { chosen = voice.id } label: {
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(voice.name ?? voice.displayName)
+                        .ataFont(12, weight: .semibold).lineLimit(1)
+                    Text(detail(voice, suggested: suggested))
+                        .ataFont(10).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                if on {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(on ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.04))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    private func detail(_ voice: Voice, suggested: Bool) -> String {
+        if voice.isMe { return L("You") }
+        if suggested { return L("Same meetings · %d", voice.meetings) }
+        return L("%d meetings", voice.meetings)
+    }
+
+    private func confirmBar(_ target: Voice) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(L("%@ becomes %@.", source.displayName, target.name ?? target.displayName))
+                .ataFont(11)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Merge") { onMerge(target) }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.05)))
+    }
+
+    private func selected(in arranged: MergeCandidates.Result) -> Voice? {
+        guard let chosen else { return nil }
+        return (arranged.suggested + arranged.others).first { $0.id == chosen }
+    }
+
+    /// Return merges the selection, or the only name left after a search.
+    /// Anything wider than that waits for an explicit tap: merging deletes a voice.
+    private func confirm(_ arranged: MergeCandidates.Result) {
+        if let target = selected(in: arranged) {
+            onMerge(target)
+        } else if arranged.count == 1, let only = arranged.suggested.first ?? arranged.others.first {
+            onMerge(only)
+        }
+    }
+
+    @ViewBuilder private func scrolling<V: View>(rowCount: Int, @ViewBuilder content: () -> V) -> some View {
+        if fills {
+            ScrollView { content() }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        } else if rowCount > PeoplePaneLayout.uncappedRows {
+            ScrollView { content() }
+                .frame(maxWidth: .infinity, alignment: .top)
+                .frame(height: maxListHeight)
+                .scrollIndicators(.visible, axes: .vertical)
+        } else {
+            content()
+        }
+    }
+}
+
 private struct VoiceRow: View {
     @StateObject private var people = PeopleModel.shared
     let voice: Voice
     let asking: Bool
+    var onMerge: (() -> Void)? = nil
     @State private var name = ""
     @State private var editing = false
     @FocusState private var focused: Bool
@@ -215,6 +615,7 @@ private struct VoiceRow: View {
             if (asking || editing) && !name.trimmingCharacters(in: .whitespaces).isEmpty {
                 Button(L("Save")) { save() }.controlSize(.small)
             } else if asking {
+                if onMerge != nil { mergeButton }
                 Button { people.dismiss(voice) } label: {
                     Image(systemName: "xmark").ataFont(10, weight: .bold)
                 }
@@ -222,6 +623,8 @@ private struct VoiceRow: View {
                 .foregroundStyle(.secondary)
                 .help(L("Don't ask about this voice"))
                 .accessibilityLabel(L("Don't ask about this voice"))
+            } else if onMerge != nil {
+                mergeButton
             }
             #if os(iOS)
             Menu { actions } label: {
@@ -240,6 +643,19 @@ private struct VoiceRow: View {
         .contextMenu { actions }
     }
 
+    private var mergeButton: some View {
+        Button { onMerge?() } label: {
+            Image(systemName: "arrow.triangle.merge")
+                .font(.system(size: 11, weight: .semibold))
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .help(L("Merge with…"))
+        .accessibilityLabel(L("Merge with…"))
+    }
+
     /// Everything you can do to a voice. A right-click finds these on the Mac;
     /// on a phone there is no right-click, so the same list is behind the
     /// visible button above.
@@ -252,10 +668,8 @@ private struct VoiceRow: View {
             }
         }
         Button(L("This is me")) { people.setMe(voice, true) }
-        Menu(L("Same person as")) {
-            ForEach(people.voices.filter { $0.id != voice.id && $0.name != nil }) { other in
-                Button(other.name ?? "") { people.merge(voice, into: other) }
-            }
+        if let onMerge {
+            Button(L("Merge with…")) { onMerge() }
         }
         if voice.name == nil {
             Button(L("Don't ask about this voice")) { people.dismiss(voice) }
@@ -419,6 +833,7 @@ private struct YouRow: View {
 private struct HiddenVoiceRow: View {
     @StateObject private var people = PeopleModel.shared
     let voice: Voice
+    var onMerge: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 8) {
@@ -441,6 +856,18 @@ private struct HiddenVoiceRow: View {
                     .ataFont(10).foregroundStyle(.secondary)
             }
             Spacer(minLength: 4)
+            if onMerge != nil {
+                Button { onMerge?() } label: {
+                    Image(systemName: "arrow.triangle.merge")
+                        .font(.system(size: 11, weight: .semibold))
+                        .frame(width: 22, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help(L("Merge with…"))
+                .accessibilityLabel(L("Merge with…"))
+            }
             Button(voice.isExcluded ? L("Put back") : L("Ask again")) {
                 if voice.isExcluded { people.setExcluded(voice, false) } else { people.dismiss(voice, false) }
             }
@@ -449,10 +876,13 @@ private struct HiddenVoiceRow: View {
         .padding(.horizontal, 4)
         .padding(.vertical, 3)
         .contextMenu {
+            if let onMerge {
+                Button(L("Merge with…")) { onMerge() }
+            }
             if !voice.isExcluded {
                 Button(L("Leave out of transcripts")) { people.setExcluded(voice, true) }
             }
-            Divider()
+            if onMerge != nil || !voice.isExcluded { Divider() }
             Button(L("Forget this voice"), role: .destructive) { people.forget(voice) }
         }
     }

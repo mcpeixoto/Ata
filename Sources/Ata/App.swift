@@ -227,8 +227,17 @@ final class WindowManager {
 
     /// Ata's own window: the same thing the menu bar shows, in a window you can
     /// reach from the Dock, from ⌘-Tab and from Spotlight.
+    ///
+    /// Resizable, and not sized to its content. A long People list used to
+    /// grow this window past the screen; the list scrolls inside it instead.
     func showMain() {
-        main = present(main, title: L("Ata"), size: NSSize(width: 350, height: 620)) {
+        let visible = NSScreen.main?.visibleFrame.size ?? NSSize(width: 420, height: 740)
+        let height = min(740, max(480, visible.height - 48))
+        main = present(main, title: L("Ata"),
+                       size: NSSize(width: 420, height: height),
+                       minSize: NSSize(width: 360, height: min(480, height)),
+                       maxSize: NSSize(width: 640, height: max(height, visible.height)),
+                       resizable: true) {
             PopoverView(inWindow: true)
                 .environmentObject(AppStore.shared)
                 .environmentObject(AppStore.shared.setup)
@@ -280,6 +289,7 @@ final class WindowManager {
     }
 
     private func present<V: View>(_ existing: NSWindow?, title: String, size: NSSize = NSSize(width: 520, height: 600),
+                                  minSize: NSSize? = nil, maxSize: NSSize? = nil,
                                   resizable: Bool = false, @ViewBuilder content: () -> V) -> NSWindow {
         if let existing {
             comeForward(existing)
@@ -302,9 +312,14 @@ final class WindowManager {
         }
         let host = NSHostingView(rootView: content())
         // A resizable window takes only its minimum size from SwiftUI, or the
-        // view's ideal size would pin the window at that size.
+        // view's ideal size would pin the window at that size — a People tab
+        // full of voices would open taller than the screen.
         if resizable { host.sizingOptions = [.minSize] }
+        host.frame = NSRect(origin: .zero, size: size)
         w.contentView = host
+        w.setContentSize(size)
+        if let minSize { w.contentMinSize = minSize }
+        if let maxSize { w.contentMaxSize = maxSize }
         w.center()
         comeForward(w)
         return w

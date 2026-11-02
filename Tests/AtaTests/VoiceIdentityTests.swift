@@ -9,7 +9,7 @@ import XCTest
 /// - the diarizer hears one person as two, so the library grew a near-identical
 ///   copy of them every meeting, and a name the user had given stopped sticking.
 ///   The pair itself still happens — two speakers of one meeting are two people
-///   as far as the library is concerned, and "Same person as" merges them — but
+///   as far as the library is concerned, and "Merge with…" folds them into one — but
 ///   it no longer breeds;
 /// - a microphone that held a whole room was learned as your voice;
 /// - the speaker Ata only guessed was you was thrown away, so the person it had

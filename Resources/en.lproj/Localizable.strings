@@ -97,7 +97,16 @@
 "Type their name…" = "Type their name…";
 "%d meetings · heard %@" = "%d meetings · heard %@";
 "Rename…" = "Rename…";
-"Same person as" = "Same person as";
+"Search people" = "Search people";
+"Merge with…" = "Merge with…";
+"Pick who %@ really is. Transcripts use that name." = "Pick who %@ really is. Transcripts use that name.";
+"No one matches" = "No one matches";
+"Suggested" = "Suggested";
+"Merge" = "Merge";
+"%@ becomes %@." = "%@ becomes %@.";
+"%d meetings" = "%d meetings";
+"Same meetings · %d" = "Same meetings · %d";
+"Back" = "Back";
 "Forget this voice" = "Forget this voice";
 "Insights" = "Insights";
 "Settings" = "Settings";
