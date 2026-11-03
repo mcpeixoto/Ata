@@ -235,8 +235,6 @@ final class WindowManager {
                 .environmentObject(AppStore.shared)
                 .environmentObject(AppStore.shared.setup)
         }
-        main?.contentMinSize = NSSize(width: MainWindow.minWidth, height: MainWindow.minHeight)
-        main?.contentMaxSize = NSSize(width: MainWindow.maxWidth, height: .greatestFiniteMagnitude)
     }
 
     func showSettings() {
@@ -342,8 +340,6 @@ final class WindowManager {
 enum MainWindow {
     static let minWidth: CGFloat = 360
     static let minHeight: CGFloat = 480
-    /// Its rows are a name and a line under it. Wider only adds empty space.
-    static let maxWidth: CGFloat = 640
 
     /// As tall as is useful, clear of the screen's edges on a small display.
     static func opening(screenHeight: CGFloat) -> NSSize {

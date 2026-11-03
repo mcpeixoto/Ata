@@ -79,9 +79,7 @@ final class MainWindowTests: XCTestCase {
         XCTAssertEqual(MainWindow.opening(screenHeight: 300).height, MainWindow.minHeight)
     }
 
-    func testOpensWithinItsWidthLimits() {
-        let width = MainWindow.opening(screenHeight: 1000).width
-        XCTAssertGreaterThanOrEqual(width, MainWindow.minWidth)
-        XCTAssertLessThanOrEqual(width, MainWindow.maxWidth)
+    func testOpensWiderThanItsMinimum() {
+        XCTAssertGreaterThanOrEqual(MainWindow.opening(screenHeight: 1000).width, MainWindow.minWidth)
     }
 }
