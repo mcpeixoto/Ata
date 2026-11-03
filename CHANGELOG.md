@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.3.2
+
+Two more fixes for long lists of voices.
+
+- **Ata's window resizes.** Drag it to the size you want. Its tabs scroll inside it, and People fills the window.
+- **Same person as is searchable.** It used to be a menu of every name. Now it opens a list with a search box, on the Mac, the iPhone and in a meeting's own window: the calendar's guesses first, then everyone by name.
+- **Merging takes two steps.** Pick a name, then press Merge, because merging deletes a voice.
+
 ## 3.3.1
 
 The People tab, rebuilt on the Mac and the iPhone.

@@ -830,6 +830,8 @@ private struct PeopleTab: View {
     @ObservedObject var model: MeetingModel
     let meeting: Meeting
     @AppStorage(Pref.recogniseVoices) private var recognise = true
+    @StateObject private var people = PeopleModel.shared
+    @State private var merging: MeetingModel.Speaker?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -840,10 +842,27 @@ private struct PeopleTab: View {
                     .ataFont(11).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 VStack(spacing: 2) {
-                    ForEach(model.speakers) { SpeakerRow(model: model, speaker: $0) }
+                    ForEach(model.speakers) { speaker in
+                        SpeakerRow(model: model, speaker: speaker) { merging = speaker }
+                    }
                 }
                 .padding(6)
                 .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color.primary.opacity(0.045)))
+            }
+        }
+        .sheet(item: $merging) { speaker in
+            if let voice = speaker.voice {
+                SamePersonPicker(people: people, source: voice, fills: true, merge: { target in
+                    model.merge(speaker, into: target)
+                    merging = nil
+                }, cancel: { merging = nil })
+                .padding(16)
+                #if os(macOS)
+                .frame(width: 380, height: 520)
+                #else
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                #endif
             }
         }
     }
@@ -896,6 +915,7 @@ private struct SpeakerRow: View {
     @ObservedObject var model: MeetingModel
     @StateObject private var people = PeopleModel.shared
     let speaker: MeetingModel.Speaker
+    let merge: () -> Void
     @State private var name = ""
     @State private var editing = false
     @FocusState private var focused: Bool
@@ -957,16 +977,10 @@ private struct SpeakerRow: View {
             if let voice = speaker.voice {
                 let others = people.voices.filter { $0.id != voice.id && $0.name != nil }
                 if !others.isEmpty, speaker.label != Speakers.me {
-                    Menu {
-                        ForEach(others) { other in
-                            Button(other.name ?? "") { model.merge(speaker, into: other) }
-                        }
-                    } label: {
+                    Button(action: merge) {
                         Image(systemName: "person.2")
                     }
-                    .menuStyle(.button)
-                .buttonStyle(.borderless)
-                    .menuIndicator(.hidden)
+                    .buttonStyle(.borderless)
                     .fixedSize()
                     .help(L("Same person as"))
                     .accessibilityLabel(L("Same person as"))

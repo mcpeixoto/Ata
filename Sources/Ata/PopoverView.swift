@@ -50,11 +50,44 @@ struct PopoverView: View {
     private let inWindow: Bool
     /// A row of the People tab already open, for the screenshots.
     private let openPerson: PeopleList.Row?
+    /// The voice "Same person as" is choosing for, for the screenshots.
+    private let mergingPerson: Voice?
 
-    init(tab: Tab = .record, inWindow: Bool = false, openPerson: PeopleList.Row? = nil) {
+    init(tab: Tab = .record, inWindow: Bool = false, openPerson: PeopleList.Row? = nil, mergingPerson: Voice? = nil) {
         _tab = State(initialValue: tab)
         self.inWindow = inWindow
         self.openPerson = openPerson
+        self.mergingPerson = mergingPerson
+    }
+
+    /// The menu is as tall as its content. The window is whatever size it was
+    /// given, with the footer staying at the bottom. Two real frames: one frame
+    /// with nil sizes in the menu's case would still change how it measures.
+    private struct Sizing: ViewModifier {
+        let inWindow: Bool
+
+        func body(content: Content) -> some View {
+            if inWindow {
+                content.frame(minWidth: MainWindow.minWidth, maxWidth: .infinity,
+                              minHeight: MainWindow.minHeight, maxHeight: .infinity, alignment: .topLeading)
+            } else {
+                content.frame(width: 350)
+            }
+        }
+    }
+
+    /// A tab's content: in the window it scrolls, so a small window can't push the
+    /// footer off. The menu sizes itself to the content instead.
+    @ViewBuilder private func pane<C: View>(@ViewBuilder content: () -> C) -> some View {
+        if inWindow {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) { content() }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        } else {
+            content()
+        }
     }
 
     var body: some View {
@@ -74,18 +107,20 @@ struct PopoverView: View {
             .labelsHidden()
             switch tab {
             case .record:
-                recordCard
-                if !store.meetings.isEmpty { recent }
+                pane {
+                    recordCard
+                    if !store.meetings.isEmpty { recent }
+                }
             case .insights:
-                InsightsView()
+                pane { InsightsView() }
             case .people:
-                PeopleView(open: openPerson)
+                PeopleView(open: openPerson, merging: mergingPerson, fills: inWindow)
             }
             Divider().opacity(0.5)
             footer
         }
         .padding(14)
-        .frame(width: 350)
+        .modifier(Sizing(inWindow: inWindow))
         .onAppear { setup.refresh(); store.reload(); store.writeOwedSummaries() }
         // Audio files dropped on the menu become meetings.
         .dropDestination(for: URL.self) { urls, _ in

@@ -614,3 +614,9 @@
 "1 meeting · heard %@" = "1 reunião · ouvida %@";
 "Forget this voice?" = "Esquecer esta voz?";
 "Your voice isn't recorded yet" = "A tua voz ainda não foi gravada";
+"Search people" = "Procurar pessoas";
+"Pick who %@ really is. Transcripts use that name." = "Escolhe quem %@ é na realidade. As transcrições passam a usar esse nome.";
+"Suggested" = "Sugestões";
+"Merge" = "Juntar";
+"%@ becomes %@." = "%@ passa a ser %@.";
+"Back" = "Voltar";
