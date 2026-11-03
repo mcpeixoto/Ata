@@ -235,6 +235,7 @@ final class WindowManager {
                 .environmentObject(AppStore.shared)
                 .environmentObject(AppStore.shared.setup)
         }
+        main?.contentMinSize = NSSize(width: MainWindow.minWidth, height: MainWindow.minHeight)
         main?.contentMaxSize = NSSize(width: MainWindow.maxWidth, height: .greatestFiniteMagnitude)
     }
 
