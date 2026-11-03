@@ -78,6 +78,10 @@ final class PeopleModel: ObservableObject {
         PeopleList.mergeTargets(for: voice, voices: voices, likely: sameAs(voice))
     }
 
+    func mergeChoices(for voice: Voice, query: String) -> PeopleList.MergeChoices {
+        PeopleList.mergeChoices(for: voice, voices: voices, likely: sameAs(voice), query: query)
+    }
+
     /// Returns once every change so far has reached its transcripts.
     func finishRedraws() async {
         await redraws?.value

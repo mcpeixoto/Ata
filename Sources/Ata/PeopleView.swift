@@ -7,12 +7,17 @@ struct PeopleView: View {
     @State private var confirmForgetAll = false
     @State private var open: PeopleList.Row?
     @State private var query = ""
+    @State private var merging: Voice?
+    /// True in Ata's own window: lists fill it instead of sizing themselves.
+    private let fills: Bool
 
     /// Tall enough for a good few rows, short enough that the menu never runs off a small screen.
-    private static let listHeight: CGFloat = 430
+    fileprivate static let listHeight: CGFloat = 430
 
-    init(open: PeopleList.Row? = nil) {
+    init(open: PeopleList.Row? = nil, merging: Voice? = nil, fills: Bool = false) {
         _open = State(initialValue: open)
+        _merging = State(initialValue: merging)
+        self.fills = fills
     }
 
     private static func learnedLine(_ count: Int) -> String {
@@ -46,6 +51,39 @@ struct PeopleView: View {
     }
 
     var body: some View {
+        Group {
+            // There is no room for a second window in the menu, so the picker takes
+            // the list's place. A phone has sheets for this.
+            #if os(macOS)
+            if let source = merging { picker(for: source, fills: fills) } else { browser }
+            #else
+            browser
+            #endif
+        }
+        .onAppear { people.reload() }
+        // The voice can go while the picker is up, from another device through iCloud.
+        .onChange(of: people.voices) { _, voices in
+            if let merging, !voices.contains(where: { $0.id == merging.id }) { self.merging = nil }
+        }
+        #if os(iOS)
+        .sheet(item: $merging) { source in
+            picker(for: source, fills: true)
+                .padding(16)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
+        #endif
+    }
+
+    private func picker(for source: Voice, fills: Bool) -> some View {
+        SamePersonPicker(people: people, source: source, fills: fills, merge: { target in
+            people.merge(source, into: target, redraw: .background)
+            open = nil
+            merging = nil
+        }, cancel: { merging = nil })
+    }
+
+    private var browser: some View {
         VStack(alignment: .leading, spacing: 10) {
             if !enabled {
                 off
@@ -76,7 +114,6 @@ struct PeopleView: View {
                 if !empty { footer }
             }
         }
-        .onAppear { people.reload() }
     }
 
     private var footer: some View {
@@ -104,13 +141,12 @@ struct PeopleView: View {
         rows
         #else
         ScrollViewReader { proxy in
-            ScrollView {
-                rows.padding(.trailing, 2)
+            ListHeight(fills: fills) {
+                ScrollView {
+                    rows.padding(.trailing, 2)
+                }
+                .scrollBounceBehavior(.basedOnSize)
             }
-            .scrollBounceBehavior(.basedOnSize)
-            // Only as tall as the rows, up to the limit: a short list leaves no gap.
-            .frame(maxHeight: Self.listHeight)
-            .fixedSize(horizontal: false, vertical: true)
             .onChange(of: open) { _, row in
                 guard let row else { return }
                 // After the row has grown, or it scrolls to where it used to end.
@@ -137,7 +173,7 @@ struct PeopleView: View {
                      footnote: section.notShown > 0 ? L("%d more. Search to find them.", section.notShown) : nil) {
             ForEach(section.voices) { voice in
                 VoiceRow(people: people, voice: voice, playing: people.playing == voice.id,
-                         isOpen: open == .voice(voice.id)) { toggle(.voice(voice.id)) }
+                         isOpen: open == .voice(voice.id), merge: { merging = voice }) { toggle(.voice(voice.id)) }
                     .id(PeopleList.Row.voice(voice.id))
             }
         }
@@ -226,6 +262,153 @@ struct PeopleView: View {
     }
 }
 
+/// How tall a scrolling list gets. In a window or a sheet, all the room there is.
+/// In the menu only as tall as its rows, up to the limit: a short list leaves no gap.
+private struct ListHeight<Content: View>: View {
+    let fills: Bool
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        if fills {
+            content.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        } else {
+            content
+                .frame(maxHeight: PeopleView.listHeight)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+/// Who a voice really is: a search, the calendar's guesses first, everyone else by
+/// name. Tapping a name only picks it. Merge is a second step, and Return never
+/// skips it, because merging deletes a voice.
+struct SamePersonPicker: View {
+    @ObservedObject var people: PeopleModel
+    let source: Voice
+    let fills: Bool
+    let merge: (Voice) -> Void
+    let cancel: () -> Void
+    @State private var query = ""
+    @State private var chosen: UUID?
+    @FocusState private var searching: Bool
+
+    var body: some View {
+        let choices = people.mergeChoices(for: source, query: query)
+        VStack(alignment: .leading, spacing: 8) {
+            header
+            TextField(L("Search people"), text: $query, prompt: Text(L("Search people")))
+                .textFieldStyle(.roundedBorder)
+                .controlSize(.small)
+                .ataFont(11)
+                .focused($searching)
+                .onSubmit { submit(choices) }
+            ListHeight(fills: fills) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 8) {
+                        group(L("Suggested"), choices.likely)
+                        group(L("People"), choices.others)
+                        if choices.all.isEmpty {
+                            Text("No voices match").ataFont(11).foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                        }
+                    }
+                    .padding(.trailing, 2)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+            }
+            if let target = choices.picked(chosen) { confirm(target) }
+        }
+        .onAppear { DispatchQueue.main.async { searching = true } }
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 6) {
+            Button(action: cancel) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 22, height: 22)
+                    #if os(iOS)
+                    .frame(width: 44, height: 44)
+                    #endif
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .keyboardShortcut(.cancelAction)
+            .help(L("Back"))
+            .accessibilityLabel(L("Back"))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(L("Same person as")).ataFont(13, weight: .semibold)
+                Text(L("Pick who %@ really is. Transcripts use that name.", source.displayName))
+                    .ataFont(10).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    @ViewBuilder private func group(_ title: String, _ voices: [Voice]) -> some View {
+        if !voices.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title.uppercased()).ataFont(9, weight: .semibold).foregroundStyle(.secondary)
+                VStack(spacing: 2) {
+                    ForEach(voices) { row($0) }
+                }
+            }
+        }
+    }
+
+    private func row(_ voice: Voice) -> some View {
+        let isChosen = chosen == voice.id
+        return Button { chosen = voice.id } label: {
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(voice.displayName).ataFont(12, weight: .semibold).lineLimit(1)
+                    Text(heard(voice)).ataFont(10).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                if isChosen {
+                    Image(systemName: "checkmark.circle.fill")
+                        .ataFont(13)
+                        .foregroundStyle(Theme.brand)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            #if os(iOS)
+            .frame(minHeight: 44)
+            #endif
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isChosen ? AnyShapeStyle(Theme.brand.opacity(0.14)) : AnyShapeStyle(Color.primary.opacity(0.045))))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isChosen ? .isSelected : [])
+    }
+
+    private func confirm(_ target: Voice) -> some View {
+        HStack(spacing: 8) {
+            Text(L("%@ becomes %@.", source.displayName, target.displayName))
+                .ataFont(11)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 4)
+            Button(L("Merge")) { merge(target) }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+        }
+    }
+
+    /// Return confirms a name already picked. With none picked, it picks the only
+    /// name a search left, and that still leaves the Merge step.
+    private func submit(_ choices: PeopleList.MergeChoices) {
+        if let target = choices.picked(chosen) {
+            merge(target)
+        } else if let only = choices.onlyOne {
+            chosen = only.id
+        }
+    }
+}
+
 /// The round play button every row starts with.
 private struct PlayButton: View {
     let hasSample: Bool
@@ -291,6 +474,7 @@ private struct VoiceRow: View {
     let voice: Voice
     let playing: Bool
     let isOpen: Bool
+    let merge: () -> Void
     let toggle: () -> Void
 
     private var detail: String {
@@ -308,7 +492,7 @@ private struct VoiceRow: View {
             .padding(.horizontal, 4)
             .padding(.vertical, 4)
             if isOpen {
-                VoiceDetail(people: people, voice: voice, close: toggle)
+                VoiceDetail(people: people, voice: voice, merge: merge, close: toggle)
                     .padding(.horizontal, 6)
                     .padding(.bottom, 8)
             }
@@ -321,14 +505,16 @@ private struct VoiceRow: View {
 private struct VoiceDetail: View {
     @ObservedObject var people: PeopleModel
     let voice: Voice
+    let merge: () -> Void
     let close: () -> Void
     @State private var name: String
     @State private var confirmForget = false
     @FocusState private var focused: Bool
 
-    init(people: PeopleModel, voice: Voice, close: @escaping () -> Void) {
+    init(people: PeopleModel, voice: Voice, merge: @escaping () -> Void, close: @escaping () -> Void) {
         self.people = people
         self.voice = voice
+        self.merge = merge
         self.close = close
         _name = State(initialValue: voice.name ?? "")
     }
@@ -363,27 +549,15 @@ private struct VoiceDetail: View {
     /// In full view: none of this should depend on knowing to right-click.
     @ViewBuilder private var actions: some View {
         VStack(alignment: .leading, spacing: 2) {
-            let targets = people.mergeTargets(for: voice)
-            if !targets.isEmpty {
-                Menu {
-                    ForEach(targets) { other in
-                        Button(other.displayName) {
-                            people.merge(voice, into: other, redraw: .background)
-                            close()
-                        }
-                    }
-                } label: {
+            if !people.mergeTargets(for: voice).isEmpty {
+                Button(action: merge) {
                     HStack(spacing: 4) {
                         ActionLabel(title: L("Same person as"), symbol: "person.2")
-                        Image(systemName: "chevron.up.chevron.down").ataFont(8, weight: .semibold)
+                        Image(systemName: "chevron.right").ataFont(8, weight: .semibold)
                             .foregroundStyle(.secondary)
                     }
                 }
-                .menuStyle(.button)
-                .menuIndicator(.hidden)
                 .buttonStyle(.plain)
-                .foregroundStyle(.primary)
-                .fixedSize()
             }
             action(L("This is me"), "person.crop.circle") { people.setMe(voice, true, redraw: .background) }
             if voice.name == nil {

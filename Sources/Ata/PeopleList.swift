@@ -73,13 +73,33 @@ enum PeopleList {
     /// Who a voice can be folded into: the people the calendar suggests, then
     /// everyone else by name.
     static func mergeTargets(for voice: Voice, voices: [Voice], likely: [Voice]) -> [Voice] {
-        let others = voices.filter { $0.id != voice.id && $0.name != nil }
+        mergeChoices(for: voice, voices: voices, likely: likely, query: "").all
+    }
+
+    /// The names "Same person as" offers. Merging deletes a voice, so the picker
+    /// only ever merges a name that is on screen and picked.
+    struct MergeChoices: Equatable {
+        var likely: [Voice]
+        var others: [Voice]
+
+        var all: [Voice] { likely + others }
+
+        /// The picked voice, while the search still shows it.
+        func picked(_ id: UUID?) -> Voice? { all.first { $0.id == id } }
+
+        /// The name left when a search narrows down to one.
+        var onlyOne: Voice? { all.count == 1 ? all.first : nil }
+    }
+
+    static func mergeChoices(for voice: Voice, voices: [Voice], likely: [Voice], query: String) -> MergeChoices {
+        let wanted = query.trimmingCharacters(in: .whitespaces)
+        let found = voices.filter { $0.id != voice.id && $0.name != nil && (wanted.isEmpty || matches($0, wanted)) }
         let likelyIDs = Set(likely.map(\.id))
         let byName: (Voice, Voice) -> Bool = {
             $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending
         }
-        return others.filter { likelyIDs.contains($0.id) }.sorted(by: byName)
-            + others.filter { !likelyIDs.contains($0.id) }.sorted(by: byName)
+        return MergeChoices(likely: found.filter { likelyIDs.contains($0.id) }.sorted(by: byName),
+                            others: found.filter { !likelyIDs.contains($0.id) }.sorted(by: byName))
     }
 
     private static func matches(_ voice: Voice, _ query: String) -> Bool {

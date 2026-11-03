@@ -59,6 +59,18 @@ enum Snapshots {
                                 width: 350, appearance: appearance)
             write(frame(opened, appearance), to: out, name: "menu-people-open-\(appearance.name)")
 
+            // Choosing who that voice really is.
+            let merging = render(PopoverView(tab: .people, mergingPerson: first)
+                .environmentObject(store).environmentObject(store.setup),
+                                 width: 350, appearance: appearance)
+            write(frame(merging, appearance), to: out, name: "menu-people-merge-\(appearance.name)")
+
+            // Ata's own window, where the list fills whatever size it is given.
+            let window = render(PopoverView(tab: .people, inWindow: true)
+                .environmentObject(store).environmentObject(store.setup),
+                                width: 520, height: 620, appearance: appearance)
+            write(frame(window, appearance), to: out, name: "window-people-\(appearance.name)")
+
             // Mid-meeting.
             store.applySnapshotFixture(recordingApp: "Zoom", elapsed: 23 * 60 + 14, mic: 0.64, system: 0.47,
                                        transcribingID: nil, progress: 0)

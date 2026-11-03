@@ -226,13 +226,16 @@ final class WindowManager {
     }
 
     /// Ata's own window: the same thing the menu bar shows, in a window you can
-    /// reach from the Dock, from ⌘-Tab and from Spotlight.
+    /// reach from the Dock, from ⌘-Tab and from Spotlight. Resizable, and its
+    /// tabs scroll inside it, so a long list can't grow it past the screen.
     func showMain() {
-        main = present(main, title: L("Ata"), size: NSSize(width: 350, height: 620)) {
+        let screen = NSScreen.main?.visibleFrame.height ?? 900
+        main = present(main, title: L("Ata"), size: MainWindow.opening(screenHeight: screen), resizable: true) {
             PopoverView(inWindow: true)
                 .environmentObject(AppStore.shared)
                 .environmentObject(AppStore.shared.setup)
         }
+        main?.contentMaxSize = NSSize(width: MainWindow.maxWidth, height: .greatestFiniteMagnitude)
     }
 
     func showSettings() {
@@ -331,5 +334,18 @@ final class WindowManager {
         // With no window left, a menu bar app holding the focus swallows keystrokes
         // until you click something. Hand it back to whatever you were in.
         if !Presence.showsDockIcon, NSApp.isActive { NSApp.hide(nil) }
+    }
+}
+
+/// The size of Ata's own window.
+enum MainWindow {
+    static let minWidth: CGFloat = 360
+    static let minHeight: CGFloat = 480
+    /// Its rows are a name and a line under it. Wider only adds empty space.
+    static let maxWidth: CGFloat = 640
+
+    /// As tall as is useful, clear of the screen's edges on a small display.
+    static func opening(screenHeight: CGFloat) -> NSSize {
+        NSSize(width: 420, height: min(740, max(minHeight, screenHeight - 48)))
     }
 }
