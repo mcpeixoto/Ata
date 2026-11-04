@@ -145,7 +145,6 @@
 "Your name in the transcript" = "O teu nome na transcrição";
 "Language" = "Idioma";
 "Automatic" = "Automático";
-"Add an AI summary with decisions and action items" = "Juntar um resumo com decisões e tarefas";
 "Remove" = "Remover";
 "Audio" = "Áudio";
 "Keep the audio after transcribing" = "Guardar o áudio depois de transcrever";
@@ -183,9 +182,7 @@
 "The download failed. Try again." = "O download falhou. Tenta de novo.";
 "The server replied %d." = "O servidor respondeu %d.";
 "Overview" = "Visão geral";
-"Decisions" = "Decisões";
 "Action items" = "Tarefas";
-"Open questions" = "Questões em aberto";
 "System audio: %@ failed (%d)." = "Áudio do sistema: %@ falhou (%d).";
 "The transcription model has not been downloaded yet." = "O modelo de transcrição ainda não foi descarregado.";
 "No audio was found for this meeting." = "Não foi encontrado áudio desta reunião.";
@@ -231,7 +228,6 @@
 "Your notes" = "As tuas notas";
 "Saved as notes.md in the meeting folder, next to the transcript." = "Guardadas em notes.md na pasta da reunião, ao lado da transcrição.";
 "Writing notes…" = "A escrever as notas…";
-"No summary yet. Ata can write one, with the decisions and action items." = "Ainda sem resumo. A Ata pode escrever um, com as decisões e as tarefas.";
 "Open Settings" = "Abrir Definições";
 "This meeting was transcribed before Ata could add notes to it. Transcribe it again to get a summary." = "Esta reunião foi transcrita antes de a Ata saber juntar-lhe notas. Transcreve-a de novo para teres um resumo.";
 "Notes appear here once the meeting is transcribed." = "As notas aparecem aqui quando a reunião estiver transcrita.";
@@ -574,7 +570,6 @@
 "Ata records your microphone and the sound your Mac plays, never your screen." = "A Ata grava o microfone e o som que o Mac reproduz, nunca o ecrã.";
 "Turn on Ata under Microphone in the settings that open." = "Ative a Ata em Microfone, nas definições que se abrem.";
 "macOS asks three times: microphone, notifications, system audio. After the last one Ata restarts itself once, and comes back here." = "O macOS pergunta três vezes: microfone, notificações e áudio do sistema. Depois da última, a Ata reinicia-se uma vez e volta aqui.";
-"Apple Intelligence writes each meeting's decisions and action items, on this Mac. Nothing leaves it." = "O Apple Intelligence escreve as decisões e as tarefas de cada reunião, neste Mac. Nada sai dele.";
 "Apple Intelligence is still getting ready. Your summaries will be written once it is." = "O Apple Intelligence ainda se está a preparar. Os resumos são escritos quando estiver pronto.";
 "Turn it on in System Settings. Meetings you record before then get their summary afterwards." = "Ative-o nas Definições do Sistema. As reuniões que gravar até lá recebem o resumo depois.";
 "Later" = "Mais tarde";
@@ -620,3 +615,8 @@
 "Merge" = "Juntar";
 "%@ becomes %@." = "%@ passa a ser %@.";
 "Back" = "Voltar";
+"Add an AI summary with the key points" = "Juntar um resumo com os pontos principais";
+"No summary yet. Ata can write one, with the key points." = "Ainda sem resumo. A Ata pode escrever um, com os pontos principais.";
+"Apple Intelligence writes each meeting's key points, on this Mac. Nothing leaves it." = "O Apple Intelligence escreve os pontos principais de cada reunião, neste Mac. Nada sai dele.";
+"Key points" = "Pontos principais";
+"Part of this conversation could not be summarized." = "Não foi possível resumir parte desta conversa.";

@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.3.3
+
+Apple Intelligence summaries say less, and what they say is closer to what was said.
+
+- **An overview and the key points.** Decisions, action items and open questions are gone from new summaries. Asked for them, the on-device model filled them with things nobody said. Summaries you already have stay as they are.
+- **The overview covers the whole meeting,** not mostly its first part.
+- **Swearing no longer costs you the summary.** A part the model still refuses is left out, and the summary says so.
+- **Follow-up drafts** from new summaries carry the overview, with no next steps.
+
 ## 3.3.2
 
 Two more fixes for long lists of voices.

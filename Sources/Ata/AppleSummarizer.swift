@@ -50,40 +50,142 @@ enum AppleModel {
     }
 }
 
-/// The summary in Ata's one Markdown shape, so a summary reads the
-/// same whoever wrote it.
-enum SummaryMarkdown {
-    static func render(overview: String, decisions: [String], actionItems: [String],
-                       openQuestions: [String]) -> String {
+/// The pure half of a summary: what the model is given, what is kept of its replies,
+/// and the one Markdown shape they end up in.
+///
+/// Measured on real meetings: asked for decisions, tasks and open questions, this
+/// model fills all of them, inventing what it can't find, so it is asked only for
+/// what was said. Its replies are joined here rather than by another model call,
+/// which lost detail and let invented items through.
+enum SummaryNotes {
+    struct Part: Equatable {
+        var topic: String
+        var points: [String]
+    }
+
+    /// Enough to read in a minute. A long meeting can exceed it, by `minPerPart` a part.
+    static let targetKeyPoints = 20
+    private static let minPerPart = 2
+    private static let maxOverviewSentences = 3
+    private static let maxPointCharacters = 240
+    private static let shingleWords = 5
+
+    /// The spoken lines, as "Name: words". The header and footer aren't conversation,
+    /// and timestamps and bold cost tokens the small window can't spare.
+    static func conversation(from markdown: String) -> String {
+        var text = markdown
+        if let start = text.range(of: "\n---\n") {
+            text = String(text[start.upperBound...])
+            if let end = text.range(of: "\n---\n", options: .backwards) {
+                text = String(text[..<end.lowerBound])
+            }
+        }
+        return text
+            .replacingOccurrences(of: #"\*\*\[\d+:\d+(:\d+)?\] ([^*]+?):\*\*"#, with: "$2:", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// A reply is a topic line and then the points. Models add bullets, bold and a
+    /// "Topic:" label of their own, in whatever language they are writing.
+    static func part(fromReply reply: String, of piece: String) -> Part {
+        let lines = reply.split(whereSeparator: \.isNewline).map(cleaned).filter { !$0.isEmpty }
+        guard let first = lines.first else { return Part(topic: "", points: []) }
+        return Part(topic: unlabelled(first), points: lines.dropFirst().filter { !isPasted($0, from: piece) })
+    }
+
+    /// The first few sentences of a reply. Asked for two, it sometimes writes a page,
+    /// and the later sentences are where it starts making things up.
+    static func overview(fromReply reply: String) -> String {
+        let text = reply.split(whereSeparator: \.isNewline).map(cleaned).filter { !$0.isEmpty }.joined(separator: " ")
+        var sentences: [String] = []
+        text.enumerateSubstrings(in: text.startIndex..., options: .bySentences) { sentence, _, _, stop in
+            if let sentence { sentences.append(sentence.trimmingCharacters(in: .whitespaces)) }
+            if sentences.count == maxOverviewSentences { stop = true }
+        }
+        return sentences.joined(separator: " ")
+    }
+
+    /// This model sometimes answers with a stretch of the transcript instead of a
+    /// point about it. Quoting a phrase is fine; a point that is mostly a copy is not.
+    static func isPasted(_ point: String, from piece: String) -> Bool {
+        if point.count > maxPointCharacters { return true }
+        let source = words(piece)
+        // `Sam: "Sounds good."` A label and a short quote, too short to measure below.
+        if let colon = point.firstIndex(of: ":"), point.distance(from: point.startIndex, to: colon) <= 20 {
+            let quoted = words(String(point[point.index(after: colon)...]))
+            if !quoted.isEmpty, quoted.count < shingleWords + 3, appears(quoted, in: source) { return true }
+        }
+        let said = words(point)
+        guard said.count >= shingleWords + 3 else { return false }
+        let copiedFrom = shingles(source)
+        let copied = shingles(said).filter(copiedFrom.contains).count
+        return Double(copied) / Double(said.count - shingleWords + 1) >= 0.7
+    }
+
+    /// Every part gets a share, so the end of a meeting isn't crowded out by its
+    /// start. Repeats go first: this model can get stuck saying one thing over and over.
+    static func keyPoints(_ parts: [Part]) -> [String] {
+        let share = max(minPerPart, targetKeyPoints / max(1, parts.count))
+        return withoutRepeats(parts.flatMap { Array(withoutRepeats($0.points).prefix(share)) })
+    }
+
+    static func markdown(overview: String, points: [String], skippedPart: Bool) -> String {
         var sections: [String] = []
-        let summary = oneLine(overview)
-        if !summary.isEmpty {
-            sections.append("**\(L("Overview"))** — \(summary)")
+        if !overview.isEmpty { sections.append("**\(L("Overview"))** — \(overview)") }
+        if !points.isEmpty {
+            sections.append("**\(L("Key points"))**\n" + points.map { "- " + $0 }.joined(separator: "\n"))
         }
-        let lists: [(String, [String])] = [(L("Decisions"), decisions), (L("Action items"), actionItems),
-                                           (L("Open questions"), openQuestions)]
-        for (title, items) in lists {
-            let bullets = items.map(item).filter { !$0.isEmpty }
-            guard !bullets.isEmpty else { continue }
-            sections.append("**\(title)**\n" + bullets.map { "- " + $0 }.joined(separator: "\n"))
-        }
+        if skippedPart, !sections.isEmpty { sections.append(L("Part of this conversation could not be summarized.")) }
         return sections.joined(separator: "\n\n")
     }
 
-    private static func oneLine(_ text: String) -> String {
-        text.split(whereSeparator: \.isNewline)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
+    private static func withoutRepeats(_ points: [String]) -> [String] {
+        var kept: [String] = []
+        for point in points where !kept.contains(where: { saySameThing($0, point) }) { kept.append(point) }
+        return kept
     }
 
-    /// Models sometimes put their own bullet in front of a list item.
-    private static func item(_ text: String) -> String {
-        var t = oneLine(text)
-        for marker in ["- ", "• ", "* "] where t.hasPrefix(marker) {
-            t = String(t.dropFirst(marker.count)).trimmingCharacters(in: .whitespaces)
+    /// Mostly the same long words, so "120 hours" and "100 hours" count as one thought.
+    private static func saySameThing(_ a: String, _ b: String) -> Bool {
+        let x = longWords(a), y = longWords(b)
+        guard !x.isEmpty, !y.isEmpty else { return a == b }
+        return Double(x.intersection(y).count) / Double(x.union(y).count) >= 0.6
+    }
+
+    private static func longWords(_ text: String) -> Set<String> {
+        Set(words(text).filter { $0.count > 3 && !$0.allSatisfy(\.isNumber) })
+    }
+
+    private static func words(_ text: String) -> [String] {
+        text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+    }
+
+    private static func appears(_ wanted: [String], in words: [String]) -> Bool {
+        guard wanted.count <= words.count else { return false }
+        return (0...(words.count - wanted.count)).contains { words[$0..<($0 + wanted.count)].elementsEqual(wanted) }
+    }
+
+    private static func shingles(_ words: [String]) -> Set<ArraySlice<String>> {
+        guard words.count >= shingleWords else { return [] }
+        return Set((0...(words.count - shingleWords)).map { words[$0..<($0 + shingleWords)] })
+    }
+
+    private static func cleaned(_ line: Substring) -> String {
+        var text = line.replacingOccurrences(of: "**", with: "").trimmingCharacters(in: .whitespaces)
+        for marker in ["- ", "• ", "* "] where text.hasPrefix(marker) {
+            text = String(text.dropFirst(marker.count)).trimmingCharacters(in: .whitespaces)
         }
-        return t
+        return text.replacingOccurrences(of: #"^\d+[.)] +"#, with: "", options: .regularExpression)
+    }
+
+    /// "Tema: Férias" is "Férias". A longer start before a colon is the sentence itself.
+    private static func unlabelled(_ line: String) -> String {
+        guard let colon = line.firstIndex(of: ":"), !line[..<colon].contains(" "),
+              line.distance(from: line.startIndex, to: colon) <= 12 else { return line }
+        let rest = line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
+        return rest.isEmpty ? String(line[..<colon]) : rest
     }
 }
 
@@ -92,7 +194,7 @@ enum SummaryMarkdown {
 enum SummaryChunks {
     /// Contiguous pieces that join back into exactly `transcript`. Cuts only
     /// between lines, unless one line alone is longer than `maxCharacters`.
-    static func split(_ transcript: String, maxCharacters: Int = 6000) -> [String] {
+    static func split(_ transcript: String, maxCharacters: Int = 4500) -> [String] {
         let limit = max(1, maxCharacters)
         var chunks: [String] = []
         var current = ""
@@ -137,21 +239,6 @@ enum AppleIntelligenceState: Equatable {
 }
 
 #if canImport(FoundationModels)
-/// What the model fills in. Ata writes the Markdown itself from this, so the
-/// shape never depends on the model following formatting instructions.
-@available(macOS 26.0, iOS 26.0, *)
-@Generable
-struct MeetingSummary {
-    @Guide(description: "Two or three sentences on what the meeting was about and where it ended up.")
-    var overview: String
-    @Guide(description: "Each decision the participants made, one per item. Empty when nothing was decided.")
-    var decisions: [String]
-    @Guide(description: "Each task someone took on, one per item, starting with who it belongs to when the transcript says so.")
-    var actionItems: [String]
-    @Guide(description: "Each question that was left unanswered, one per item.")
-    var openQuestions: [String]
-}
-
 @available(macOS 26.0, iOS 26.0, *)
 enum AppleSummarizer {
     static var state: AppleIntelligenceState {
@@ -193,10 +280,9 @@ enum AppleSummarizer {
         return model.supportedLanguages.contains { $0.languageCode == code }
     }
 
-    /// Map–reduce: one partial summary per chunk, then the partials merged
-    /// until one is left. A transcript that will not fit in a few rounds gives
-    /// nil rather than a summary of only part of the meeting.
-    static func summarize(markdown: String, myName: String, maxCharacters: Int = 6000,
+    /// One set of notes per piece of the conversation, joined here. A piece the model
+    /// refuses is left out and the summary says so, rather than the meeting getting none.
+    static func summarize(markdown: String, myName: String, maxCharacters: Int = 4500,
                           template: SummaryTemplate = .standard, vocabulary: [String] = []) async -> String? {
         guard unavailableReason == nil else { return nil }
         do {
@@ -215,69 +301,83 @@ enum AppleSummarizer {
 
     private static func attempt(markdown: String, myName: String, maxCharacters: Int,
                                 template: SummaryTemplate, vocabulary: [String]) async throws -> String? {
-        do {
-            var partials: [MeetingSummary] = []
-            for chunk in SummaryChunks.split(markdown, maxCharacters: maxCharacters) {
-                let partial = try await respond(to: chunk, instructions: chunkInstructions(myName: myName, template: template, vocabulary: vocabulary))
-                partials.append(partial)
-            }
-            var rounds = 0
-            while partials.count > 1 {
-                rounds += 1
-                guard rounds <= 3 else { return nil }
-                let notes = partials.map(rendered).joined(separator: "\n\n")
-                var merged: [MeetingSummary] = []
-                for chunk in SummaryChunks.split(notes, maxCharacters: maxCharacters) {
-                    let partial = try await respond(to: chunk, instructions: mergeInstructions)
-                    merged.append(partial)
+        let instructions = partInstructions(myName: myName, template: template, vocabulary: vocabulary)
+        var parts: [SummaryNotes.Part] = []
+        var skippedPart = false
+        for piece in SummaryChunks.split(SummaryNotes.conversation(from: markdown), maxCharacters: maxCharacters) {
+            do {
+                var part = SummaryNotes.part(fromReply: try await respond(to: piece, instructions: instructions), of: piece)
+                if part.points.isEmpty {
+                    // Nothing but pasted transcript, usually: a second try often does better.
+                    part = SummaryNotes.part(fromReply: try await respond(to: piece, instructions: instructions + retryReminder), of: piece)
                 }
-                partials = merged
+                if part.points.isEmpty { skippedPart = true } else { parts.append(part) }
+            } catch LanguageModelSession.GenerationError.guardrailViolation {
+                skippedPart = true
+            } catch LanguageModelSession.GenerationError.refusal {
+                skippedPart = true
             }
-            guard let text = partials.first.map(rendered), !text.isEmpty else { return nil }
-            return text
         }
+        guard !parts.isEmpty else { return nil }
+        let overview = await overview(of: parts, maxCharacters: maxCharacters, vocabulary: vocabulary)
+        let text = SummaryNotes.markdown(overview: overview, points: SummaryNotes.keyPoints(parts), skippedPart: skippedPart)
+        return text.isEmpty ? nil : text
     }
 
-    private static func rendered(_ s: MeetingSummary) -> String {
-        SummaryMarkdown.render(overview: s.overview, decisions: s.decisions,
-                               actionItems: s.actionItems, openQuestions: s.openQuestions)
+    /// The topics are a plainer overview than none, if this call fails.
+    private static func overview(of parts: [SummaryNotes.Part], maxCharacters: Int, vocabulary: [String]) async -> String {
+        let notes = parts.map { part in
+            ([part.topic] + part.points.map { "- " + $0 }).joined(separator: "\n")
+        }.joined(separator: "\n\n")
+        let reply = try? await respond(to: String(notes.prefix(maxCharacters)),
+                                       instructions: overviewInstructions(vocabulary: vocabulary))
+        let written = SummaryNotes.overview(fromReply: reply ?? "")
+        return written.isEmpty ? parts.map(\.topic).filter { !$0.isEmpty }.joined(separator: "; ") : written
     }
 
-    /// A fresh session for every call: the context window is small, and earlier
-    /// chunks must not pile up in it.
-    private static func respond(to prompt: String, instructions: String) async throws -> MeetingSummary {
-        let session = LanguageModelSession(instructions: instructions)
-        let response = try await session.respond(to: prompt, generating: MeetingSummary.self)
-        return response.content
+    /// A fresh session for every call: the context window is small, and earlier pieces
+    /// must not pile up in it. Plain text under the permissive guardrails: these are the
+    /// user's own conversations, and with the default ones, swearing alone gets a piece
+    /// refused, which measured often enough to lose whole meetings. The low temperature
+    /// is for fewer inventions.
+    private static func respond(to prompt: String, instructions: String) async throws -> String {
+        let model = SystemLanguageModel(guardrails: .permissiveContentTransformations)
+        let session = LanguageModelSession(model: model, instructions: instructions)
+        return try await session.respond(to: prompt, options: GenerationOptions(temperature: 0.2)).content
     }
 
-    private static func chunkInstructions(myName: String, template: SummaryTemplate = .standard,
-                                          vocabulary: [String] = []) -> String {
+    private static func partInstructions(myName: String, template: SummaryTemplate = .standard,
+                                         vocabulary: [String] = []) -> String {
         var text = """
-        You summarize a meeting transcript, or one part of a longer one. It was produced by \
-        automatic speech recognition, so it may contain mistakes. "\(myName)" is the person \
-        recording; other speakers are labelled by name or as "\(L("Others"))" / "\(L("Voice %d", 1))".
+        You take notes on one part of a recorded conversation between people who know each \
+        other. It may be a work meeting, a planning session or a family phone call. \
+        "\(myName)" is the person recording.
 
-        Write in \(Summarizer.replyLanguage). Speakers may use other languages; summarize what \
-        they said in that language anyway.
+        The text comes from automatic speech recognition. Words can be wrong, speaker names \
+        can be wrong, and sometimes only one side of a call was recorded. When a phrase makes \
+        no sense, leave it out rather than guess what it meant. Never add an amount, date, \
+        name or reason that is not in the text. Advice from one person is not a task for another.
+
+        Write in \(Summarizer.replyLanguage). Speakers may use other languages; write about \
+        what they said in that language anyway.
         """
-        // The on-device writer fills the same four fields whoever asks, so a
-        // template steers what it notices rather than the shape it returns —
-        // and the dictionary still fixes how names are spelled.
+        // The template steers what it notices, and the dictionary how names are spelled.
         if !template.focus.isEmpty { text += "\n\n" + template.focus }
         if let spelling = Vocabulary.spellingInstruction(vocabulary) { text += "\n\n" + spelling }
-        text += "\n\nOnly include what the transcript says. Leave a list empty when there is nothing for it."
+        text += "\n\nReply with one line saying the topic, then up to five short bullet points of what was actually said, in your own words. Never copy lines of the text."
         return text
     }
 
-    private static var mergeInstructions: String {
-        """
-        You are given notes on consecutive parts of one meeting. Combine them into notes on the \
-        whole meeting. Write in \(Summarizer.replyLanguage).
+    private static let retryReminder = "\n\nThe text may be one long speech by one person. Each bullet point must be one short sentence of your own about it, not a quotation."
 
-        Merge items that say the same thing, keep every distinct decision, task and question, \
-        and drop a question that a later part answers. Do not add anything that is not in the notes.
+    private static func overviewInstructions(vocabulary: [String]) -> String {
+        var text = """
+        You are given notes on consecutive parts of one conversation. In two sentences, say what \
+        the whole conversation covered, mentioning every part once. Write in \(Summarizer.replyLanguage). \
+        Add nothing that is not in the notes. Reply with only those two sentences.
         """
+        if let spelling = Vocabulary.spellingInstruction(vocabulary) { text += "\n\n" + spelling }
+        return text
     }
 }
 #endif

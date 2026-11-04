@@ -54,8 +54,7 @@ All of it on your Mac: Whisper for the words, Apple Intelligence for the summary
   it downloads once.
 - **Notices the meeting for you.** When Zoom or Slack grabs the mic, Ata asks if it should record —
   or just starts, if you tell it to.
-- **Summaries, if you want them.** Overview, decisions, action items and open questions, above the
-  transcript.
+- **Summaries, if you want them.** An overview and the key points, above the transcript.
 - **Knows who said what.** Ata learns the voices in your meetings, on your Mac. Name a voice once
   and every transcript uses the name.
 - **See your history.** An Insights tab charts hours recorded, who talks how much, where your
@@ -135,8 +134,8 @@ Duration: 47 min · Participants: Alex, Others
 ## Summary
 
 **Overview** — Agreed to ship the beta on the 3rd and move billing to the next sprint.
-**Action items**
-- Alex: send the beta invite list by Thursday
+**Key points**
+- Alex will send the beta invite list by Thursday
 
 ---
 
@@ -157,7 +156,7 @@ Click a meeting in the menu to open it:
 - **Listen** to the whole meeting, with ±15 s skips and 1×–2× speed, on a waveform of who spoke
   when: the others above, you below. Click any **word** of the transcript to jump to that
   moment; the word being said is highlighted as you listen.
-- **Notes**: the AI summary, with the decisions and action items, written on your Mac by Apple
+- **Notes**: the AI summary, an overview and the key points, written on your Mac by Apple
   Intelligence on macOS 26. No summary yet? **Write notes** creates one from the
   transcript text. Below it is space for your own notes, saved as `notes.md`.
 - **Transcript**, searchable.

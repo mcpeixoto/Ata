@@ -145,7 +145,6 @@
 "Your name in the transcript" = "Your name in the transcript";
 "Language" = "Language";
 "Automatic" = "Automatic";
-"Add an AI summary with decisions and action items" = "Add an AI summary with decisions and action items";
 "Remove" = "Remove";
 "Audio" = "Audio";
 "Keep the audio after transcribing" = "Keep the audio after transcribing";
@@ -183,9 +182,7 @@
 "The download failed. Try again." = "The download failed. Try again.";
 "The server replied %d." = "The server replied %d.";
 "Overview" = "Overview";
-"Decisions" = "Decisions";
 "Action items" = "Action items";
-"Open questions" = "Open questions";
 "System audio: %@ failed (%d)." = "System audio: %@ failed (%d).";
 "The transcription model has not been downloaded yet." = "The transcription model has not been downloaded yet.";
 "No audio was found for this meeting." = "No audio was found for this meeting.";
@@ -231,7 +228,6 @@
 "Your notes" = "Your notes";
 "Saved as notes.md in the meeting folder, next to the transcript." = "Saved as notes.md in the meeting folder, next to the transcript.";
 "Writing notes…" = "Writing notes…";
-"No summary yet. Ata can write one, with the decisions and action items." = "No summary yet. Ata can write one, with the decisions and action items.";
 "Open Settings" = "Open Settings";
 "This meeting was transcribed before Ata could add notes to it. Transcribe it again to get a summary." = "This meeting was transcribed before Ata could add notes to it. Transcribe it again to get a summary.";
 "Notes appear here once the meeting is transcribed." = "Notes appear here once the meeting is transcribed.";
@@ -574,7 +570,6 @@
 "Ata records your microphone and the sound your Mac plays, never your screen." = "Ata records your microphone and the sound your Mac plays, never your screen.";
 "Turn on Ata under Microphone in the settings that open." = "Turn on Ata under Microphone in the settings that open.";
 "macOS asks three times: microphone, notifications, system audio. After the last one Ata restarts itself once, and comes back here." = "macOS asks three times: microphone, notifications, system audio. After the last one Ata restarts itself once, and comes back here.";
-"Apple Intelligence writes each meeting's decisions and action items, on this Mac. Nothing leaves it." = "Apple Intelligence writes each meeting's decisions and action items, on this Mac. Nothing leaves it.";
 "Apple Intelligence is still getting ready. Your summaries will be written once it is." = "Apple Intelligence is still getting ready. Your summaries will be written once it is.";
 "Turn it on in System Settings. Meetings you record before then get their summary afterwards." = "Turn it on in System Settings. Meetings you record before then get their summary afterwards.";
 "Later" = "Later";
@@ -620,3 +615,8 @@
 "Merge" = "Merge";
 "%@ becomes %@." = "%@ becomes %@.";
 "Back" = "Back";
+"Add an AI summary with the key points" = "Add an AI summary with the key points";
+"No summary yet. Ata can write one, with the key points." = "No summary yet. Ata can write one, with the key points.";
+"Apple Intelligence writes each meeting's key points, on this Mac. Nothing leaves it." = "Apple Intelligence writes each meeting's key points, on this Mac. Nothing leaves it.";
+"Key points" = "Key points";
+"Part of this conversation could not be summarized." = "Part of this conversation could not be summarized.";

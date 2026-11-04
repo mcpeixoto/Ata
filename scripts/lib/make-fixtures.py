@@ -132,10 +132,10 @@ if support:
     summary = (
         "**Overview** — The team agreed to launch on Friday, once the onboarding copy is finished "
         "and QA has had two days with it.\n\n"
-        "**Decisions**\n- Launch on Friday.\n\n"
-        "**Action items**\n- Rita: finish the onboarding copy by Wednesday and send it to Sam.\n"
-        "- Rita: update the screenshots.\n- Rita: book a 30-minute check-in on Thursday.\n\n"
-        "**Open questions**\n- Keep the old pricing page live during the switch?"
+        "**Key points**\n- Launch moves to Friday, so QA gets two days with the build.\n"
+        "- Rita will finish the onboarding copy by Wednesday and update the screenshots.\n"
+        "- Sam asked whether the old pricing page stays live during the switch.\n"
+        "- A 30-minute check-in is booked for Thursday."
     )
     with open(os.path.join(zoom, "transcript.json"), "w") as f:
         json.dump({
