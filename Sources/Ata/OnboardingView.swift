@@ -90,7 +90,7 @@ struct OnboardingView: View {
     private var summariesStep: some View {
         VStack(alignment: .leading, spacing: 12) {
             stepTitle(2, L("Summaries"))
-            Text("Apple Intelligence writes each meeting's decisions and action items, on this Mac. Nothing leaves it.")
+            Text("Apple Intelligence writes each meeting's key points, on this Mac. Nothing leaves it.")
                 .font(.system(size: 13)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if apple == .preparing {

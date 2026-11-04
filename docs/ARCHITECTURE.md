@@ -184,9 +184,12 @@ a voice back restores its lines.
 
 **Summaries** (`Summarizer`) go to Apple's on-device model (`AppleSummarizer`, FoundationModels,
 macOS 26) when it's available and writes the app's language. Otherwise there is no summary.
-- The on-device model has a ~4k-token window, so transcripts are summarized in ~6,000-character
-  chunks (`SummaryChunks`) and the partial notes merged.
-- The output is a guided `MeetingSummary` that `SummaryMarkdown` renders.
+- The on-device model has a ~4k-token window, so transcripts are summarized in ~4,500-character
+  chunks (`SummaryChunks`).
+- It writes plain text under the permissive guardrails, and is asked only for a topic and what was
+  said. Asked for decisions, tasks and open questions, it filled them with things nobody said.
+- `SummaryNotes` keeps the replies and joins them without another model call. Only the overview
+  is a second call. A piece the model refuses is left out, and the summary says so.
 - FoundationModels is weak-linked, so Ata still launches on macOS 14 and 15. CI checks the load
   command.
 

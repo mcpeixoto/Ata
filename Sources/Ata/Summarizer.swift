@@ -60,7 +60,7 @@ enum SummaryTemplate: String, CaseIterable, Identifiable {
         }
     }
 
-    /// One line of steering for the writer, which fills fixed fields.
+    /// One line of steering for the writer.
     var focus: String {
         switch self {
         case .standard: return ""
@@ -76,8 +76,8 @@ enum SummaryTemplate: String, CaseIterable, Identifiable {
     }
 }
 
-/// A follow-up email from notes Ata already wrote: the overview as the body,
-/// the action items as the next steps. No second model call — the summary did
+/// A follow-up email from notes Ata already wrote: the overview as the body, and
+/// the action items of a summary that has them as the next steps. No second model call — the summary did
 /// that work, and a draft you can paste anywhere beats one locked in a mail app.
 enum FollowUp {
     static func draft(summary: String, meetingTitle: String, myName: String) -> String {
@@ -127,8 +127,8 @@ enum FollowUp {
     }
 }
 
-/// Optional second pass: turns a finished transcript into a short summary with
-/// decisions and action items, with Apple's on-device model. Nothing leaves the
+/// Optional second pass: turns a finished transcript into an overview and key
+/// points, with Apple's on-device model. Nothing leaves the
 /// device, and a failure here never fails the transcript, which is already written.
 enum Summarizer {
     /// Roughly 100k characters of transcript, which is far longer than any

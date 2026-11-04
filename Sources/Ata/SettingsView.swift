@@ -279,7 +279,7 @@ struct SettingsView: View {
             Text("For calls without headphones: Ata takes what your Mac played out of your microphone before transcribing. The recording itself is not changed.")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Toggle("Add an AI summary with decisions and action items", isOn: $summarize)
+            Toggle("Add an AI summary with the key points", isOn: $summarize)
             if summarize {
                 Picker("Note template", selection: $summaryTemplate) {
                     ForEach(SummaryTemplate.allCases) { template in

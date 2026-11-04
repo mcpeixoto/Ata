@@ -570,7 +570,7 @@ private struct NotesTab: View {
             }
         } else if model.hasStoredTranscript {
             VStack(alignment: .leading, spacing: 8) {
-                Text("No summary yet. Ata can write one, with the decisions and action items.")
+                Text("No summary yet. Ata can write one, with the key points.")
                     .ataFont(12).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if AppleModel.isAvailable {
