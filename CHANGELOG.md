@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.3.4
+
+Clicking a word on the Mac plays that word.
+
+- **Word times match the audio.** Whisper skips the silences in a recording, and the time of every word after a pause came out early, by more the longer the meeting ran. Clicking a word played something said earlier, and the highlight ran ahead of the voice. The iPhone was never affected.
+- **Voices split in the right place.** A line shared by two people is cut by word times too, so those cuts land where the speaker changes again.
+- **Meetings transcribed before this update** keep their old times. Use Transcribe again on one to fix it.
+
 ## 3.3.3
 
 Apple Intelligence summaries say less, and what they say is closer to what was said.

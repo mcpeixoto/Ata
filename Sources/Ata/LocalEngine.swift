@@ -159,14 +159,16 @@ enum LocalEngine {
         ] + decoding
         let useVAD = Paths.hasVADModel
 
+        let log: String
         do {
-            _ = try await runProcess(cli, useVAD ? base + vad : base, progress: progress)
+            log = try await runProcess(cli, useVAD ? base + vad : base, progress: progress)
         } catch TranscriberError.cancelled {
             throw TranscriberError.cancelled
         } catch where useVAD {
             // Older whisper.cpp builds have no VAD support: retry without it.
-            _ = try await runProcess(cli, base, progress: progress)
+            log = try await runProcess(cli, base, progress: progress)
         }
+        let timeline = VADTimeline(log: log)
 
         guard let data = try? Data(contentsOf: jsonURL) else {
             throw TranscriberError.failed(L("produced no output"))
@@ -180,7 +182,7 @@ enum LocalEngine {
             let text = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty, !Transcriber.isNoise(text) else { return nil }
             return Segment(speaker: speaker, start: item.offsets.from, end: item.offsets.to, text: text,
-                           words: words(item.tokens ?? []))
+                           words: words(item.tokens ?? [], timeline: timeline))
         }
     }
 
@@ -353,20 +355,79 @@ enum LocalEngine {
     /// Turns Whisper's tokens into words: a token starting with a space starts a
     /// word, any other continues the previous one (sub-word pieces and
     /// punctuation), and control tokens such as [_BEG_] are dropped.
-    static func words(_ tokens: [Token]) -> [Segment.Word] {
+    static func words(_ tokens: [Token], timeline: VADTimeline = .identity) -> [Segment.Word] {
         var out: [Segment.Word] = []
         for t in tokens {
             if t.text.hasPrefix("[_") || t.text.hasPrefix("<|") || t.text.isEmpty { continue }
+            let from = timeline.original(ms: t.offsets.from), to = timeline.original(ms: t.offsets.to)
             if t.text.hasPrefix(" ") || out.isEmpty {
                 let text = t.text.trimmingCharacters(in: .whitespaces)
                 if text.isEmpty { continue }
-                out.append(.init(start: t.offsets.from, end: t.offsets.to, text: text))
+                out.append(.init(start: from, end: to, text: text))
             } else {
                 let last = out.removeLast()
-                out.append(.init(start: last.start, end: max(last.end, t.offsets.to), text: last.text + t.text))
+                out.append(.init(start: last.start, end: max(last.end, to), text: last.text + t.text))
             }
         }
         return out
+    }
+
+    /// With VAD on, whisper.cpp transcribes only the speech, packed together
+    /// with 0.1 s of silence between chunks. It maps segment times back to the
+    /// real audio, but not token times: those stay on the packed timeline, so
+    /// every pause in a meeting pulled the words after it earlier, and clicking
+    /// a word played the wrong moment. This rebuilds whisper.cpp's own mapping
+    /// (v1.9.5, `whisper_vad` and `map_processed_to_original_time`) from the
+    /// `vad_segment_info` lines it logs, and applies it to the tokens.
+    struct VADTimeline {
+        /// (packed, original) in centiseconds, sorted by packed time.
+        let points: [(packed: Int, original: Int)]
+
+        static let identity = VADTimeline(points: [])
+
+        init(points: [(packed: Int, original: Int)]) { self.points = points }
+
+        /// whisper.cpp logs, for each speech chunk:
+        /// "vad_segment_info: orig_start: 6.00, orig_end: 9.48, vad_start: 3.97, vad_end: 7.45"
+        init(log: String) {
+            struct Chunk { let origStart, origEnd, vadStart, vadEnd: Int }
+            var chunks: [Chunk] = []
+            let pattern = #"vad_segment_info: orig_start: ([\d.]+), orig_end: ([\d.]+), vad_start: ([\d.]+), vad_end: ([\d.]+)"#
+            guard let re = try? NSRegularExpression(pattern: pattern) else { self.init(points: []); return }
+            let ns = log as NSString
+            for m in re.matches(in: log, range: NSRange(location: 0, length: ns.length)) {
+                let v = (1...4).compactMap { Double(ns.substring(with: m.range(at: $0))) }
+                guard v.count == 4 else { continue }
+                let cs = v.map { Int(($0 * 100).rounded()) }
+                chunks.append(Chunk(origStart: cs[0], origEnd: cs[1], vadStart: cs[2], vadEnd: cs[3]))
+            }
+            var points: [(packed: Int, original: Int)] = []
+            for (i, c) in chunks.enumerated() {
+                points.append((c.vadStart, c.origStart))
+                points.append((c.vadEnd, c.origEnd))
+                // The 0.1 s of silence before the next chunk stands for the whole pause.
+                if i + 1 < chunks.count {
+                    let next = chunks[i + 1]
+                    points.append((next.vadStart - 10, c.origEnd))
+                    points.append((next.vadStart, next.origStart))
+                }
+            }
+            points.sort { $0.packed < $1.packed }
+            var unique: [(packed: Int, original: Int)] = []
+            for p in points where unique.last?.packed != p.packed { unique.append(p) }
+            self.init(points: unique)
+        }
+
+        func original(ms: Int) -> Int {
+            guard let first = points.first, let last = points.last else { return ms }
+            let t = Double(ms) / 10
+            if t <= Double(first.packed) { return first.original * 10 }
+            if t >= Double(last.packed) { return last.original * 10 }
+            let upper = points.firstIndex { Double($0.packed) >= t }!
+            let hi = points[upper], lo = points[upper - 1]
+            let f = (t - Double(lo.packed)) / Double(hi.packed - lo.packed)
+            return Int(((Double(lo.original) + f * Double(hi.original - lo.original)) * 10).rounded())
+        }
     }
 
     struct Token: Decodable {
