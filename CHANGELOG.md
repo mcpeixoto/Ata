@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.4.0
+
+Ata no longer has an Apple Watch app.
+
+- **The Watch app is gone.** Record on the iPhone or the Mac instead. Meetings you already recorded on a Watch stay in your library as they are.
+
 ## 3.3.5
 
 The iPhone's first screen asks for the microphone the way the App Store requires.
