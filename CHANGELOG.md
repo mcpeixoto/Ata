@@ -8,6 +8,7 @@ Ata now sends one anonymous count a day, so we know how many people use it.
 - **What it never sends:** audio, transcripts, notes, titles, names or voices.
 - **Off in one switch.** Settings → Share anonymous usage stats. Turning it off also forgets the id. Setup shows the same switch before anything is sent.
 - The server is in `metrics/` in this repository, and the [privacy policy](https://mcpeixoto.github.io/Ata/privacy/) lists exactly what it keeps.
+- **No more Apple Watch app.** Record on the iPhone or the Mac instead. Meetings you already recorded on a Watch stay in your library as they are.
 
 ## 3.3.5
 
