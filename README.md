@@ -49,7 +49,7 @@ All of it on your Mac: Whisper for the words, Apple Intelligence for the summary
 - **Works with every meeting app.** It records your microphone and your Mac's own audio, so there's
   no bot joining the call and no per-app integration to break.
 - **Private, always.** Whisper runs on your GPU and the audio never leaves your Mac. No account,
-  no telemetry, no server.
+  and the only stats are an anonymous daily count you can turn off.
 - **Nothing to set up.** Everything Ata needs ships inside the app, except a 1.1 GB Whisper model
   it downloads once.
 - **Notices the meeting for you.** When Zoom or Slack grabs the mic, Ata asks if it should record —
@@ -227,8 +227,14 @@ working copy is put back if the install fails halfway.
 ## Privacy
 
 Ata talks to the network only to download models once (Whisper, and the
-voice-recognition models if you turn that on) and to ask the GitHub API for the latest release
-once a day. That's it.
+voice-recognition models if you turn that on), to ask the GitHub API for the latest release
+once a day, and to send one anonymous usage ping a day. That's it.
+
+The ping is the whole of it: a random id made for this purpose alone, the platform, app and OS
+version, your language setting, and how many meetings and minutes you recorded since the last
+one. The server reads your country from the connection and never stores your IP address.
+Turn it off in Settings → "Share anonymous usage stats"; that also forgets the id. The server
+is in [`metrics/`](metrics/).
 
 > **Always tell people you're recording.** The law differs by country — and it's the decent thing
 > to do either way.

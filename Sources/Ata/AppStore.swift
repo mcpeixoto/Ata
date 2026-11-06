@@ -72,12 +72,14 @@ final class AppStore: ObservableObject {
         MeetingSharing.cleanUp()
         backfillMergedAudio()
         Updater.shared.checkInBackground()
+        Metrics.sendIfDue()
         // Ata often runs for weeks as a login item: retention and update checks
         // can't only happen at launch.
         maintenance = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { _ in
             MainActor.assumeIsolated {
                 AppStore.shared.pruneOldAudio()
                 Updater.shared.checkInBackground()
+                Metrics.sendIfDue()
             }
         }
     }
@@ -331,6 +333,7 @@ final class AppStore: ObservableObject {
             stopTicker()
             m.endedAt = Date()
             m.duration = duration
+            if m.hasAudio { Metrics.recorded(seconds: duration) }
             m.status = m.hasAudio ? .pending : .failed
             if !m.hasAudio { m.error = L("Empty recording") }
             // Two numbers from two different places: samples counted, and the
@@ -403,6 +406,7 @@ final class AppStore: ObservableObject {
             m.endedAt = Date()
             m.duration = duration
             m.status = .pending
+            Metrics.recorded(seconds: duration)
             Library.save(m)
             Library.publish(m)
         }

@@ -20,6 +20,7 @@ struct SettingsView: View {
     @AppStorage(Pref.summaryTemplate) private var summaryTemplate = SummaryTemplate.standard.rawValue
     @AppStorage(Pref.dictionary) private var dictionary = ""
     @AppStorage(Pref.autoUpdate) private var autoUpdate = true
+    @AppStorage(Pref.shareUsage) private var shareUsage = true
     @AppStorage(Pref.audioRetentionDays) private var audioRetentionDays = 0
     @AppStorage(Pref.calendarPrompt) private var calendarPrompt = false
     @AppStorage(Pref.calendarLeadMinutes) private var calendarLeadMinutes = 1
@@ -390,6 +391,12 @@ struct SettingsView: View {
             Toggle("Open at login", isOn: Binding(
                 get: { setup.launchAtLogin }, set: { setup.setLaunchAtLogin($0) }))
             Toggle("Check for updates automatically", isOn: $autoUpdate)
+            VStack(alignment: .leading, spacing: 2) {
+                Toggle("Share anonymous usage stats", isOn: $shareUsage)
+                Text("Once a day: the app version, your country and how many minutes you recorded. Never your audio, transcripts or names.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             LabeledContent("Updates") {
                 UpdateControl()
             }

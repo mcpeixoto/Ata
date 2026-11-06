@@ -7,6 +7,7 @@ struct OnboardingView: View {
     @EnvironmentObject var store: AppStore
     @EnvironmentObject var setup: SetupModel
     @AppStorage(Pref.onboarded) private var onboarded = false
+    @AppStorage(Pref.shareUsage) private var shareUsage = true
     @AppStorage(Pref.loginItemOffered) private var loginItemOffered = false
     @State private var apple = AppleModel.state
     @State private var summariesPassed = false
@@ -127,6 +128,15 @@ struct OnboardingView: View {
             trialRow
             Toggle(isOn: Binding(get: { setup.launchAtLogin }, set: { setup.setLaunchAtLogin($0) })) {
                 Text("Open Ata at login").font(.system(size: 13))
+            }
+            .toggleStyle(AppSwitchStyle())
+            Toggle(isOn: $shareUsage) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Share anonymous usage stats").font(.system(size: 13))
+                    Text("Once a day: the app version, your country and how many minutes you recorded. Never your audio, transcripts or names.")
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             .toggleStyle(AppSwitchStyle())
             if apple == .unsupported {

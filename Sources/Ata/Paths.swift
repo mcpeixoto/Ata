@@ -137,6 +137,11 @@ enum Pref {
     static let iCloudMigrating = "iCloudMigrating" // copying into iCloud, to resume after a quit
     static let iCloudDocuments = "iCloudDocuments" // the container's Documents folder, as last found
     static let fixedSystemWriterSince = "fixedSystemWriterSince" // first launch of a build whose system-audio writer is fixed
+    static let shareUsage = "shareUsage"     // send the daily anonymous ping (Metrics)
+    static let metricsID = "metricsID"       // random, metrics only; never Device.id
+    static let metricsPendingMeetings = "metricsPendingMeetings" // recorded since the last ping
+    static let metricsPendingSeconds = "metricsPendingSeconds"
+    static let metricsLastSent = "metricsLastSent" // UTC day of the last ping, yyyy-MM-dd
 
     /// The languages Ata offers for transcription, by their own names: Settings on
     /// both platforms, and "Transcribe again in" on the iPhone. Endonyms, so they
@@ -160,6 +165,7 @@ enum Pref {
             engine: Engine.local.rawValue,
             summarize: true,
             autoUpdate: true,
+            shareUsage: true,
             audioRetentionDays: 0,
             // On. Knowing who said what is the point of a transcript of a
             // conversation, and a transcript where everyone is "Me" or "Them" is

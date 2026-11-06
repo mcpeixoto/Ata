@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.4.0
+
+Ata now sends one anonymous count a day, so we know how many people use it.
+
+- **What it sends:** a random id made only for this, Mac or iPhone, the app and system version, your language setting, and how many meetings and minutes you recorded since the day before. The server reads your country from the connection and never stores your IP address.
+- **What it never sends:** audio, transcripts, notes, titles, names or voices.
+- **Off in one switch.** Settings → Share anonymous usage stats. Turning it off also forgets the id. Setup shows the same switch before anything is sent.
+- The server is in `metrics/` in this repository, and the [privacy policy](https://mcpeixoto.github.io/Ata/privacy/) lists exactly what it keeps.
+
 ## 3.3.5
 
 The iPhone's first screen asks for the microphone the way the App Store requires.

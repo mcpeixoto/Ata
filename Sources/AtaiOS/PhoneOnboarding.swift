@@ -10,6 +10,7 @@ struct PhoneOnboarding: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @AppStorage(Pref.myName) private var myName = ""
+    @AppStorage(Pref.shareUsage) private var shareUsage = true
     @State private var mic = AVAudioApplication.shared.recordPermission
     @State private var notifications = UNAuthorizationStatus.notDetermined
 
@@ -53,6 +54,14 @@ struct PhoneOnboarding: View {
                     .textContentType(.givenName)
                     .textFieldStyle(.roundedBorder)
                 Text("Your lines are marked with this name. Ata also tells the other people in the room apart, and you name each voice once in People.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle("Share anonymous usage stats", isOn: $shareUsage)
+                    .font(.subheadline.weight(.semibold))
+                Text("Once a day: the app version, your country and how many minutes you recorded. Never your audio, transcripts or names.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
