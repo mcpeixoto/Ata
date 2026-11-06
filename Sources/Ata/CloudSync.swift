@@ -20,6 +20,10 @@ final class CloudSync: ObservableObject {
     /// Turning iCloud off: copying the meetings in iCloud to this device first.
     /// `copying`, `copied` and `total` count it too.
     @Published private(set) var copyingOut = false
+    /// Switched on while iCloud wasn't there. iOS has no prompt for iCloud Drive,
+    /// so the iPhone shows the way to its switch, and Ata turns this on by itself
+    /// as soon as iCloud answers, even after a relaunch.
+    @Published private(set) var waitingForICloud = false
 
     var inCloud: Bool { CloudLibrary.isActive }
 
@@ -43,6 +47,7 @@ final class CloudSync: ObservableObject {
         self.isIdle = isIdle
         self.changed = changed
         isOn = Pref.d.bool(forKey: Pref.iCloudSync)
+        waitingForICloud = !isOn && Pref.d.bool(forKey: Pref.iCloudWanted)
         // Development and test folders never touch iCloud.
         guard !Paths.overridden else {
             status = .available
@@ -55,7 +60,7 @@ final class CloudSync: ObservableObject {
             MainActor.assumeIsolated { CloudSync.shared.identityChanged() }
         }
         // Otherwise iCloud is only looked for when Settings is opened.
-        if isOn || Pref.d.bool(forKey: Pref.iCloudMigrating) {
+        if isOn || waitingForICloud || Pref.d.bool(forKey: Pref.iCloudMigrating) {
             Task { await refresh() }
         }
     }
@@ -66,6 +71,10 @@ final class CloudSync: ObservableObject {
         let found = await CloudLibrary.lookUp()
         lookup = found
         status = found.status
+        if Self.turnsOnNow(waiting: waitingForICloud, isOn: isOn, status: status) {
+            setWaiting(false)
+            turnOn()
+        }
         // On, but the launch found no iCloud to use: everything goes on this device for now.
         if isOn, !CloudLibrary.isActive, found.documents == nil { problem = Self.awayProblem }
         updateOriginals()
@@ -117,6 +126,35 @@ final class CloudSync: ObservableObject {
     }
 
     // MARK: Turning it on and off
+
+    /// The switch, turned on by hand. False when iCloud isn't there yet: the
+    /// caller shows how to turn on iCloud Drive, and Ata finishes on its own.
+    @discardableResult
+    func requestTurnOn() -> Bool {
+        if status == .available || copyingOut || Paths.overridden {
+            setWaiting(false)
+            turnOn()
+            return true
+        }
+        setWaiting(true)
+        Task { await refresh() }
+        return false
+    }
+
+    /// Changed your mind before iCloud Drive was turned on.
+    func stopWaiting() {
+        setWaiting(false)
+    }
+
+    /// Waiting for iCloud, and iCloud has just answered.
+    nonisolated static func turnsOnNow(waiting: Bool, isOn: Bool, status: CloudLibrary.Status) -> Bool {
+        waiting && !isOn && status == .available
+    }
+
+    private func setWaiting(_ on: Bool) {
+        waitingForICloud = on
+        Pref.d.set(on, forKey: Pref.iCloudWanted)
+    }
 
     func turnOn() {
         guard !Paths.overridden else {
