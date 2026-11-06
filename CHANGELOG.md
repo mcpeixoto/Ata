@@ -9,6 +9,12 @@ Ata now sends one anonymous count a day, so we know how many people use it.
 - **Off in one switch.** Settings → Share anonymous usage stats. Turning it off also forgets the id. Setup shows the same switch before anything is sent.
 - The server is in `metrics/` in this repository, and the [privacy policy](https://mcpeixoto.github.io/Ata/privacy/) lists exactly what it keeps.
 
+## 3.3.5
+
+The iPhone's first screen asks for the microphone the way the App Store requires.
+
+- **Continue, not Allow.** The buttons that lead to the microphone and notification prompts say Continue. The choice is made in the system's own prompt that follows. App Review turned down 3.1.2 over this.
+
 ## 3.3.4
 
 Clicking a word on the Mac plays that word.

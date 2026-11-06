@@ -31,13 +31,17 @@ struct PhoneOnboarding: View {
             VStack(spacing: 4) {
                 CheckRow(ok: mic == .granted, title: L("Microphone"),
                          detail: L("To record. Audio stays on this iPhone.")) {
-                    Button(mic == .denied ? L("Open Settings") : L("Allow")) { requestMic() }
+                    // App Review rejects "Allow" before the system prompt (5.1.1(iv)):
+                    // the choice is the system's, this button only leads to it.
+                    Button(mic == .denied ? L("Open Settings") : L("Continue")) { requestMic() }
                         .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("microphone-permission")
                 }
                 CheckRow(ok: notifications == .authorized || notifications == .provisional,
                          title: L("Notifications"), detail: L("When a transcript is ready."), optional: true) {
-                    Button(L("Allow")) { requestNotifications() }
+                    Button(L("Continue")) { requestNotifications() }
                         .buttonStyle(.bordered)
+                        .accessibilityIdentifier("notifications-permission")
                         .disabled(notifications == .denied)
                 }
             }
@@ -71,7 +75,7 @@ struct PhoneOnboarding: View {
                 Text(mic == .granted ? L("Start using Ata") : L("Not now"))
                     .frame(maxWidth: .infinity)
             }
-            // Without the microphone, Allow is the one thing to press; a second
+            // Without the microphone, Continue is the one thing to press; a second
             // filled button saying "Not now" would compete with it.
             .modifier(FinishStyle(primary: mic == .granted))
             .controlSize(.large)
