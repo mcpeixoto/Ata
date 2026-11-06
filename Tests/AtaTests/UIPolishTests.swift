@@ -92,7 +92,7 @@ final class MarkTermTests: XCTestCase {
     /// The display strings in code, not only the tables: an English literal
     /// with "Bookmark" in it would be shown as-is.
     func testNoScreenSaysBookmarkInCode() throws {
-        let dirs = ["Sources/Ata", "Sources/AtaiOS", "Sources/AtaWatch", "Sources/AtaWidgets"]
+        let dirs = ["Sources/Ata", "Sources/AtaiOS", "Sources/AtaWidgets"]
         let shown = try NSRegularExpression(pattern: #"(L|Label|Text|Button|LocalizedStringResource|shortTitle:|phrases: \[|IntentDescription)\(?\s*"[^"]*[Bb]ookmark"#)
         var offenders: [String] = []
         for dir in dirs {

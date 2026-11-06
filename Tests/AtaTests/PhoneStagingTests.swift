@@ -19,10 +19,6 @@ final class PhoneStagingTests: XCTestCase {
         try data.write(to: url)
     }
 
-    private func le(_ v: UInt32) -> Data {
-        Data([UInt8(v & 0xFF), UInt8((v >> 8) & 0xFF), UInt8((v >> 16) & 0xFF), UInt8((v >> 24) & 0xFF)])
-    }
-
     private func scratch(_ name: String) throws -> URL {
         let dir = FilesTests.root.appendingPathComponent("staging-\(UUID().uuidString)", isDirectory: true)
         try fm.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -172,44 +168,6 @@ final class PhoneStagingTests: XCTestCase {
         XCTAssertFalse(ids.contains(nil), "every one got a folder")
         XCTAssertEqual(Set(ids.compactMap { $0 }).count, 12, "and no two the same")
         for case let id? in ids { try? fm.removeItem(at: Device.stagingDir.appendingPathComponent(id)) }
-    }
-
-    // MARK: Watch recordings
-
-    func testAWatchRecordingWithAStaleSizeIsImportedWhole() throws {
-        let info = WatchRecordingInfo(startedAt: Date(timeIntervalSince1970: 1_800_600_000), duration: 2)
-        let received = try scratch("stale.wav")
-        // Two seconds of audio under a header last updated after half a second.
-        try wav(seconds: 2, at: received, headerBytes: 16_000)
-        try WatchImport.keep(received, info: info)
-
-        XCTAssertTrue(WatchImport.importWaiting().contains(info.id))
-        let m = try XCTUnwrap(Library.loadAll().first { $0.app == WatchImport.app && $0.startedAt == info.startedAt })
-        XCTAssertEqual(m.duration ?? 0, 2, accuracy: 0.05, "not the half second the header said")
-        XCTAssertEqual(WavWriter.duration(of: m.micURL), 2, accuracy: 0.05)
-    }
-
-    func testAWavWithTagsAfterItsAudioIsLeftAlone() throws {
-        let url = try scratch("tagged.wav")
-        let samples = 16_000 * 2
-        var file = WavWriter.header(dataBytes: UInt32(samples))
-        file.append(Data((0..<samples).map { UInt8(($0 * 3) & 0xFF) }))
-        file.append(Data("LIST".utf8))
-        file.append(le(4))
-        file.append(Data("INFO".utf8))
-        file.replaceSubrange(4..<8, with: le(UInt32(file.count - 8)))
-        try file.write(to: url)
-
-        XCTAssertFalse(WatchImport.repairSizes(url), "its sizes are right")
-        XCTAssertEqual(try Data(contentsOf: url), file)
-    }
-
-    func testTheWatchCanAskTheIPhoneToResume() throws {
-        let data = try PropertyListSerialization.data(fromPropertyList: WatchCommand.resume.message, format: .binary, options: 0)
-        let back = try XCTUnwrap(PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
-        XCTAssertEqual(WatchCommand(message: back), .resume)
-        XCTAssertEqual(WatchCommand.resume.rawValue, "resume", "what an iPhone of the same version expects")
-        XCTAssertTrue(WatchCommand.allCases.contains(.resume))
     }
 }
 

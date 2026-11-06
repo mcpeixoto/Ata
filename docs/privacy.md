@@ -19,8 +19,8 @@ your transcripts, your notes or anything about how you use the app.
 ## Where your meetings live
 
 - **On your device.** Recordings, transcripts, notes, summaries and the voice
-  fingerprints Ata uses to recognise who is speaking are stored on your iPhone,
-  Apple Watch or Mac.
+  fingerprints Ata uses to recognise who is speaking are stored on your iPhone
+  or Mac.
 - **In your own iCloud, if you turn on iCloud sync.** Ata then keeps the same
   files in your iCloud Drive so your devices can share them. They are stored by
   Apple under your Apple Account; we cannot read them.

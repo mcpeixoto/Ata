@@ -18,7 +18,6 @@ struct DeviceRef: Codable, Equatable {
 
     static let iPhone = "iPhone"
     static let mac = "Mac"
-    static let watch = "Watch"
 }
 
 /// This device. Shared code, so no AppKit here: it compiles for iOS too.
@@ -32,8 +31,6 @@ enum Device {
     static let kind: String = {
         #if os(macOS)
         return DeviceRef.mac
-        #elseif os(watchOS)
-        return DeviceRef.watch
         #else
         return DeviceRef.iPhone
         #endif

@@ -11,9 +11,9 @@ final class PortugueseCopyTests: XCTestCase {
         .deletingLastPathComponent()   // repo
 
     /// Every Portuguese .strings table: the apps', the iPhone's Info.plist and
-    /// extension texts, and the Watch's. Keyed "file: English key".
+    /// extension texts. Keyed "file: English key".
     private static func portuguese() throws -> [String: String] {
-        let paths = ["Resources", "Sources/AtaWatch"]
+        let paths = ["Resources"]
         var out: [String: String] = [:]
         for base in paths {
             let dir = repo.appending(path: base)
