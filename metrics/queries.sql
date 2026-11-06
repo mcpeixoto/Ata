@@ -1,5 +1,5 @@
--- npx wrangler d1 execute ata-metrics --remote --file queries.sql
--- (or paste one query with --command "...")
+-- Run them all with ./report.sh. One at a time:
+-- npx wrangler d1 execute ata-metrics --remote --command "SELECT ..."
 
 -- Active installs: today, last 7 days, last 30 days, ever.
 SELECT
