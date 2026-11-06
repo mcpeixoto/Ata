@@ -64,7 +64,7 @@
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
-	<string>© Miguel Peixoto · MIT licensed</string>
+	<string>© Miguel Peixoto · PolyForm Noncommercial</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Ata records the conversation through the microphone so it can transcribe it.</string>
 	<key>NSSupportsLiveActivities</key>
