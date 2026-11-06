@@ -280,7 +280,7 @@ enum Snapshots {
                         HStack(spacing: 10) {
                             chip("globe", "Any app")
                             chip("arrow.triangle.2.circlepath", "Auto-updates")
-                            chip("heart.fill", "Open source")
+                            chip("chevron.left.forwardslash.chevron.right", "Source available")
                         }
                     }
                     shot

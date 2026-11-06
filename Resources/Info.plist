@@ -44,7 +44,7 @@
 	<key>NSCalendarsUsageDescription</key>
 	<string>Ata reads your calendar so it can offer to record a meeting before it starts, and file the recording under the event's title. It never changes your calendars.</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>© Miguel Peixoto · MIT licensed</string>
+	<string>© Miguel Peixoto · PolyForm Noncommercial</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Ata records your microphone during meetings so it can transcribe them.</string>
 </dict>
