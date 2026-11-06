@@ -1,7 +1,6 @@
 """Lists the localizable string keys used in the app's sources: the Mac and
 shared code (Sources/Ata), the iPhone app (Sources/AtaiOS), its widgets
-(Sources/AtaWidgets), the Watch app (Sources/AtaWatch) and the share extension
-(Sources/AtaShare).
+(Sources/AtaWidgets) and the share extension (Sources/AtaShare).
 
 A key is the first string literal passed to L(), Text(), Button(), Label(),
 Toggle(), Picker(), Section(), TextField(), SecureField(), LabeledContent(),
@@ -31,7 +30,7 @@ CALL = re.compile(
     r'|\bIntentDescription\(|\.navigationTitle\(|\.displayName\(|\.description\(|\.configurationDisplayName\('
     r'|\bLocalizedStringResource\s*=|\bshortTitle:)\s*"((?:[^"\\]|\\.)*)"')
 
-SOURCES = ["Sources/Ata", "Sources/AtaiOS", "Sources/AtaWidgets", "Sources/AtaWatch", "Sources/AtaShare"]
+SOURCES = ["Sources/Ata", "Sources/AtaiOS", "Sources/AtaWidgets", "Sources/AtaShare"]
 
 # Strings that are deliberately not translated: names, and language names
 # written in their own language.

@@ -163,7 +163,7 @@ final class PhoneStore: ObservableObject {
 
     private func start() async throws {
         guard phase == .idle else { return }
-        // Siri, the Control and the Watch come through here too. A recording
+        // Siri and the Control come through here too. A recording
         // already running is never stopped by this; it only gates a new one.
         updateQuota()
         if needsPro {
@@ -215,18 +215,6 @@ final class PhoneStore: ObservableObject {
 
     func resumeRecording() {
         recorder.resume()
-    }
-
-    /// Recordings from the Watch are being imported; see `WatchLink`. Counted with
-    /// the other imports, so the library never moves to or from iCloud under one.
-    func watchImportStarted() {
-        importing += 1
-    }
-
-    func watchImportFinished() {
-        importing = max(0, importing - 1)
-        updateQuota()
-        offerProIfOverLimit()
     }
 
     /// Marks this moment of the recording.

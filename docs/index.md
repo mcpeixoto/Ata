@@ -5,7 +5,7 @@ permalink: /
 
 # Ata
 
-Ata records your meetings on iPhone, Apple Watch and Mac, and turns them into
+Ata records your meetings on iPhone and Mac, and turns them into
 transcripts you can search. Transcription runs on your device.
 
 ## Help

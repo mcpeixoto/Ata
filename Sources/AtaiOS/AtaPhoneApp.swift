@@ -16,7 +16,6 @@ struct AtaPhoneApp: App {
         // Before anything can record: a purchase made while Ata was closed, or a renewal.
         ProStore.shared.start()
         PhoneStore.shared.bootstrap()
-        WatchLink.shared.activate()
     }
 
     var body: some Scene {

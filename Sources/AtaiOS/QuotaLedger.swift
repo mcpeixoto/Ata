@@ -2,8 +2,8 @@ import Foundation
 
 /// The meetings this iPhone made each month, kept in the keychain so that
 /// deleting them or reinstalling Ata does not hand the free ones back; see
-/// `FreeQuota`. Imports from the Watch record here off the main thread, so
-/// reads and writes are serialised.
+/// `FreeQuota`. Imports may record here off the main thread, so reads and
+/// writes are serialised.
 enum QuotaLedger {
     private static let lock = NSLock()
 

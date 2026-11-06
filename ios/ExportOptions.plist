@@ -11,7 +11,7 @@
      arrives as an email twenty minutes later from a direct upload, with the build number
      already spent.
 
-     Every bundle id the app ships needs a profile. The watch app and the two extensions
+     Every bundle id the app ships needs a profile. The two extensions
      are separate ids and a missing entry fails the export, not the archive — ten minutes
      in. -->
 <plist version="1.0">
@@ -34,8 +34,6 @@
 		<string>Ata Widgets App Store</string>
 		<key>ai.interactive.ata.share</key>
 		<string>Ata Share App Store</string>
-		<key>ai.interactive.ata.watchkitapp</key>
-		<string>Ata Watch App Store</string>
 	</dict>
 	<key>uploadSymbols</key>
 	<true/>
