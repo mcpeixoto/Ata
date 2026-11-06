@@ -17,7 +17,7 @@ Anything else — another field, a missing one, free text — is refused with 40
 ## Numbers
 
 ```bash
-npx wrangler d1 execute ata-metrics --remote --file queries.sql
+./report.sh
 ```
 
 Installs active today / this week / this month, by version, by country, by OS,
