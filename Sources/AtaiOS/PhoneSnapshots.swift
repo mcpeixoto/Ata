@@ -21,6 +21,7 @@ extension Snapshots {
         case people
         case insights
         case settings
+        case iCloudHelp = "icloud-help"
         case onboarding
         case paywall
     }
@@ -83,7 +84,7 @@ extension Snapshots {
             navigation.tab = .people
         case .insights:
             navigation.tab = .insights
-        case .settings:
+        case .settings, .iCloudHelp:
             navigation.tab = .settings
         }
     }

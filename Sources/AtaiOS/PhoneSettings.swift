@@ -14,6 +14,7 @@ struct PhoneSettings: View {
     @ObservedObject private var pro = ProStore.shared
     @EnvironmentObject private var store: PhoneStore
     @State private var managingSubscription = false
+    @State private var showingICloudHelp = Snapshots.rendering && Snapshots.screen == .iCloudHelp
 
     /// Why no summary will appear, when none will. Summaries are on by default on
     /// the iPhone (`Pref.platformDefaults`), and before this they could silently
@@ -40,13 +41,16 @@ struct PhoneSettings: View {
         if cloud.isOn {
             return L("Your meetings and voices are in iCloud Drive, and show up in Ata on your Mac too. Turned off, Ata goes back to the meetings on this iPhone; what's in iCloud stays there.")
         }
+        if cloud.waitingForICloud {
+            return L("Waiting for iCloud Drive. Turn it on for Ata in Settings, and this finishes by itself.")
+        }
         switch cloud.status {
         case .checking:
             return L("Checking iCloud…")
         case .available:
             return L("Copies your meetings and voices into iCloud Drive, so Ata on your Mac shows them too.")
         case .signedOut, .notOnThisMac:
-            return L("Sign in to iCloud and turn on iCloud Drive for Ata in Settings to use this.")
+            return L("iCloud Drive is off for Ata. Turn this on to see where to switch it on.")
         }
     }
 
@@ -121,11 +125,16 @@ struct PhoneSettings: View {
 
                 Section {
                     Toggle("Keep meetings in iCloud", isOn: Binding(
-                        get: { (cloud.isOn || cloud.copying) && !cloud.copyingOut },
+                        get: { (cloud.isOn || cloud.copying || cloud.waitingForICloud) && !cloud.copyingOut },
                         set: { on in
-                            if on { cloud.turnOn() } else { cloud.turnOff() }
+                            if on {
+                                if !cloud.requestTurnOn() { showingICloudHelp = true }
+                            } else if cloud.waitingForICloud {
+                                cloud.stopWaiting()
+                            } else {
+                                cloud.turnOff()
+                            }
                         }))
-                        .disabled(!cloud.isOn && !cloud.copying && cloud.status != .available)
                     if cloud.copying && cloud.total > 0 {
                         ProgressView(value: Double(cloud.copied), total: Double(cloud.total)) {
                             Text(cloud.copyingOut
@@ -162,6 +171,9 @@ struct PhoneSettings: View {
             .navigationTitle("Settings")
             .onAppear { cloud.recheck() }
             .manageSubscriptionsSheet(isPresented: $managingSubscription)
+            .sheet(isPresented: $showingICloudHelp) {
+                ICloudHelpSheet(cloud: cloud)
+            }
         }
     }
 }

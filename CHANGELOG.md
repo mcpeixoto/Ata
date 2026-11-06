@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.5.0
+
+Turning on iCloud on the iPhone says where the switch is, and finishes by itself.
+
+- **Keep meetings in iCloud can always be tapped.** If iCloud Drive is off for Ata, a short sheet shows the four steps in the iPhone's Settings. iOS has no permission prompt for iCloud Drive, so this is the closest Ata can get.
+- **Come back and it's on.** Once iCloud Drive is on for Ata, sync turns on and starts copying your meetings on its own, even if Ata was closed in between.
+- **Ata's code is now under the PolyForm Noncommercial licence.** Free for personal use, research and non-profits. Versions up to 3.4.0 stay MIT.
+
 ## 3.4.0
 
 Ata now sends one anonymous count a day, so we know how many people use it.
