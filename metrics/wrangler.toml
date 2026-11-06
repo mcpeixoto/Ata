@@ -1,0 +1,14 @@
+name = "ata-metrics"
+main = "src/index.ts"
+compatibility_date = "2025-10-01"
+workers_dev = true
+
+# Request logs would hold IP addresses: off.
+[observability]
+enabled = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ata-metrics"
+database_id = "d0e03be6-3d5b-46f1-b2e2-d84539933478"
+migrations_dir = "migrations"

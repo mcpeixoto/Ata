@@ -83,6 +83,7 @@ final class PhoneStore: ObservableObject {
         }
         drainShareInbox()
         pump()
+        Metrics.sendIfDue()
     }
 
     /// Ata came to the front: pick up files changed in the meantime, and the queue.
@@ -205,7 +206,10 @@ final class PhoneStore: ObservableObject {
         phase = .idle
         reload()
         // Wherever the folder is now: one left in staging moves with its meeting.mp3.
-        if let m = finished?.meeting, m.status == .pending { saveMergedAudio(of: m) }
+        if let m = finished?.meeting, m.status == .pending {
+            Metrics.recorded(seconds: m.duration ?? 0)
+            saveMergedAudio(of: m)
+        }
         pump()
     }
 

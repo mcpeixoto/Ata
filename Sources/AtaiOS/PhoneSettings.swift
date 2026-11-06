@@ -7,6 +7,7 @@ struct PhoneSettings: View {
     @AppStorage(Pref.language) private var language = "auto"
     @AppStorage(Pref.recogniseVoices) private var recogniseVoices = true
     @AppStorage(Pref.keepAudio) private var keepAudio = true
+    @AppStorage(Pref.shareUsage) private var shareUsage = true
     @AppStorage(Pref.summarize) private var summarize = true
     @AppStorage(Pref.defaultCategory) private var defaultCategory = ""
     @StateObject private var cloud = CloudSync.shared
@@ -135,6 +136,12 @@ struct PhoneSettings: View {
                     }
                 } footer: {
                     Text(iCloudFootnote)
+                }
+
+                Section {
+                    Toggle("Share anonymous usage stats", isOn: $shareUsage)
+                } footer: {
+                    Text("Once a day: the app version, your country and how many minutes you recorded. Never your audio, transcripts or names.")
                 }
 
                 Section {
