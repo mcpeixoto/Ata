@@ -45,6 +45,7 @@ final class Updater: ObservableObject {
     }
 
     private var downloader: Downloader?
+    private var pendingFallback: URLRequest?
     private var pendingAsset: URL?
 
     // MARK: - Checking
@@ -70,10 +71,12 @@ final class Updater: ObservableObject {
                 }
                 if Self.isNewer(release.version, than: Self.currentVersion), release.asset != nil {
                     pendingAsset = release.asset
+                    pendingFallback = release.fallback
                     state = .available(version: release.version, notes: release.notes)
                     if silent { Notifier.shared.updateAvailable(version: release.version) }
                 } else {
                     pendingAsset = nil
+                    pendingFallback = nil
                     state = silent ? .idle : .upToDate
                 }
             } catch {
@@ -105,6 +108,7 @@ final class Updater: ObservableObject {
         let version: String
         let notes: String
         let asset: URL?
+        let fallback: URLRequest?
     }
 
     private func fetchLatest() async throws -> Release? {
@@ -126,21 +130,34 @@ final class Updater: ObservableObject {
         }
         let payload = try JSONDecoder().decode(GitHubRelease.self, from: data)
         if payload.draft == true || payload.prerelease == true { return nil }
-        let asset = payload.assets
-            .first { $0.name.lowercased().hasSuffix(".zip") }?
-            .browser_download_url
+        let asset = payload.zipAsset
         return Release(version: Self.normalize(payload.tag_name),
                        notes: payload.body ?? "",
-                       asset: asset.flatMap(URL.init(string:)))
+                       asset: asset.flatMap { URL(string: $0.browser_download_url) },
+                       fallback: asset?.apiRequest)
     }
 
-    private struct GitHubRelease: Decodable {
-        struct Asset: Decodable { let name: String; let browser_download_url: String }
+    struct GitHubRelease: Decodable {
+        struct Asset: Decodable {
+            let name: String
+            let browser_download_url: String
+            let url: String?
+
+            /// The same file through the API, which only hands over the bytes
+            /// when asked for them this way.
+            var apiRequest: URLRequest? {
+                guard var request = url.flatMap(URL.init(string:)).map({ URLRequest(url: $0) }) else { return nil }
+                request.setValue("application/octet-stream", forHTTPHeaderField: "Accept")
+                return request
+            }
+        }
         let tag_name: String
         let body: String?
         let draft: Bool?
         let prerelease: Bool?
         let assets: [Asset]
+
+        var zipAsset: Asset? { assets.first { $0.name.lowercased().hasSuffix(".zip") } }
     }
 
     // MARK: - Versions
@@ -174,7 +191,7 @@ final class Updater: ObservableObject {
         let dest = FileManager.default.temporaryDirectory
             .appendingPathComponent("Ata-update-\(UUID().uuidString).zip")
 
-        let d = Downloader(dest: dest) { [weak self] p in
+        let d = Downloader(dest: dest, fallback: pendingFallback) { [weak self] p in
             Task { @MainActor in
                 guard let self, self.isDownloading else { return }
                 self.state = .downloading(p)
