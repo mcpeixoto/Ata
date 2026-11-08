@@ -112,9 +112,10 @@ enum CloudLibrary {
     }
 
     #if os(macOS)
-    /// Where iCloud Drive keeps the container on a Mac. A Developer ID build has no
-    /// iCloud entitlement, so it reads and writes this folder directly; iCloud Drive
-    /// creates it once Ata on an iPhone has used the container.
+    /// Where iCloud Drive keeps the container on a Mac. A release carries the iCloud
+    /// entitlement and finds it through `url(forUbiquityContainerIdentifier:)`; a
+    /// build without the profile (ad-hoc, development) can only use this folder, and
+    /// iCloud Drive keeps it in sync only while an entitled Ata is installed.
     static var macDocuments: URL {
         Paths.home.appendingPathComponent("Library/Mobile Documents/\(containerFolderName)/Documents",
                                           isDirectory: true)
@@ -135,7 +136,7 @@ enum CloudLibrary {
         var documents: URL?
         var status: Status
         /// The app has the iCloud entitlement: the metadata query and the key-value
-        /// store work. Without it (a Developer ID Mac build) only the folder does.
+        /// store work. Without it (a Mac build without the profile) only the folder does.
         var entitled: Bool
     }
 

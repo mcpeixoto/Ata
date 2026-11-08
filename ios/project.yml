@@ -87,6 +87,7 @@ targets:
         excludes:
           - Info.plist
           - Ata.entitlements
+          - Ata-iCloud.entitlements
           - AppIcon.iconset
           - AppIcon.iconset/**
           - iOS
@@ -132,6 +133,7 @@ targets:
         excludes:
           - Info.plist
           - Ata.entitlements
+          - Ata-iCloud.entitlements
           - AppIcon.iconset
           - AppIcon.iconset/**
           - iOS
@@ -195,6 +197,7 @@ targets:
         excludes:
           - Info.plist
           - Ata.entitlements
+          - Ata-iCloud.entitlements
           - AppIcon.iconset
           - AppIcon.iconset/**
           - iOS

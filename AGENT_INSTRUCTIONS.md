@@ -313,6 +313,15 @@ through the API, and the signing keys are only in the Mac's keychain. From one, 
 on the Mac (`ListAgents`, or a Remote Control session) and send it the tag + release commands.
 Only when no Mac session is reachable, say so and give the exact commands.
 
+**The Mac release carries iCloud.** `build-app.sh --sign "Developer ID Application: …"` embeds
+the "Ata Developer ID" provisioning profile and merges `Resources/Ata-iCloud.entitlements` over
+`Ata.entitlements`; `release-local.sh` downloads that profile first (`scripts/mac-profile.py`)
+and sets `ATA_REQUIRE_ICLOUD=1`, so a release without it fails instead of shipping a Mac that
+never syncs. Measured: without the entitlement, iCloud Drive on the Mac reports the container
+as "SYNC DISABLED (app not installed)" and downloads nothing the iPhone uploads. Ad-hoc builds
+must never carry those entitlements — restricted entitlements without the profile get the app
+killed at launch. `brctl status iCloud.ai.interactive.ata` shows what the Mac thinks.
+
 `.github/workflows/release.yml` also runs on every tag, but only publishes if the five signing
 secrets exist; without them it posts a notice and stops green. Setting them needs
 `./scripts/setup-release-secrets.sh`, which exports the private key and therefore the keychain

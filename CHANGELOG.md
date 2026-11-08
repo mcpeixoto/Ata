@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.5.1
+
+iCloud sync reaches the Mac.
+
+- **The Mac now syncs with iCloud.** Until this version, iCloud Drive on the Mac never downloaded anything Ata put in iCloud, because the Mac app wasn't allowed to use Ata's iCloud storage. Meetings recorded on the iPhone never showed up on the Mac. Ata for Mac now has that permission, so it sees what the iPhone uploads and uploads its own meetings too.
+- **The Mac can turn iCloud on by itself.** It no longer waits for the iPhone to go first.
+- **Settings follow you between Mac and iPhone** while iCloud is on, as they already did between iPhones.
+
 ## 3.5.0
 
 Turning on iCloud on the iPhone says where the switch is, and finishes by itself.
