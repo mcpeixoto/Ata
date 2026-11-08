@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Merged over Ata.entitlements for a Developer ID build that embeds the
+         "Ata Developer ID" profile (see scripts/build-app.sh). Without these,
+         iCloud Drive on the Mac does not count Ata as installed and never syncs
+         its container ("SYNC DISABLED (app not installed)"), whatever the
+         iPhone uploads. They are restricted: a build without the profile that
+         carries them is killed at launch, so ad-hoc builds leave them out. -->
+    <key>com.apple.application-identifier</key><string>H874DPF6H5.ai.interactive.ata</string>
+    <key>com.apple.developer.team-identifier</key><string>H874DPF6H5</string>
+    <key>com.apple.developer.icloud-container-environment</key><string>Production</string>
+    <key>com.apple.developer.icloud-container-identifiers</key>
+    <array><string>iCloud.ai.interactive.ata</string></array>
+    <key>com.apple.developer.icloud-services</key>
+    <array><string>CloudDocuments</string></array>
+    <key>com.apple.developer.ubiquity-container-identifiers</key>
+    <array><string>iCloud.ai.interactive.ata</string></array>
+    <!-- The same store as the iPhone's $(TeamIdentifierPrefix)ai.interactive.ata. -->
+    <key>com.apple.developer.ubiquity-kvstore-identifier</key><string>H874DPF6H5.ai.interactive.ata</string>
+</dict>
+</plist>

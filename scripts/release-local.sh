@@ -51,7 +51,12 @@ PLIST=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources
 
 # --- build and sign -------------------------------------------------------------
 step "Building and signing"
-./scripts/build-app.sh --sign "$IDENTITY"
+# The profile that lets this build use iCloud; build-app.sh embeds it, and refuses
+# to sign a release without it rather than ship a Mac that never syncs.
+ASC_KEY_PATH="$ASC_KEY" ASC_KEY_ID="$ASC_KEY_ID" ASC_ISSUER="$ASC_ISSUER_ID" \
+  uv run --quiet --with "pyjwt[crypto]" python -I scripts/mac-profile.py \
+  || fail "Could not install the 'Ata Developer ID' profile."
+ATA_REQUIRE_ICLOUD=1 ./scripts/build-app.sh --sign "$IDENTITY"
 
 # --- notarize -------------------------------------------------------------------
 step "Notarizing (usually 1–5 minutes)"

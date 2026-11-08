@@ -54,8 +54,33 @@ else
   # as well, and it has to be signed first: the app's signature covers it. The
   # entitlements let the app record audio and run whisper-cli as a child process.
   codesign --force --options runtime --timestamp --sign "$SIGN_ID" "$APP/Contents/MacOS/whisper-cli"
+  # iCloud: a Developer ID build embeds the "Ata Developer ID" profile and takes
+  # the iCloud entitlements it allows. Without them the Mac never syncs Ata's
+  # container. ATA_PROFILE names the profile file; otherwise it is looked up by
+  # name among the installed ones (scripts/mac-profile.py puts it there).
+  ENTITLEMENTS=Resources/Ata.entitlements
+  PROFILE="${ATA_PROFILE:-}"
+  if [ -z "$PROFILE" ]; then
+    for candidate in "$HOME/Library/MobileDevice/Provisioning Profiles"/*.provisionprofile; do
+      [ -f "$candidate" ] || continue
+      name=$(security cms -D -i "$candidate" 2>/dev/null | plutil -extract Name raw - 2>/dev/null || true)
+      [ "$name" = "Ata Developer ID" ] && PROFILE="$candidate"
+    done
+  fi
+  if [ -n "$PROFILE" ] && [[ "$SIGN_ID" == "Developer ID Application"* ]]; then
+    cp "$PROFILE" "$APP/Contents/embedded.provisionprofile"
+    ENTITLEMENTS=$(mktemp -t ata-entitlements).plist
+    cp Resources/Ata.entitlements "$ENTITLEMENTS"
+    /usr/libexec/PlistBuddy -c "Merge Resources/Ata-iCloud.entitlements" "$ENTITLEMENTS" >/dev/null
+    echo "iCloud: embedding $(basename "$PROFILE")"
+  elif [ "${ATA_REQUIRE_ICLOUD:-0}" = "1" ]; then
+    echo "No 'Ata Developer ID' profile: this build could not sync with iCloud. Run scripts/mac-profile.py." >&2
+    exit 1
+  else
+    echo "iCloud: no profile, building without iCloud" >&2
+  fi
   codesign --force --options runtime --timestamp \
-    --entitlements Resources/Ata.entitlements \
+    --entitlements "$ENTITLEMENTS" \
     --sign "$SIGN_ID" "$APP"
   codesign --verify --deep --strict --verbose=2 "$APP"
 fi

@@ -351,7 +351,7 @@ final class CloudSync: ObservableObject {
 
     private func updateSettingsSync() {
         #if os(macOS)
-        // The key-value store needs the iCloud entitlement, which a Developer ID build lacks.
+        // The key-value store needs the iCloud entitlement, which only a release carries.
         let can = lookup?.entitled == true
         #else
         let can = true
@@ -409,8 +409,8 @@ final class CloudSync: ObservableObject {
 /// files the list and the meeting window read before anyone opens them.
 ///
 /// With the iCloud entitlement that is an `NSMetadataQuery` over the container's
-/// Documents. A Developer ID Mac build has no entitlement, so it looks at the
-/// folder every few seconds instead.
+/// Documents. A Mac build without the entitlement looks at the folder every few
+/// seconds instead.
 @MainActor
 final class CloudWatcher {
     private var query: NSMetadataQuery?
