@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.5.2
+
+Updates get through when GitHub has a bad moment.
+
+- **Downloads try again.** When the server answers with an error of its own (5xx), Ata waits and retries for about a minute instead of failing at once. Updates also try a second GitHub address for the same file. Whisper model downloads get the same retries.
+
 ## 3.5.1
 
 iCloud sync reaches the Mac.

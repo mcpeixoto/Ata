@@ -304,9 +304,25 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
     private var moveError: Error?
     private var session: URLSession?
     private var task: URLSessionDownloadTask?
+    private let fallback: URLRequest?
+    private let retryDelays: [TimeInterval]
+    private let configuration: URLSessionConfiguration
+    private var routes: [URLRequest] = []
+    private var retriesUsed = 0
+    private var failedStatus: Int?
 
-    init(dest: URL, progress: @escaping @Sendable (Double) -> Void, completion: @escaping @Sendable (Error?) -> Void) {
+    /// Measured on 2026-11-08: GitHub's release links answered 504 for most of an hour
+    /// while the API route to the same file kept working, so with a `fallback` the tries
+    /// alternate between the two.
+    static let defaultRetryDelays: [TimeInterval] = [2, 5, 10, 20, 30]
+
+    init(dest: URL, fallback: URLRequest? = nil, retryDelays: [TimeInterval] = Downloader.defaultRetryDelays,
+         configuration: URLSessionConfiguration = .default,
+         progress: @escaping @Sendable (Double) -> Void, completion: @escaping @Sendable (Error?) -> Void) {
         self.dest = dest
+        self.fallback = fallback
+        self.retryDelays = retryDelays
+        self.configuration = configuration
         self.onProgress = progress
         self.completion = completion
     }
@@ -316,9 +332,13 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
     /// 206 is what a resumed download ends with: the server sent the rest.
     static func isComplete(status: Int) -> Bool { status == 200 || status == 206 }
 
+    /// A 5xx says the server had a bad moment. A 4xx will answer the same next time.
+    static func isWorthRetrying(status: Int) -> Bool { (500..<600).contains(status) }
+
     func start(_ url: URL) {
-        let s = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
+        let s = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
         session = s
+        routes = [URLRequest(url: url)] + (fallback.map { [$0] } ?? [])
         let saved = try? Data(contentsOf: resumeFile)
         // Used once: if it no longer works, the next try starts clean.
         try? FileManager.default.removeItem(at: resumeFile)
@@ -348,6 +368,7 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
         if let http = downloadTask.response as? HTTPURLResponse, !Self.isComplete(status: http.statusCode) {
+            failedStatus = http.statusCode
             moveError = NSError(domain: "Ata", code: http.statusCode,
                                 userInfo: [NSLocalizedDescriptionKey: L("The server replied %d.", http.statusCode)])
             return
@@ -363,6 +384,19 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         if let data = (error as NSError?)?.userInfo[NSURLSessionDownloadTaskResumeData] as? Data {
             try? data.write(to: resumeFile, options: .atomic)
+        }
+        if error == nil, let status = failedStatus, Self.isWorthRetrying(status: status), retriesUsed < retryDelays.count {
+            let delay = retryDelays[retriesUsed]
+            retriesUsed += 1
+            failedStatus = nil
+            moveError = nil
+            let next = routes[retriesUsed % routes.count]
+            DispatchQueue.global().asyncAfter(deadline: .now() + delay) { [self] in
+                let t = session.downloadTask(with: next)
+                self.task = t
+                t.resume()
+            }
+            return
         }
         completion(error ?? moveError)
         session.finishTasksAndInvalidate()
