@@ -77,7 +77,8 @@ enum LocalEngine {
     /// the language of each piece detected, and each run of one language
     /// transcribed in that language, times shifted back into the track.
     static func transcribeMixed(audio: URL, speaker: String, model: LocalModel, fallback: String,
-                                plausible: [String], progress: @escaping @Sendable (Double) -> Void)
+                                plausible: [String], progress: @escaping @Sendable (Double) -> Void,
+                                stage: @escaping @Sendable (TranscribeStage) -> Void = { _ in })
         async throws -> [Segment] {
         let pieces = try SpeechChunks.split(audio)
         guard pieces.count > 1 else {
@@ -89,14 +90,23 @@ enum LocalEngine {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
 
+        // Detected per window of neighbouring pieces, not per piece: whisper
+        // reads 30 s for every answer however short the file, so 427 pieces
+        // of an hour-long call cost 427 full passes before a word was written.
+        // Each piece takes its window's answer.
+        let windows = DetectionWindows.group(pieces, limitSamples: DetectionWindows.limitSamples)
         var files: [URL] = []
-        for (i, range) in pieces.enumerated() {
+        for (i, window) in windows.enumerated() {
+            let range = pieces[window.lowerBound].lowerBound..<pieces[window.upperBound - 1].upperBound
             let file = dir.appendingPathComponent("piece-\(i).wav")
             try AudioFiles.copySamples(audio, range, to: file)
             files.append(file)
         }
+        stage(.languages)
         progress(0.02)
-        let detections = await detectLanguages(files, model: model)
+        let found = await detectLanguages(files, model: model)
+        let detections = DetectionWindows.spread(found, over: windows, pieces: pieces.count)
+        stage(.speech)
         let rate = Double(WavWriter.sampleRate)
         let runs = LanguageChoice.runs(detections, seconds: pieces.map { Double($0.count) / rate },
                                        plausible: plausible, fallback: fallback)
@@ -444,5 +454,35 @@ enum LocalEngine {
             let tokens: [Token]?
         }
         let transcription: [Item]
+    }
+}
+
+/// Neighbouring speech pieces put together for language detection, up to the
+/// 30 s whisper reads for one answer.
+enum DetectionWindows {
+    static let limitSamples = 30 * Int(WavWriter.sampleRate)
+
+    /// Runs of consecutive piece indices whose audio, from the first piece's
+    /// start to the last one's end, fits in `limitSamples`. A piece longer
+    /// than that is a window of its own.
+    static func group(_ pieces: [Range<Int>], limitSamples: Int) -> [Range<Int>] {
+        var out: [Range<Int>] = []
+        var start = 0
+        for i in pieces.indices.dropFirst() where pieces[i].upperBound - pieces[start].lowerBound > limitSamples {
+            out.append(start..<i)
+            start = i
+        }
+        if !pieces.isEmpty { out.append(start..<pieces.count) }
+        return out
+    }
+
+    /// Each piece gets its window's detection.
+    static func spread(_ found: [(code: String, p: Double)?], over windows: [Range<Int>],
+                       pieces: Int) -> [(code: String, p: Double)?] {
+        var out: [(code: String, p: Double)?] = Array(repeating: nil, count: pieces)
+        for (window, detection) in zip(windows, found) {
+            for i in window { out[i] = detection }
+        }
+        return out
     }
 }

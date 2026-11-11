@@ -26,6 +26,8 @@ final class AppStore: ObservableObject {
     @Published private(set) var detectedApp: String?
     @Published private(set) var meetings: [Meeting] = []
     @Published private(set) var transcribingID: String?
+    /// The meeting whose summary is being written, after its transcript.
+    @Published private(set) var summarizingID: String?
     /// Moments marked in the recording in progress.
     @Published private(set) var bookmarkCount = 0
     /// Audio files still being decoded into meetings.
@@ -527,7 +529,7 @@ final class AppStore: ObservableObject {
         var m = m
         // Not while another device is transcribing it: its run would overwrite this one.
         guard m.hasAudio, !m.isPlaceholder, m.id != transcribingID, m.id != current?.id,
-              !audioJobs.contains(m.id), m.canClaim() else { return }
+              !audioJobs.contains(m.id), m.id != summarizingID, m.canClaim() else { return }
         m.status = .pending
         m.error = nil
         m.override = override
@@ -615,6 +617,12 @@ final class AppStore: ObservableObject {
         Library.save(m)
         reload()
         let job = m
+        // The summary is written after the transcript, beside the queue
+        // (`writeOwedSummaries`): it took minutes per meeting, and every
+        // meeting queued behind this one waited for it.
+        var run = options
+        run.summarize = false
+        live.stage = .preparing
 
         transcribeJob = Task {
             let heartbeat = renewClaim(of: job.id)
@@ -622,14 +630,17 @@ final class AppStore: ObservableObject {
             // run's (see `RunEnd`): a device that took it over owns the meeting, so nothing
             // here is saved and its audio is left alone.
             do {
-                let outcome = try await Transcriber.transcribe(job, options: options) { p in
+                let outcome = try await Transcriber.transcribe(job, options: run, progress: { p in
                     Task { @MainActor in
                         if AppStore.shared.transcribingID == job.id { AppStore.shared.live.setProgress(p) }
                     }
-                }
+                }, stage: { s in
+                    Task { @MainActor in
+                        if AppStore.shared.transcribingID == job.id { AppStore.shared.live.stage = s }
+                    }
+                })
                 if let m = await RunEnd.save(job.id, as: .done, apply: RunEnd.done(outcome)) {
-                    if SummaryBackfill.shouldMark(summarize: options.summarize, appleAvailable: AppleModel.isAvailable,
-                                                  words: m.transcriptions?.last?.words ?? 0) {
+                    if SummaryBackfill.owed(summarize: options.summarize, words: m.transcriptions?.last?.words ?? 0) {
                         var owed = m
                         owed.summaryPending = true
                         Library.save(owed)
@@ -658,6 +669,7 @@ final class AppStore: ObservableObject {
             transcribeJob = nil
             transcribingID = nil
             live.transcribeProgress = 0
+            live.stage = nil
             reload()
             pump()
         }
@@ -766,8 +778,10 @@ final class AppStore: ObservableObject {
         writingOwedSummaries = true
         Task {
             defer { writingOwedSummaries = false; reload() }
+            defer { summarizingID = nil }
             for m in owed {
                 triedOwedSummaries.insert(m.id)
+                summarizingID = m.id
                 guard let stored = StoredTranscript.load(from: m.storedTranscriptURL) else { continue }
                 let options = TranscribeOptions.current()
                 if stored.summary == nil {
@@ -831,6 +845,7 @@ final class LiveValues: ObservableObject {
     @Published var micLevel: Float = 0
     @Published var systemLevel: Float = 0
     @Published var transcribeProgress: Double = 0
+    @Published var stage: TranscribeStage?
 
     /// Only when the whole percent shown changes: engines report far more often.
     func setProgress(_ p: Double) {

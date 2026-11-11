@@ -95,4 +95,60 @@ final class BusyLibraryTests: XCTestCase {
                    meeting("busy-c", .recording, minutesAgo: 1)]
         XCTAssertNil(AppStore.nextInQueue(all, repairing: [], now: Date()))
     }
+
+    // MARK: Language detection
+
+    private let second = Int(WavWriter.sampleRate)
+
+    /// Pieces of `lengths` seconds, back to back.
+    private func pieces(_ lengths: [Int]) -> [Range<Int>] {
+        var at = 0
+        return lengths.map { n in
+            defer { at += n * second }
+            return at..<(at + n * second)
+        }
+    }
+
+    func testNeighbouringPiecesShareOneDetectionWindow() {
+        let windows = DetectionWindows.group(pieces([8, 8, 8, 8, 8, 8]), limitSamples: 30 * second)
+        XCTAssertEqual(windows, [0..<3, 3..<6])
+    }
+
+    func testAPieceAsLongAsAWindowStandsAlone() {
+        let windows = DetectionWindows.group(pieces([30, 5, 30]), limitSamples: 30 * second)
+        XCTAssertEqual(windows, [0..<1, 1..<2, 2..<3])
+    }
+
+    func testEveryPieceIsInExactlyOneWindow() {
+        let lengths = [4, 12, 29, 6, 6, 6, 6, 6, 18, 9, 30, 4, 4]
+        let windows = DetectionWindows.group(pieces(lengths), limitSamples: 30 * second)
+        XCTAssertEqual(windows.flatMap { Array($0) }, Array(lengths.indices))
+        XCTAssertLessThan(windows.count, lengths.count)
+        XCTAssertTrue(DetectionWindows.group([], limitSamples: 30 * second).isEmpty)
+    }
+
+    func testAnHourOfShortTurnsNeedsFarFewerPasses() {
+        // About what an hour-long call split into: 427 pieces of ~8.7 s.
+        let windows = DetectionWindows.group(pieces(Array(repeating: 9, count: 400)), limitSamples: DetectionWindows.limitSamples)
+        XCTAssertLessThanOrEqual(windows.count, 134)
+    }
+
+    func testEachPieceTakesItsWindowsAnswer() {
+        let spread = DetectionWindows.spread([("pt", 0.9), nil, ("en", 0.8)], over: [0..<2, 2..<3, 3..<5], pieces: 5)
+        XCTAssertEqual(spread.map { $0?.code }, ["pt", "pt", nil, "en", "en"])
+        XCTAssertEqual(spread[4]?.p ?? 0, 0.8, accuracy: 1e-9)
+    }
+
+    // MARK: Summaries
+
+    func testEveryTranscriptWithWordsOwesASummaryWhenSummariesAreOn() {
+        XCTAssertTrue(SummaryBackfill.owed(summarize: true, words: 12))
+        XCTAssertFalse(SummaryBackfill.owed(summarize: true, words: 0))
+        XCTAssertFalse(SummaryBackfill.owed(summarize: false, words: 12))
+    }
+
+    func testEveryStageSaysSomethingDifferent() {
+        let stages: [TranscribeStage] = [.preparing, .languages, .speech, .voices, .summary]
+        XCTAssertEqual(Set(stages.map(\.label)).count, stages.count)
+    }
 }

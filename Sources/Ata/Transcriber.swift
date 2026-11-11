@@ -282,6 +282,21 @@ enum LanguageChoice {
     }
 }
 
+/// What a transcription is doing now, for the line under the meeting in the list.
+enum TranscribeStage: Equatable, Sendable {
+    case preparing, languages, speech, voices, summary
+
+    var label: String {
+        switch self {
+        case .preparing: return L("Preparing the audio…")
+        case .languages: return L("Detecting languages…")
+        case .speech: return L("Transcribing…")
+        case .voices: return L("Recognising voices…")
+        case .summary: return L("Writing the summary…")
+        }
+    }
+}
+
 /// Runs a transcription end to end: picks the engine per track, merges the two
 /// tracks into one timeline, drops microphone echo and writes the Markdown.
 enum Transcriber {
@@ -294,8 +309,11 @@ enum Transcriber {
     }
 
     static func transcribe(_ meeting: Meeting, options: TranscribeOptions,
-                           progress: @escaping @Sendable (Double) -> Void) async throws -> TranscriptionOutcome {
+                           progress: @escaping @Sendable (Double) -> Void,
+                           stage: @escaping @Sendable (TranscribeStage) -> Void = { _ in })
+        async throws -> TranscriptionOutcome {
         let started = Date()
+        stage(.preparing)
         var options = options
         // The words Ata should get right, resolved now that the voice library
         // can be read: what the user typed, plus everyone they have named.
@@ -378,6 +396,7 @@ enum Transcriber {
         // The local engine gets an explicit language per track; see LanguageChoice.
         var languages = Array(repeating: options.language, count: prepared.count)
         if options.engine == .local, options.language == "auto", let model = LocalModel.find(options.localModel) {
+            stage(.languages)
             var detections: [(code: String, p: Double)?] = []
             for track in prepared { detections.append(await LocalEngine.detectLanguage(audio: track.audio, model: model)) }
             languages = LanguageChoice.pick(detections, plausible: LanguageChoice.plausible)
@@ -392,6 +411,7 @@ enum Transcriber {
             let base = Double(i) / Double(prepared.count)
             let span = 1 / Double(prepared.count)
             let step: @Sendable (Double) -> Void = { p in progress(ProgressShare.speech * (base + p * span)) }
+            stage(.speech)
 
             switch options.engine {
             case .local:
@@ -404,7 +424,7 @@ enum Transcriber {
                     segments += try await LocalEngine.transcribeMixed(audio: track.audio, speaker: track.speaker,
                                                                       model: model, fallback: languages[i],
                                                                       plausible: LanguageChoice.plausible,
-                                                                      progress: step)
+                                                                      progress: step, stage: stage)
                 } else {
                     segments += try await LocalEngine.transcribe(audio: track.audio, speaker: track.speaker,
                                                                  model: model, language: languages[i],
@@ -425,6 +445,7 @@ enum Transcriber {
         try? FileManager.default.removeItem(at: meeting.speakersURL)
         if options.recogniseVoices, let diarizer = Diarization.current {
             progress(ProgressShare.speech)
+            stage(.voices)
             segments = await recogniseSpeakers(segments, meeting: meeting, diarizer: diarizer,
                                                system: prepared.first { $0.speaker == Speakers.others }?.audio,
                                                mic: prepared.first { $0.speaker == Speakers.me }?.audio)
@@ -455,6 +476,7 @@ enum Transcriber {
 
         if options.summarize, !segments.isEmpty {
             progress(ProgressShare.summary)
+            stage(.summary)
             let draft = render(stored, meeting: meeting, names: Speakers.names(for: meeting, myName: options.myName))
             if let summary = await Summarizer.summarize(markdown: draft, options: options) {
                 stored.summary = summary

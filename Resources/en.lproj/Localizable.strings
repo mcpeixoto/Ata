@@ -221,6 +221,10 @@
 "More" = "More";
 "Waiting to be transcribed…" = "Waiting to be transcribed…";
 "Transcribing…" = "Transcribing…";
+"Preparing the audio…" = "Preparing the audio…";
+"Detecting languages…" = "Detecting languages…";
+"Recognising voices…" = "Recognising voices…";
+"Writing the summary…" = "Writing the summary…";
 "Pause" = "Pause";
 "Play the meeting" = "Play the meeting";
 "Playback speed" = "Playback speed";

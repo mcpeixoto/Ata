@@ -497,7 +497,11 @@ struct MeetingRow: View {
                     Text(meeting.title).font(.system(size: 12, weight: .semibold)).lineLimit(1)
                     CategoryTagView(category: meeting.categoryValue)
                 }
-                Text(detail).font(.system(size: 11)).foregroundStyle(detailColor).lineLimit(1)
+                if isTranscribing {
+                    RowStage(subtitle: meeting.subtitle)
+                } else {
+                    Text(detail).font(.system(size: 11)).foregroundStyle(detailColor).lineLimit(1)
+                }
             }
             Spacer(minLength: 4)
             trailing
@@ -520,6 +524,8 @@ struct MeetingRow: View {
         case .failed: return meeting.error ?? L("Failed")
         case .pending: return L("Queued") + " · \(meeting.subtitle)"
         case .recording: return L("Recording…")
+        case .done where store.summarizingID == meeting.id:
+            return TranscribeStage.summary.label + " · \(meeting.subtitle)"
         default: return meeting.subtitle
         }
     }
@@ -693,5 +699,17 @@ private struct RowProgress: View {
                 .font(.system(size: 10, weight: .medium)).monospacedDigit().foregroundStyle(.secondary)
                 .frame(width: 28, alignment: .trailing)
         }
+    }
+}
+
+/// What the transcription is doing now, under the meeting's title: an hour
+/// of audio takes a while, and a bar alone doesn't say whether it moves.
+private struct RowStage: View {
+    @ObservedObject private var live = LiveValues.shared
+    let subtitle: String
+
+    var body: some View {
+        Text([live.stage?.label, subtitle].compactMap { $0 }.joined(separator: " · "))
+            .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
     }
 }
