@@ -282,12 +282,63 @@ enum LanguageChoice {
     }
 }
 
+/// What a transcription is doing now, for the line under the meeting in the list.
+enum TranscribeStage: Equatable, Sendable {
+    case preparing, languages, speech, voices, summary
+
+    var label: String {
+        switch self {
+        case .preparing: return L("Preparing the audio…")
+        case .languages: return L("Detecting languages…")
+        case .speech: return L("Transcribing…")
+        case .voices: return L("Recognising voices…")
+        case .summary: return L("Writing the summary…")
+        }
+    }
+}
+
 /// Runs a transcription end to end: picks the engine per track, merges the two
 /// tracks into one timeline, drops microphone echo and writes the Markdown.
 enum Transcriber {
+    /// Where the bar stands as each stage starts. Recognising voices and
+    /// writing the summary take minutes on an hour-long meeting; with speech
+    /// filling the bar to 97 % and nothing after, it looked stuck.
+    enum ProgressShare {
+        /// Reading the tracks and taking the echo out, before any speech.
+        static let prepared = 0.05
+        static let speech = 0.85
+        static let summary = 0.93
+
+        /// Where each track's part of the speech stretch starts, and how much
+        /// of it the track gets: in proportion to how much sound it holds,
+        /// since whisper skips the silence. Halves, as before, sat at 50 %
+        /// for most of a call and then raced through a near-silent mic.
+        /// Every track keeps a tenth of the share, so one that holds almost
+        /// nothing still moves the bar while its model loads.
+        static func trackSpans(audible: [Double]) -> [(base: Double, span: Double)] {
+            guard !audible.isEmpty else { return [] }
+            let total = audible.reduce(0) { $0 + max(0, $1) }
+            let floor = 0.1 / Double(audible.count)
+            let raw = audible.map { total > 0 ? max(0, $0) / total : 1 / Double(audible.count) }
+            let lifted = raw.map { max($0, floor) }
+            let sum = lifted.reduce(0, +)
+            var at = 0.0
+            return lifted.map { w in
+                defer { at += w / sum }
+                return (at, w / sum)
+            }
+        }
+
+        /// The whole bar's value for `p` of the speech stretch.
+        static func forSpeech(_ p: Double) -> Double { prepared + (speech - prepared) * min(max(p, 0), 1) }
+    }
+
     static func transcribe(_ meeting: Meeting, options: TranscribeOptions,
-                           progress: @escaping @Sendable (Double) -> Void) async throws -> TranscriptionOutcome {
+                           progress: @escaping @Sendable (Double) -> Void,
+                           stage: @escaping @Sendable (TranscribeStage) -> Void = { _ in })
+        async throws -> TranscriptionOutcome {
         let started = Date()
+        stage(.preparing)
         var options = options
         // The words Ata should get right, resolved now that the voice library
         // can be read: what the user typed, plus everyone they have named.
@@ -370,20 +421,25 @@ enum Transcriber {
         // The local engine gets an explicit language per track; see LanguageChoice.
         var languages = Array(repeating: options.language, count: prepared.count)
         if options.engine == .local, options.language == "auto", let model = LocalModel.find(options.localModel) {
+            stage(.languages)
             var detections: [(code: String, p: Double)?] = []
             for track in prepared { detections.append(await LocalEngine.detectLanguage(audio: track.audio, model: model)) }
             languages = LanguageChoice.pick(detections, plausible: LanguageChoice.plausible)
         }
 
+        progress(ProgressShare.prepared)
+        let spans = ProgressShare.trackSpans(audible: prepared.map {
+            $0.speaker == Speakers.me ? micAudible : systemAudible
+        })
         var segments: [Segment] = []
         for (i, track) in prepared.enumerated() {
             // Taken over by another device, or Ata is quitting: the next track
             // does not start. Language detection above reports a cancelled run
             // as no answer, so this is where it is noticed.
             if Task.isCancelled { throw TranscriberError.cancelled }
-            let base = Double(i) / Double(prepared.count)
-            let span = 1 / Double(prepared.count)
-            let step: @Sendable (Double) -> Void = { p in progress(base + p * span) }
+            let (base, span) = spans[i]
+            let step: @Sendable (Double) -> Void = { p in progress(ProgressShare.forSpeech(base + p * span)) }
+            stage(.speech)
 
             switch options.engine {
             case .local:
@@ -396,7 +452,7 @@ enum Transcriber {
                     segments += try await LocalEngine.transcribeMixed(audio: track.audio, speaker: track.speaker,
                                                                       model: model, fallback: languages[i],
                                                                       plausible: LanguageChoice.plausible,
-                                                                      progress: step)
+                                                                      progress: step, stage: stage)
                 } else {
                     segments += try await LocalEngine.transcribe(audio: track.audio, speaker: track.speaker,
                                                                  model: model, language: languages[i],
@@ -416,7 +472,8 @@ enum Transcriber {
         // A run without voice recognition leaves no stale speaker map behind.
         try? FileManager.default.removeItem(at: meeting.speakersURL)
         if options.recogniseVoices, let diarizer = Diarization.current {
-            progress(0.97)
+            progress(ProgressShare.speech)
+            stage(.voices)
             segments = await recogniseSpeakers(segments, meeting: meeting, diarizer: diarizer,
                                                system: prepared.first { $0.speaker == Speakers.others }?.audio,
                                                mic: prepared.first { $0.speaker == Speakers.me }?.audio)
@@ -446,6 +503,8 @@ enum Transcriber {
         }
 
         if options.summarize, !segments.isEmpty {
+            progress(ProgressShare.summary)
+            stage(.summary)
             let draft = render(stored, meeting: meeting, names: Speakers.names(for: meeting, myName: options.myName))
             if let summary = await Summarizer.summarize(markdown: draft, options: options) {
                 stored.summary = summary

@@ -221,6 +221,13 @@
 "More" = "Mais";
 "Waiting to be transcribed…" = "À espera de ser transcrita…";
 "Transcribing…" = "A transcrever…";
+"Preparing the audio…" = "A preparar o áudio…";
+"Detecting languages…" = "A detetar os idiomas…";
+"Recognising voices…" = "A reconhecer as vozes…";
+"Writing the summary…" = "A escrever o resumo…";
+"Less than a minute left" = "Falta menos de um minuto";
+"About %d min left" = "Faltam cerca de %d min";
+"About %d h %d min left" = "Faltam cerca de %d h %d min";
 "Pause" = "Pausar";
 "Play the meeting" = "Ouvir a reunião";
 "Playback speed" = "Velocidade de reprodução";

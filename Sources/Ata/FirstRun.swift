@@ -58,5 +58,11 @@ enum SummaryBackfill {
     static func shouldMark(summarize: Bool, appleAvailable: Bool, words: Int) -> Bool {
         summarize && !appleAvailable && words > 0
     }
+
+    /// On the Mac every summary is written after its transcript, outside the
+    /// queue, so any transcript with words owes one when summaries are on.
+    static func owed(summarize: Bool, words: Int) -> Bool {
+        summarize && words > 0
+    }
 }
 #endif

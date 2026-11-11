@@ -40,7 +40,10 @@ struct MeetingView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         #endif
         .frame(height: height)
-        .onReceive(store.$meetings) { _ in model.reload() }
+        // Only when this meeting changed: a reload reads its whole transcript,
+        // and the library changes every few seconds while another one transcribes.
+        .onReceive(store.$meetings.map { [id = model.id] all in all.first { $0.id == id } }
+            .removeDuplicates()) { _ in model.reload() }
         .onReceive(people.$voices.dropFirst()) { _ in model.reload() }
     }
 
@@ -309,7 +312,19 @@ struct MeetingView: View {
         case .pending:
             statusRow(store.queueReason ?? L("Waiting to be transcribed…"), progress: nil)
         case .transcribing:
+            #if os(macOS)
+            if store.transcribingID == meeting.id {
+                HStack(spacing: 8) {
+                    LiveProgressBar().frame(width: 120)
+                    TranscribeStatus().ataFont(11)
+                    Spacer()
+                }
+            } else {
+                statusRow(L("Transcribing…"), progress: nil)
+            }
+            #else
             statusRow(L("Transcribing…"), progress: store.transcribingID == meeting.id ? store.transcribeProgress : nil)
+            #endif
         case .failed:
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
@@ -1167,3 +1182,16 @@ struct WaveformView: View {
         #endif
     }
 }
+
+#if os(macOS)
+/// The running transcription's progress, observed on its own so a tick
+/// doesn't redraw the meeting around it.
+private struct LiveProgressBar: View {
+    @ObservedObject private var live = LiveValues.shared
+
+    var body: some View {
+        ProgressView(value: live.transcribeProgress)
+            .animation(.easeOut(duration: 0.4), value: live.transcribeProgress)
+    }
+}
+#endif

@@ -187,14 +187,29 @@ final class Recorder: NSObject {
         if let outputWatcher { SystemAudioTap.stopWatching(outputWatcher) }
         outputWatcher = nil
         stopMic()
-        await stopSystem()
-        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
-            sysQueue.async { c.resume() } // make sure the last buffer has been written
+        // Core Audio's teardown blocks whichever thread calls it, with no
+        // limit of its own. On the main actor that froze the menu bar, and a
+        // stop that never came back left "Wrapping up…" on screen with the
+        // meeting never filed. It runs off the main actor now, and stopping
+        // waits for it only so long: the writers close either way, and a
+        // buffer that arrives after that is ignored by a closed writer.
+        let tap = self.tap
+        self.tap = nil
+        let queue = sysQueue
+        let finished = await BoundedWait.run(seconds: Self.teardownLimit) {
+            tap?.stop()
+            queue.sync {} // make sure the last buffer has been written
+        }
+        if !finished {
+            NSLog("Ata: system audio took over \(Int(Self.teardownLimit)) s to stop; closing the recording anyway")
         }
         mic?.close(); mic = nil
         sysBox.writer?.close(); sysBox.writer = nil
         onWarning?(nil)
     }
+
+    /// How long stopping waits for Core Audio before it closes the files anyway.
+    nonisolated static let teardownLimit: Double = 5
 
     var micLevel: Float { mic?.level ?? 0 }
     var systemLevel: Float { sys?.level ?? 0 }
@@ -339,9 +354,11 @@ final class Recorder: NSObject {
         sys?.touch()
     }
 
+    /// Off the main actor and bounded, for the same reason as in `teardown`.
     private func stopSystem() async {
-        tap?.stop()
-        tap = nil
+        guard let tap else { return }
+        self.tap = nil
+        _ = await BoundedWait.run(seconds: Self.teardownLimit) { tap.stop() }
     }
 
     private func restartSystem() {
@@ -400,6 +417,36 @@ final class Recorder: NSObject {
                 self.checkForASilentMicrophone()
                 self.checkForFailedWrites()
             }
+        }
+    }
+}
+
+
+/// Runs blocking work on a background thread and waits for it, but not past a
+/// limit. True when the work finished in time; false when the wait gave up,
+/// in which case the work still runs to its end on its own.
+enum BoundedWait {
+    static func run(seconds: Double, _ work: @escaping @Sendable () -> Void) async -> Bool {
+        let once = Once()
+        return await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
+            DispatchQueue.global(qos: .userInitiated).async {
+                work()
+                if once.claim() { c.resume(returning: true) }
+            }
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + seconds) {
+                if once.claim() { c.resume(returning: false) }
+            }
+        }
+    }
+
+    private final class Once: @unchecked Sendable {
+        private let lock = NSLock()
+        private var done = false
+        func claim() -> Bool {
+            lock.lock(); defer { lock.unlock() }
+            if done { return false }
+            done = true
+            return true
         }
     }
 }

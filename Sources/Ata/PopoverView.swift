@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct MenuBarLabel: View {
     @EnvironmentObject var store: AppStore
+    @ObservedObject private var live = LiveValues.shared
     @AppStorage(Pref.menuIconSymbol) private var symbol = MenuIcon.Symbol.dot.rawValue
     @AppStorage(Pref.menuIconTint) private var tint = MenuIcon.Tint.monochrome.rawValue
     @AppStorage(Pref.menuIconTimer) private var timer = true
@@ -379,6 +380,7 @@ struct PopoverView: View {
 /// Card contents while recording.
 private struct RecordingContent: View {
     @EnvironmentObject var store: AppStore
+    @ObservedObject private var live = LiveValues.shared
     @State private var confirmDiscard = false
 
     var body: some View {
@@ -495,7 +497,11 @@ struct MeetingRow: View {
                     Text(meeting.title).font(.system(size: 12, weight: .semibold)).lineLimit(1)
                     CategoryTagView(category: meeting.categoryValue)
                 }
-                Text(detail).font(.system(size: 11)).foregroundStyle(detailColor).lineLimit(1)
+                if isTranscribing {
+                    TranscribeStatus().font(.system(size: 11))
+                } else {
+                    Text(detail).font(.system(size: 11)).foregroundStyle(detailColor).lineLimit(1)
+                }
             }
             Spacer(minLength: 4)
             trailing
@@ -518,6 +524,8 @@ struct MeetingRow: View {
         case .failed: return meeting.error ?? L("Failed")
         case .pending: return L("Queued") + " · \(meeting.subtitle)"
         case .recording: return L("Recording…")
+        case .done where store.summarizingID == meeting.id:
+            return TranscribeStage.summary.label + " · \(meeting.subtitle)"
         default: return meeting.subtitle
         }
     }
@@ -543,14 +551,7 @@ struct MeetingRow: View {
     @ViewBuilder
     private var trailing: some View {
         if isTranscribing {
-            HStack(spacing: 6) {
-                ProgressView(value: store.transcribeProgress)
-                    .progressViewStyle(.linear)
-                    .frame(width: 60)
-                Text("\(Int(store.transcribeProgress * 100))%")
-                    .font(.system(size: 10, weight: .medium)).monospacedDigit().foregroundStyle(.secondary)
-                    .frame(width: 28, alignment: .trailing)
-            }
+            RowProgress()
         } else if meeting.status == .failed && meeting.hasAudio {
             Button("Try again") { store.retry(meeting) }
                 .controlSize(.small)
@@ -681,5 +682,45 @@ struct NameVoicesBanner: View {
             .buttonStyle(.plain)
             .onAppear { people.reload() }
         }
+    }
+}
+
+/// The transcribing row's bar. Its own view, so a progress tick redraws the
+/// bar and not every row of the list.
+private struct RowProgress: View {
+    @ObservedObject private var live = LiveValues.shared
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ProgressView(value: live.transcribeProgress)
+                .progressViewStyle(.linear)
+                .frame(width: 60)
+                .animation(.easeOut(duration: 0.4), value: live.transcribeProgress)
+            Text("\(Int(live.transcribeProgress * 100))%")
+                .font(.system(size: 10, weight: .medium)).monospacedDigit().foregroundStyle(.secondary)
+                .frame(width: 28, alignment: .trailing)
+        }
+    }
+}
+
+/// What the transcription is doing now and how long it has left, under the
+/// meeting's title: an hour of audio takes a while, and a bar alone doesn't
+/// say when it will be done. Redrawn every few seconds as the time runs down.
+struct TranscribeStatus: View {
+    @ObservedObject private var live = LiveValues.shared
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 5)) { context in
+            Text(line(at: context.date))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .monospacedDigit()
+        }
+    }
+
+    private func line(at now: Date) -> String {
+        let stage = (live.stage ?? .preparing).label
+        guard let left = live.remaining(at: now) else { return stage }
+        return stage + " · " + TranscribeETA.text(left)
     }
 }
