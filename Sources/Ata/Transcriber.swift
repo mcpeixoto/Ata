@@ -304,8 +304,33 @@ enum Transcriber {
     /// writing the summary take minutes on an hour-long meeting; with speech
     /// filling the bar to 97 % and nothing after, it looked stuck.
     enum ProgressShare {
+        /// Reading the tracks and taking the echo out, before any speech.
+        static let prepared = 0.05
         static let speech = 0.85
         static let summary = 0.93
+
+        /// Where each track's part of the speech stretch starts, and how much
+        /// of it the track gets: in proportion to how much sound it holds,
+        /// since whisper skips the silence. Halves, as before, sat at 50 %
+        /// for most of a call and then raced through a near-silent mic.
+        /// Every track keeps a tenth of the share, so one that holds almost
+        /// nothing still moves the bar while its model loads.
+        static func trackSpans(audible: [Double]) -> [(base: Double, span: Double)] {
+            guard !audible.isEmpty else { return [] }
+            let total = audible.reduce(0) { $0 + max(0, $1) }
+            let floor = 0.1 / Double(audible.count)
+            let raw = audible.map { total > 0 ? max(0, $0) / total : 1 / Double(audible.count) }
+            let lifted = raw.map { max($0, floor) }
+            let sum = lifted.reduce(0, +)
+            var at = 0.0
+            return lifted.map { w in
+                defer { at += w / sum }
+                return (at, w / sum)
+            }
+        }
+
+        /// The whole bar's value for `p` of the speech stretch.
+        static func forSpeech(_ p: Double) -> Double { prepared + (speech - prepared) * min(max(p, 0), 1) }
     }
 
     static func transcribe(_ meeting: Meeting, options: TranscribeOptions,
@@ -402,15 +427,18 @@ enum Transcriber {
             languages = LanguageChoice.pick(detections, plausible: LanguageChoice.plausible)
         }
 
+        progress(ProgressShare.prepared)
+        let spans = ProgressShare.trackSpans(audible: prepared.map {
+            $0.speaker == Speakers.me ? micAudible : systemAudible
+        })
         var segments: [Segment] = []
         for (i, track) in prepared.enumerated() {
             // Taken over by another device, or Ata is quitting: the next track
             // does not start. Language detection above reports a cancelled run
             // as no answer, so this is where it is noticed.
             if Task.isCancelled { throw TranscriberError.cancelled }
-            let base = Double(i) / Double(prepared.count)
-            let span = 1 / Double(prepared.count)
-            let step: @Sendable (Double) -> Void = { p in progress(ProgressShare.speech * (base + p * span)) }
+            let (base, span) = spans[i]
+            let step: @Sendable (Double) -> Void = { p in progress(ProgressShare.forSpeech(base + p * span)) }
             stage(.speech)
 
             switch options.engine {

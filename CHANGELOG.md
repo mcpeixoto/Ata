@@ -8,7 +8,7 @@ Ata keeps up with a long history and a busy day of calls.
 - **The menu bar stays responsive with hundreds of meetings.** Reading the library, finding the next meeting to transcribe and clearing old audio no longer run on the main thread, and the window no longer redraws the whole list twelve times a second while recording.
 - **With iCloud on, a transcription no longer reloads the library every second.** Ata used to treat each file it wrote while transcribing as a library change.
 - **The next meeting starts sooner.** Writing the MP3 and compressing a finished meeting's audio happen beside the queue instead of holding it up.
-- **The list says what Ata is doing.** Under the meeting being transcribed: preparing the audio, detecting languages, transcribing, recognising voices, then writing the summary. The bar no longer sits at 97 %.
+- **The list says what Ata is doing, and how long it has left.** Under the meeting being transcribed: preparing the audio, detecting languages, transcribing, recognising voices, then writing the summary, with the time left worked out from how fast this Mac did your last meetings and how fast this one is going. The bar moves at an even pace and no longer sits at 97 %.
 - **Summaries no longer hold up the queue.** The transcript is saved as soon as it is ready and the next meeting starts; the summary follows a little later.
 - **Detecting the languages of a call takes a fraction of the time.** Neighbouring stretches of speech are checked together, up to 30 seconds at a time, instead of one by one: an hour-long call went from over 400 checks to under 150.
 

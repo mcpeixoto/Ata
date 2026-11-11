@@ -316,7 +316,7 @@ struct MeetingView: View {
             if store.transcribingID == meeting.id {
                 HStack(spacing: 8) {
                     LiveProgressBar().frame(width: 120)
-                    Text("Transcribing…").ataFont(11).foregroundStyle(.secondary)
+                    TranscribeStatus().ataFont(11)
                     Spacer()
                 }
             } else {
@@ -1191,6 +1191,7 @@ private struct LiveProgressBar: View {
 
     var body: some View {
         ProgressView(value: live.transcribeProgress)
+            .animation(.easeOut(duration: 0.4), value: live.transcribeProgress)
     }
 }
 #endif

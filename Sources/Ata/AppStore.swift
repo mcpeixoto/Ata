@@ -638,6 +638,8 @@ final class AppStore: ObservableObject {
         var run = options
         run.summarize = false
         live.stage = .preparing
+        live.transcribeStartedAt = Date()
+        live.expectedSeconds = expectedSeconds(for: job, model: options.modelID)
 
         transcribeJob = Task {
             let heartbeat = renewClaim(of: job.id)
@@ -685,9 +687,24 @@ final class AppStore: ObservableObject {
             transcribingID = nil
             live.transcribeProgress = 0
             live.stage = nil
+            live.transcribeStartedAt = nil
+            live.expectedSeconds = nil
             reload()
             pump()
         }
+    }
+
+    /// How long this meeting should take, from this Mac's pace on its last
+    /// transcripts with the same model. Another device's pace says nothing about this one.
+    private func expectedSeconds(for m: Meeting, model: String) -> TimeInterval? {
+        let history = meetings.filter(\.isMine).flatMap { $0.transcriptions ?? [] }
+        guard let rate = TranscribeETA.rate(history, model: model) else { return nil }
+        // Both tracks, as the records count them. A compressed track has no
+        // WAV length to read: the meeting's own length stands in for it.
+        let audio = [m.micAudioURL, m.systemAudioURL].compactMap { $0 }.reduce(0.0) { sum, url in
+            sum + (url.pathExtension.lowercased() == "wav" ? WavWriter.duration(of: url) : (m.duration ?? 0))
+        }
+        return audio > 0 ? audio * rate : nil
     }
 
     /// Renews this device's claim on the meeting being transcribed every few
@@ -886,6 +903,17 @@ final class LiveValues: ObservableObject {
     @Published var systemLevel: Float = 0
     @Published var transcribeProgress: Double = 0
     @Published var stage: TranscribeStage?
+    /// When the running transcription started, and how long this Mac's pace
+    /// on earlier meetings says it should take; see `TranscribeETA`.
+    var transcribeStartedAt: Date?
+    var expectedSeconds: TimeInterval?
+
+    /// The running transcription's time left, as of `now`.
+    func remaining(at now: Date) -> TimeInterval? {
+        guard let started = transcribeStartedAt else { return nil }
+        return TranscribeETA.remaining(progress: transcribeProgress, elapsed: now.timeIntervalSince(started),
+                                       expected: expectedSeconds)
+    }
 
     /// Only when the whole percent shown changes: engines report far more often.
     func setProgress(_ p: Double) {

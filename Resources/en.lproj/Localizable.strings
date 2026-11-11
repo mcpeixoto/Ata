@@ -225,6 +225,9 @@
 "Detecting languages…" = "Detecting languages…";
 "Recognising voices…" = "Recognising voices…";
 "Writing the summary…" = "Writing the summary…";
+"Less than a minute left" = "Less than a minute left";
+"About %d min left" = "About %d min left";
+"About %d h %d min left" = "About %d h %d min left";
 "Pause" = "Pause";
 "Play the meeting" = "Play the meeting";
 "Playback speed" = "Playback speed";
