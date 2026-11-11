@@ -4,7 +4,7 @@
 
 Ata keeps up with a long history and a busy day of calls.
 
-- **Stopping a recording no longer hangs on "Wrapping up…".** The clock and meters stop as soon as you press Stop, and the recording is filed within seconds even when the Mac is busy transcribing.
+- **Stopping a recording no longer hangs on "Wrapping up…".** Ata is ready for the next meeting the moment you press Stop: the recording just made is filed in the background, within seconds even when the Mac is busy transcribing.
 - **The menu bar stays responsive with hundreds of meetings.** Reading the library, finding the next meeting to transcribe and clearing old audio no longer run on the main thread, and the window no longer redraws the whole list twelve times a second while recording.
 - **With iCloud on, a transcription no longer reloads the library every second.** Ata used to treat each file it wrote while transcribing as a library change.
 - **The next meeting starts sooner.** Writing the MP3 and compressing a finished meeting's audio happen beside the queue instead of holding it up.

@@ -54,6 +54,10 @@ final class AppStore: ObservableObject {
     /// Meetings whose audio is being compressed or removed after their
     /// transcript: not retried or deleted until that is over.
     private var audioJobs: Set<String> = []
+    /// Stopped recordings still closing their files and moving into the
+    /// library. The next recording waits for them before it opens the
+    /// microphone; nothing else does.
+    private let finishing = Finisher()
     private var reloading = false
     private var reloadAgain = false
     private var pumping = false
@@ -184,7 +188,7 @@ final class AppStore: ObservableObject {
     /// between this Mac's folder and iCloud. An MP3 being mixed doesn't hold it up:
     /// it lands next to the original tracks, and the copy picks it up next time.
     var canMoveLibrary: Bool {
-        phase == .idle && transcribingID == nil && importing == 0 && audioJobs.isEmpty
+        phase == .idle && transcribingID == nil && importing == 0 && audioJobs.isEmpty && finishing.pending == 0
     }
 
     /// The library moved, or another device changed it: read it again, voices
@@ -326,6 +330,9 @@ final class AppStore: ObservableObject {
         Notifier.shared.clear("detected")
 
         Task {
+            // The meeting that just ended may still be closing its files: the
+            // capture is one at a time, so this one starts once that is done.
+            await finishing.wait()
             do {
                 // Written in staging and moved into the meetings folder when it stops,
                 // so a synced folder never holds a half-written WAV.
@@ -359,17 +366,19 @@ final class AppStore: ObservableObject {
         }
     }
 
+    /// Back to idle at once, so the next meeting can be recorded straight
+    /// away: closing the files and filing the meeting finish in the background.
     func stopRecording() {
         guard phase == .recording, let snapshot = current else { return }
-        phase = .stopping
         pendingAutoStop = false
-        // The clock and the meters stop the moment Stop is pressed, not when
-        // the files have closed: a clock still running reads as still recording.
+        let began = startedAt
+        let stoppedAt = Date()
         stopTicker()
-        Task {
+        endSession()
+        finishing.run { [unowned self] in
+            let store = self
             var m = snapshot
-            let stoppedAt = Date()
-            let duration = await recorder.stop()
+            let duration = await store.recorder.stop()
             m.endedAt = stoppedAt
             m.duration = duration
             if m.hasAudio { Metrics.recorded(seconds: duration) }
@@ -380,15 +389,15 @@ final class AppStore: ObservableObject {
             // the wrong ratio, and nothing else in Ata would ever notice — the
             // file is a valid WAV either way, it just plays at the wrong speed
             // and transcribes to nonsense.
-            if let began = startedAt {
+            if let began {
                 let ran = stoppedAt.timeIntervalSince(began)
-                if recorder.paces.isEmpty {
+                if store.recorder.paces.isEmpty {
                     if AudioCheck.isSuspect(audioSeconds: duration, elapsed: ran) {
                         NSLog("%@", AudioCheck.report(audioSeconds: duration, elapsed: ran,
-                                                      formats: recorder.formatsSeen))
+                                                      formats: store.recorder.formatsSeen))
                     }
                 } else {
-                    for pace in recorder.paces {
+                    for pace in store.recorder.paces {
                         // The ratio that matters is samples per second of host
                         // time, before silence was written to fill the gap. A
                         // file that matches the clock can still be double speed.
@@ -404,42 +413,48 @@ final class AppStore: ObservableObject {
                     }
                 }
             }
-            Library.save(m)
-            m = Library.publish(m)
-            current = nil
-            startedAt = nil
-            autoStarted = false
-            bookmarkCount = 0
-            phase = .idle
-            Notifier.shared.clear("recording")
-            reload()
+            // Moving the folder into the library is a coordinated move, which
+            // iCloud can hold up: not on the main thread.
+            let filed = m
+            m = await Task.detached(priority: .userInitiated) {
+                Library.save(filed)
+                return Library.publish(filed)
+            }.value
+            store.reload()
             // Ready to listen to in seconds, long before the transcript is.
-            if m.hasAudio { saveMergedAudio(of: m) }
-            pump()
+            if m.hasAudio { store.saveMergedAudio(of: m) }
+            store.pump()
         }
     }
 
     /// Stops and deletes the current recording.
     func discardRecording() {
         guard phase == .recording, let m = current else { return }
-        phase = .stopping
         pendingAutoStop = false
         stopTicker()
-        Task {
-            _ = await recorder.stop()
+        endSession()
+        finishing.run { [unowned self] in
+            let store = self
+            _ = await store.recorder.stop()
             try? FileManager.default.removeItem(at: m.dir)
-            current = nil
-            startedAt = nil
-            autoStarted = false
-            bookmarkCount = 0
-            phase = .idle
-            Notifier.shared.clear("recording")
-            reload()
+            store.reload()
         }
+    }
+
+    /// The recording is over as far as the UI is concerned.
+    private func endSession() {
+        current = nil
+        startedAt = nil
+        autoStarted = false
+        bookmarkCount = 0
+        phase = .idle
+        Notifier.shared.clear("recording")
     }
 
     /// Called when the app quits: closes the files so the recording is transcribed on next launch.
     func prepareForQuit() async {
+        // A meeting stopped a moment ago is filed before Ata goes.
+        await finishing.wait()
         if phase == .recording, var m = current {
             let duration = await recorder.stop()
             m.endedAt = Date()
@@ -831,6 +846,31 @@ extension AppStore {
         warning = nil
         lastError = nil
         meetings = Library.loadAll()
+    }
+}
+
+/// Work that runs in the background one job at a time, in the order it was
+/// given: stopping a recording closes its files and files the meeting here,
+/// and the next recording waits for it instead of the person waiting.
+@MainActor
+final class Finisher {
+    private var last: Task<Void, Never>?
+    /// Jobs given and not yet over.
+    private(set) var pending = 0
+
+    func run(_ work: @escaping @MainActor () async -> Void) {
+        let previous = last
+        pending += 1
+        last = Task {
+            await previous?.value
+            await work()
+            pending -= 1
+        }
+    }
+
+    /// Returns once every job given so far is over.
+    func wait() async {
+        await last?.value
     }
 }
 
