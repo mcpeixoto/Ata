@@ -327,11 +327,14 @@ final class AppStore: ObservableObject {
         guard phase == .recording, let snapshot = current else { return }
         phase = .stopping
         pendingAutoStop = false
+        // The clock and the meters stop the moment Stop is pressed, not when
+        // the files have closed: a clock still running reads as still recording.
+        stopTicker()
         Task {
             var m = snapshot
+            let stoppedAt = Date()
             let duration = await recorder.stop()
-            stopTicker()
-            m.endedAt = Date()
+            m.endedAt = stoppedAt
             m.duration = duration
             if m.hasAudio { Metrics.recorded(seconds: duration) }
             m.status = m.hasAudio ? .pending : .failed
@@ -342,7 +345,7 @@ final class AppStore: ObservableObject {
             // file is a valid WAV either way, it just plays at the wrong speed
             // and transcribes to nonsense.
             if let began = startedAt {
-                let ran = Date().timeIntervalSince(began)
+                let ran = stoppedAt.timeIntervalSince(began)
                 if recorder.paces.isEmpty {
                     if AudioCheck.isSuspect(audioSeconds: duration, elapsed: ran) {
                         NSLog("%@", AudioCheck.report(audioSeconds: duration, elapsed: ran,
@@ -385,9 +388,9 @@ final class AppStore: ObservableObject {
         guard phase == .recording, let m = current else { return }
         phase = .stopping
         pendingAutoStop = false
+        stopTicker()
         Task {
             _ = await recorder.stop()
-            stopTicker()
             try? FileManager.default.removeItem(at: m.dir)
             current = nil
             startedAt = nil
