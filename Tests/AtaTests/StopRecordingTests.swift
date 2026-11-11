@@ -33,8 +33,8 @@ final class StopRecordingTests: XCTestCase {
 
 /// Stopping goes back to idle at once; filing the meeting runs here, one stop
 /// after another, and the next recording waits for it.
-@MainActor
 final class FinisherTests: XCTestCase {
+    @MainActor
     func testJobsRunInOrderEvenWhenTheFirstIsSlow() async {
         let finisher = Finisher()
         var order: [Int] = []
@@ -49,6 +49,7 @@ final class FinisherTests: XCTestCase {
         XCTAssertEqual(finisher.pending, 0)
     }
 
+    @MainActor
     func testRunReturnsBeforeTheJobIsDone() {
         let finisher = Finisher()
         var done = false
@@ -59,6 +60,7 @@ final class FinisherTests: XCTestCase {
         XCTAssertFalse(done)
     }
 
+    @MainActor
     func testWaitingWithNothingGivenReturnsAtOnce() async {
         let finisher = Finisher()
         await finisher.wait()
