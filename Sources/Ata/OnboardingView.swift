@@ -5,6 +5,7 @@ import SwiftUI
 /// them the whole time. Everything else has a default and lives in Settings.
 struct OnboardingView: View {
     @EnvironmentObject var store: AppStore
+    @ObservedObject private var live = LiveValues.shared
     @EnvironmentObject var setup: SetupModel
     @AppStorage(Pref.onboarded) private var onboarded = false
     @AppStorage(Pref.shareUsage) private var shareUsage = true

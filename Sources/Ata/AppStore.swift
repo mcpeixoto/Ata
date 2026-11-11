@@ -12,16 +12,20 @@ final class AppStore: ObservableObject {
 
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var startedAt: Date?
-    @Published private(set) var now = Date()
-    @Published private(set) var micLevel: Float = 0
-    @Published private(set) var systemLevel: Float = 0
+    /// The clock, the meters and the progress live in `LiveValues`, which
+    /// changes many times a second: published from here, every view that
+    /// reads the store — and stats files for each meeting — redrew with it.
+    let live = LiveValues.shared
+    var now: Date { live.now }
+    var micLevel: Float { live.micLevel }
+    var systemLevel: Float { live.systemLevel }
+    var transcribeProgress: Double { live.transcribeProgress }
     @Published private(set) var warning: String?
     private var writingOwedSummaries = false
     private var triedOwedSummaries = Set<String>()
     @Published private(set) var detectedApp: String?
     @Published private(set) var meetings: [Meeting] = []
     @Published private(set) var transcribingID: String?
-    @Published private(set) var transcribeProgress: Double = 0
     /// Moments marked in the recording in progress.
     @Published private(set) var bookmarkCount = 0
     /// Audio files still being decoded into meetings.
@@ -45,6 +49,13 @@ final class AppStore: ObservableObject {
     /// may be rewritten under them, so they are neither transcribed nor pruned
     /// until it has.
     private var repairingIDs: Set<String> = []
+    /// Meetings whose audio is being compressed or removed after their
+    /// transcript: not retried or deleted until that is over.
+    private var audioJobs: Set<String> = []
+    private var reloading = false
+    private var reloadAgain = false
+    private var pumping = false
+    private var pumpAgain = false
 
     private init() {}
 
@@ -144,15 +155,34 @@ final class AppStore: ObservableObject {
         reload()
     }
 
+    /// Reads every meeting folder off the main actor and publishes the list.
+    /// Called from everywhere, often several times in a row: one read runs at
+    /// a time, and calls that land meanwhile are folded into one more after it.
+    /// It used to read the whole library on the main thread every time, which
+    /// froze the menu bar more the longer the history grew.
     func reload() {
-        meetings = Library.loadAll()
+        guard !reloading else { reloadAgain = true; return }
+        reloading = true
+        Task {
+            let all = await Task.detached(priority: .userInitiated) { Library.loadAll() }.value
+            meetings = all
+            reloading = false
+            // It reads `meetings`, which the callers that asked for it before
+            // this reload became asynchronous expected to be current.
+            writeOwedSummaries()
+            if reloadAgain {
+                reloadAgain = false
+                reload()
+            }
+        }
     }
 
-    /// Nothing is recording, transcribing or importing: the library can move
+    /// Nothing is recording, transcribing, importing or compressing a finished
+    /// meeting's tracks: the library can move
     /// between this Mac's folder and iCloud. An MP3 being mixed doesn't hold it up:
     /// it lands next to the original tracks, and the copy picks it up next time.
     var canMoveLibrary: Bool {
-        phase == .idle && transcribingID == nil && importing == 0
+        phase == .idle && transcribingID == nil && importing == 0 && audioJobs.isEmpty
     }
 
     /// The library moved, or another device changed it: read it again, voices
@@ -177,10 +207,14 @@ final class AppStore: ObservableObject {
         let days = Pref.d.integer(forKey: Pref.audioRetentionDays)
         guard days > 0 else { return }
         let cutoff = Date().addingTimeInterval(-Double(days) * 86_400)
-        for m in Library.loadAll() where m.isMine && m.status == .done && m.startedAt < cutoff
-            && !repairingIDs.contains(m.id) {
-            for url in m.keptAudioFiles {
-                try? Coordinated.remove(url)
+        let repairing = repairingIDs
+        // Every meeting folder is read and every audio file stat'ed: not on the main thread.
+        Task.detached(priority: .utility) {
+            for m in Library.loadAll() where m.isMine && m.status == .done && m.startedAt < cutoff
+                && !repairing.contains(m.id) {
+                for url in m.keptAudioFiles {
+                    try? Coordinated.remove(url)
+                }
             }
         }
     }
@@ -435,9 +469,9 @@ final class AppStore: ObservableObject {
         ticker = Timer.scheduledTimer(withTimeInterval: 1.0 / 12, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
-                self.now = Date()
-                self.micLevel = self.recorder.micLevel
-                self.systemLevel = self.recorder.systemLevel
+                self.live.now = Date()
+                self.live.micLevel = self.recorder.micLevel
+                self.live.systemLevel = self.recorder.systemLevel
                 if self.systemLevel > 0.2 { self.lastSystemSoundAt = self.now }
                 if self.pendingAutoStop, self.phase == .recording, self.detectedApp == nil,
                    self.now.timeIntervalSince(self.lastSystemSoundAt) > 10 {
@@ -451,8 +485,8 @@ final class AppStore: ObservableObject {
     private func stopTicker() {
         ticker?.invalidate()
         ticker = nil
-        micLevel = 0
-        systemLevel = 0
+        live.micLevel = 0
+        live.systemLevel = 0
     }
 
     // MARK: - Import
@@ -492,7 +526,8 @@ final class AppStore: ObservableObject {
     func retry(_ m: Meeting, with override: TranscribeOverride?) {
         var m = m
         // Not while another device is transcribing it: its run would overwrite this one.
-        guard m.hasAudio, !m.isPlaceholder, m.id != transcribingID, m.id != current?.id, m.canClaim() else { return }
+        guard m.hasAudio, !m.isPlaceholder, m.id != transcribingID, m.id != current?.id,
+              !audioJobs.contains(m.id), m.canClaim() else { return }
         m.status = .pending
         m.error = nil
         m.override = override
@@ -502,7 +537,7 @@ final class AppStore: ObservableObject {
     }
 
     func delete(_ m: Meeting) {
-        guard m.id != current?.id, m.id != transcribingID else { return }
+        guard m.id != current?.id, m.id != transcribingID, !audioJobs.contains(m.id) else { return }
         // Its voices go only with it: a meeting still there keeps them.
         if Library.trash(m) {
             PeopleModel.shared.removeMeeting(m.id)
@@ -515,14 +550,38 @@ final class AppStore: ObservableObject {
     /// Transcribes the next pending meeting (oldest first), one at a time.
     /// With the folder shared, a meeting another device has claimed is
     /// skipped, and so is another device's whose audio hasn't arrived yet.
+    ///
+    /// Finding the next one reads every meeting folder, so it happens off the
+    /// main actor; one search at a time, and a call meanwhile searches again after.
     private func pump() {
         // Not while the library is being copied into iCloud: it moves once nothing uses it.
         guard transcribingID == nil, !CloudSync.shared.copying else { return }
-        let now = Date()
-        guard var m = Library.loadAll().last(where: {
-            !repairingIDs.contains($0.id) && RunEnd.awaits($0, now: now) && ($0.isMine || $0.hasAudio)
-        })
-        else { return }
+        guard !pumping else { pumpAgain = true; return }
+        pumping = true
+        let repairing = repairingIDs
+        Task {
+            let next = await Task.detached(priority: .userInitiated) {
+                Self.nextInQueue(Library.loadAll(), repairing: repairing, now: Date())
+            }.value
+            pumping = false
+            if let next { startTranscribing(next) }
+            if pumpAgain {
+                pumpAgain = false
+                pump()
+            }
+        }
+    }
+
+    /// The meeting the queue takes next: the oldest one waiting (the list is newest first).
+    nonisolated static func nextInQueue(_ all: [Meeting], repairing: Set<String>, now: Date) -> Meeting? {
+        all.last { !repairing.contains($0.id) && RunEnd.awaits($0, now: now) && ($0.isMine || $0.hasAudio) }
+    }
+
+    private func startTranscribing(_ found: Meeting) {
+        // Things moved while the search ran: something else started, or the
+        // repair scan took this meeting back.
+        guard transcribingID == nil, !CloudSync.shared.copying, !repairingIDs.contains(found.id) else { return }
+        var m = found
 
         let options = TranscribeOptions.current(for: m)
         switch options.engine {
@@ -549,7 +608,7 @@ final class AppStore: ObservableObject {
         }
 
         transcribingID = m.id
-        transcribeProgress = 0
+        live.transcribeProgress = 0
         m.status = .transcribing
         m.override = nil
         m.claim = Claim(device: Device.current, at: Date())
@@ -565,7 +624,7 @@ final class AppStore: ObservableObject {
             do {
                 let outcome = try await Transcriber.transcribe(job, options: options) { p in
                     Task { @MainActor in
-                        if AppStore.shared.transcribingID == job.id { AppStore.shared.transcribeProgress = p }
+                        if AppStore.shared.transcribingID == job.id { AppStore.shared.live.setProgress(p) }
                     }
                 }
                 if let m = await RunEnd.save(job.id, as: .done, apply: RunEnd.done(outcome)) {
@@ -575,8 +634,8 @@ final class AppStore: ObservableObject {
                         owed.summaryPending = true
                         Library.save(owed)
                     }
-                    await self.handleAudio(of: m)
                     Notifier.shared.transcriptReady(m)
+                    self.finishAudio(of: m)
                 }
             } catch TranscriberError.cancelled {
                 // Stopped because Ata is quitting: back in the queue for the next launch,
@@ -598,7 +657,7 @@ final class AppStore: ObservableObject {
             heartbeat.cancel()
             transcribeJob = nil
             transcribingID = nil
-            transcribeProgress = 0
+            live.transcribeProgress = 0
             reload()
             pump()
         }
@@ -622,6 +681,18 @@ final class AppStore: ObservableObject {
                 fresh.claim = Claim(device: Device.current, at: Date())
                 Library.save(fresh)
             }
+        }
+    }
+
+    /// Runs `handleAudio` beside the queue instead of in it. Writing the MP3
+    /// and compressing two hour-long tracks took minutes after the transcript
+    /// was already saved, and the next meeting waited behind them.
+    private func finishAudio(of m: Meeting) {
+        guard m.isMine else { return }
+        audioJobs.insert(m.id)
+        Task {
+            await handleAudio(of: m)
+            audioJobs.remove(m.id)
         }
     }
 
@@ -727,7 +798,7 @@ extension AppStore {
                               transcribingID: String?, progress: Double) {
         ticker?.invalidate()
         let now = Date()
-        self.now = now
+        live.now = now
         if let recordingApp {
             current = Meeting(id: "snapshot", startedAt: now.addingTimeInterval(-elapsed), endedAt: nil,
                               duration: nil, app: recordingApp, status: .recording, error: nil)
@@ -738,15 +809,36 @@ extension AppStore {
             startedAt = nil
             phase = .idle
         }
-        micLevel = mic
-        systemLevel = system
+        live.micLevel = mic
+        live.systemLevel = system
         self.transcribingID = transcribingID
-        transcribeProgress = progress
+        live.transcribeProgress = progress
         detectedApp = nil
         warning = nil
         lastError = nil
         meetings = Library.loadAll()
     }
+}
+
+/// What changes several times a second: the recording clock, the two meters
+/// and the transcription's progress. Only the views that show one of them
+/// observe this, so a tick redraws a clock, not the whole popover.
+@MainActor
+final class LiveValues: ObservableObject {
+    static let shared = LiveValues()
+
+    @Published var now = Date()
+    @Published var micLevel: Float = 0
+    @Published var systemLevel: Float = 0
+    @Published var transcribeProgress: Double = 0
+
+    /// Only when the whole percent shown changes: engines report far more often.
+    func setProgress(_ p: Double) {
+        guard Self.percent(p) != Self.percent(transcribeProgress) else { return }
+        transcribeProgress = p
+    }
+
+    nonisolated static func percent(_ p: Double) -> Int { Int((max(0, min(1, p)) * 100).rounded(.down)) }
 }
 
 enum AVAuthorization {

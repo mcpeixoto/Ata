@@ -476,10 +476,13 @@ final class CloudWatcher {
                 conflicted.append(url)
             }
             let status = item.value(forAttribute: NSMetadataUbiquitousItemDownloadingStatusKey) as? String
-            let changedAt = item.value(forAttribute: NSMetadataItemFSContentChangeDateKey) as? Date
-            hasher.combine(url.path)
-            hasher.combine(status)
-            hasher.combine(changedAt)
+            if Self.countsAsChange(url) {
+                hasher.combine(url.path)
+                hasher.combine(status)
+                if Self.editCountsAsChange(url) {
+                    hasher.combine(item.value(forAttribute: NSMetadataItemFSContentChangeDateKey) as? Date)
+                }
+            }
             if CloudFiles.wantsEagerDownload(url), status != NSMetadataUbiquitousItemDownloadingStatusCurrent {
                 try? FileManager.default.startDownloadingUbiquitousItem(at: url)
             }
@@ -497,9 +500,32 @@ final class CloudWatcher {
         scheduleChange()
     }
 
+    /// Scratch files of a transcription in progress come and go every few
+    /// seconds; none of them is something the list or another device reads.
+    nonisolated static func countsAsChange(_ url: URL) -> Bool {
+        let name = url.lastPathComponent
+        if url.pathComponents.contains(where: { $0.hasPrefix("languages-") }) { return false }
+        if name.hasSuffix(".decoded.wav") || name.hasSuffix(".echo-cancelled.wav") { return false }
+        if name.hasPrefix(".transcript-") { return false }
+        if url.pathComponents.contains(where: { $0.hasSuffix(".partial") }) { return false }
+        return true
+    }
+
+    /// Whether a file being written to is a change. Only the small files the
+    /// list and the meeting window read are: audio grows for minutes while
+    /// it is written or compressed, and each write used to reload the whole
+    /// library once a second. Audio still counts when it appears, goes, or
+    /// finishes downloading.
+    nonisolated static func editCountsAsChange(_ url: URL) -> Bool {
+        CloudFiles.wantsEagerDownload(url)
+    }
+
+    /// Longer than the query's one-second batches, so a run of updates is one reload.
+    nonisolated static let settleSeconds: TimeInterval = 2
+
     private func scheduleChange() {
         debounce?.invalidate()
-        debounce = Timer.scheduledTimer(withTimeInterval: 0.7, repeats: false) { [weak self] _ in
+        debounce = Timer.scheduledTimer(withTimeInterval: Self.settleSeconds, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated { self?.onChange?() }
         }
     }
@@ -541,9 +567,12 @@ final class CloudWatcher {
         var out: [String: String] = [:]
         for folder in folders {
             let files = ((try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil, options: [])) ?? [])
-                .filter { !CloudLibrary.isDirectory($0) }
+                .filter { !CloudLibrary.isDirectory($0) && countsAsChange($0) }
                 .sorted { $0.lastPathComponent < $1.lastPathComponent }
             let line = files.map { file -> String in
+                guard editCountsAsChange(file) else {
+                    return "\(file.lastPathComponent):\(CloudFiles.isDataless(file))"
+                }
                 let attributes = try? fm.attributesOfItem(atPath: file.path)
                 let size = (attributes?[.size] as? NSNumber)?.int64Value ?? 0
                 let date = (attributes?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0

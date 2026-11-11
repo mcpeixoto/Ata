@@ -285,6 +285,14 @@ enum LanguageChoice {
 /// Runs a transcription end to end: picks the engine per track, merges the two
 /// tracks into one timeline, drops microphone echo and writes the Markdown.
 enum Transcriber {
+    /// Where the bar stands as each stage starts. Recognising voices and
+    /// writing the summary take minutes on an hour-long meeting; with speech
+    /// filling the bar to 97 % and nothing after, it looked stuck.
+    enum ProgressShare {
+        static let speech = 0.85
+        static let summary = 0.93
+    }
+
     static func transcribe(_ meeting: Meeting, options: TranscribeOptions,
                            progress: @escaping @Sendable (Double) -> Void) async throws -> TranscriptionOutcome {
         let started = Date()
@@ -383,7 +391,7 @@ enum Transcriber {
             if Task.isCancelled { throw TranscriberError.cancelled }
             let base = Double(i) / Double(prepared.count)
             let span = 1 / Double(prepared.count)
-            let step: @Sendable (Double) -> Void = { p in progress(base + p * span) }
+            let step: @Sendable (Double) -> Void = { p in progress(ProgressShare.speech * (base + p * span)) }
 
             switch options.engine {
             case .local:
@@ -416,7 +424,7 @@ enum Transcriber {
         // A run without voice recognition leaves no stale speaker map behind.
         try? FileManager.default.removeItem(at: meeting.speakersURL)
         if options.recogniseVoices, let diarizer = Diarization.current {
-            progress(0.97)
+            progress(ProgressShare.speech)
             segments = await recogniseSpeakers(segments, meeting: meeting, diarizer: diarizer,
                                                system: prepared.first { $0.speaker == Speakers.others }?.audio,
                                                mic: prepared.first { $0.speaker == Speakers.me }?.audio)
@@ -446,6 +454,7 @@ enum Transcriber {
         }
 
         if options.summarize, !segments.isEmpty {
+            progress(ProgressShare.summary)
             let draft = render(stored, meeting: meeting, names: Speakers.names(for: meeting, myName: options.myName))
             if let summary = await Summarizer.summarize(markdown: draft, options: options) {
                 stored.summary = summary

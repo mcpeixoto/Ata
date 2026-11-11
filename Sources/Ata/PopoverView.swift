@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct MenuBarLabel: View {
     @EnvironmentObject var store: AppStore
+    @ObservedObject private var live = LiveValues.shared
     @AppStorage(Pref.menuIconSymbol) private var symbol = MenuIcon.Symbol.dot.rawValue
     @AppStorage(Pref.menuIconTint) private var tint = MenuIcon.Tint.monochrome.rawValue
     @AppStorage(Pref.menuIconTimer) private var timer = true
@@ -379,6 +380,7 @@ struct PopoverView: View {
 /// Card contents while recording.
 private struct RecordingContent: View {
     @EnvironmentObject var store: AppStore
+    @ObservedObject private var live = LiveValues.shared
     @State private var confirmDiscard = false
 
     var body: some View {
@@ -543,14 +545,7 @@ struct MeetingRow: View {
     @ViewBuilder
     private var trailing: some View {
         if isTranscribing {
-            HStack(spacing: 6) {
-                ProgressView(value: store.transcribeProgress)
-                    .progressViewStyle(.linear)
-                    .frame(width: 60)
-                Text("\(Int(store.transcribeProgress * 100))%")
-                    .font(.system(size: 10, weight: .medium)).monospacedDigit().foregroundStyle(.secondary)
-                    .frame(width: 28, alignment: .trailing)
-            }
+            RowProgress()
         } else if meeting.status == .failed && meeting.hasAudio {
             Button("Try again") { store.retry(meeting) }
                 .controlSize(.small)
@@ -680,6 +675,23 @@ struct NameVoicesBanner: View {
             }
             .buttonStyle(.plain)
             .onAppear { people.reload() }
+        }
+    }
+}
+
+/// The transcribing row's bar. Its own view, so a progress tick redraws the
+/// bar and not every row of the list.
+private struct RowProgress: View {
+    @ObservedObject private var live = LiveValues.shared
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ProgressView(value: live.transcribeProgress)
+                .progressViewStyle(.linear)
+                .frame(width: 60)
+            Text("\(Int(live.transcribeProgress * 100))%")
+                .font(.system(size: 10, weight: .medium)).monospacedDigit().foregroundStyle(.secondary)
+                .frame(width: 28, alignment: .trailing)
         }
     }
 }
