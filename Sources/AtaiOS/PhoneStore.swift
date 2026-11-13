@@ -78,7 +78,7 @@ final class PhoneStore: ObservableObject {
         recoverInterrupted()
         MeetingSharing.cleanUp()
         reload()
-        if Pref.d.bool(forKey: Pref.onboarded) == false || AVAudioApplication.shared.recordPermission != .granted {
+        if Pref.d.bool(forKey: Pref.onboarded) == false {
             PhoneNavigation.shared.showOnboarding()
         }
         drainShareInbox()
@@ -176,7 +176,7 @@ final class PhoneStore: ObservableObject {
         guard await PhoneRecorder.requestPermission() else {
             phase = .idle
             lastError = L("Allow Ata to use the microphone in Settings to record.")
-            PhoneNavigation.shared.showOnboarding()
+            PhoneNavigation.shared.showOnboarding(at: .permissions)
             throw PhoneRecorderError.micDenied
         }
         do {

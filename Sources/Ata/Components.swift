@@ -185,3 +185,27 @@ struct AppSwitchStyle: ToggleStyle {
         }
     }
 }
+
+/// A symbol, a headline and a line of detail. The paywall and the iPhone
+/// welcome step share it, so the two stay laid out the same way.
+struct Feature: View {
+    let symbol: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: symbol)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(Theme.meTint)
+                .frame(width: 28)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(verbatim: title).font(.headline)
+                Text(verbatim: detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}

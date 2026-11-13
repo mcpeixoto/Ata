@@ -22,8 +22,13 @@ final class OnboardingPermissionUITests: XCTestCase {
         ]
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["Welcome to Ata"].waitForExistence(timeout: 30),
+        XCTAssertTrue(app.staticTexts["Record it. Ata writes it up."].waitForExistence(timeout: 30),
                       "the onboarding did not come up")
+        let next = app.buttons["onboarding-next"]
+        XCTAssertTrue(next.waitForExistence(timeout: 10))
+        next.tap()
+
+        XCTAssertTrue(app.staticTexts["Let Ata hear the room"].waitForExistence(timeout: 10))
 
         let mic = app.buttons["microphone-permission"]
         XCTAssertTrue(mic.waitForExistence(timeout: 10))

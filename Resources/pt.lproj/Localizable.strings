@@ -326,7 +326,6 @@
 "Recordings wait here until this iPhone can transcribe them. The audio is kept." = "As gravações esperam aqui até este iPhone as poder transcrever. O áudio é guardado.";
 "Search meetings" = "Pesquisar reuniões";
 "The recording, the transcript and your notes are deleted from this iPhone." = "A gravação, a transcrição e as tuas notas são apagadas deste iPhone.";
-"Ata records conversations on this iPhone, even with the screen locked, and turns them into transcripts you can search." = "A Ata grava conversas neste iPhone, mesmo com o ecrã bloqueado, e transforma-as em transcrições que podes pesquisar.";
 "To record. Audio stays on this iPhone." = "Para gravar. O áudio fica neste iPhone.";
 "When a transcript is ready." = "Quando uma transcrição estiver pronta.";
 "Start using Ata" = "Começar a usar a Ata";
@@ -623,3 +622,17 @@
 "Part of this conversation could not be summarized." = "Não foi possível resumir parte desta conversa.";
 "Share anonymous usage stats" = "Partilhar estatísticas de uso anónimas";
 "Once a day: the app version, your country and how many minutes you recorded. Never your audio, transcripts or names." = "Uma vez por dia: a versão da app, o teu país e quantos minutos gravaste. Nunca o teu áudio, as transcrições ou nomes.";
+/* iPhone onboarding */
+"Record it. Ata writes it up." = "Grava. A Ata escreve.";
+"Records with the screen locked" = "Grava com o ecrã bloqueado";
+"A meeting, a lecture, a doctor's visit. Tap once and put the iPhone down." = "Uma reunião, uma aula, uma consulta. Toca uma vez e pousa o iPhone.";
+"Knows who said what" = "Sabe quem disse o quê";
+"Ata tells the voices apart. Name a voice once and it is recognised next time." = "A Ata distingue as vozes. Dás um nome a uma voz uma vez e ela é reconhecida da próxima.";
+"Made on this iPhone" = "Feito neste iPhone";
+"Transcripts are written on the device. No account, and your recordings are not sent to a server." = "As transcrições são escritas no dispositivo. Sem conta, e as tuas gravações não são enviadas para um servidor.";
+"Let Ata hear the room" = "Deixa a Ata ouvir a sala";
+"Next" = "Seguinte";
+"Two questions" = "Duas perguntas";
+"Language of your meetings" = "Idioma das tuas reuniões";
+"Automatic chooses among your iPhone's languages. Pick one if your meetings are in another." = "Automático escolhe entre os idiomas do teu iPhone. Escolhe um se as tuas reuniões forem noutro.";
+"%d meetings a month are free. Ata Pro removes the limit." = "%d reuniões por mês são gratuitas. A Ata Pro acaba com o limite.";

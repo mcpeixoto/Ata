@@ -14,7 +14,7 @@ final class AtaSnapshotTests: XCTestCase {
     /// The same names as `Snapshots.Screen` in the app.
     private static let screens = [
         "record-idle", "record-recording", "meetings", "meeting-notes", "meeting-transcript",
-        "people", "insights", "settings", "onboarding",
+        "people", "insights", "settings", "onboarding", "onboarding-permissions", "onboarding-you",
     ]
 
     override func setUpWithError() throws {
@@ -103,7 +103,9 @@ final class AtaSnapshotTests: XCTestCase {
         case "people": return app.navigationBars["People"]
         case "insights": return app.navigationBars["Insights"]
         case "settings": return app.navigationBars["Settings"]
-        case "onboarding": return app.staticTexts["Welcome to Ata"]
+        case "onboarding": return app.staticTexts["Record it. Ata writes it up."]
+        case "onboarding-permissions": return app.staticTexts["Let Ata hear the room"]
+        case "onboarding-you": return app.staticTexts["Two questions"]
         default: return app.windows.firstMatch
         }
     }

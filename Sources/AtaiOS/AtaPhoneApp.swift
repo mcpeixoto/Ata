@@ -68,7 +68,8 @@ struct RootView: View {
                 .tag(PhoneNavigation.Tab.settings)
         }
         .sheet(isPresented: $navigation.showingOnboarding) {
-            PhoneOnboarding()
+            PhoneOnboarding(start: navigation.onboardingStep)
+                .id(navigation.onboardingStep)
                 .interactiveDismissDisabled()
         }
         .sheet(isPresented: $navigation.showingPaywall) {

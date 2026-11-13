@@ -23,6 +23,8 @@ extension Snapshots {
         case settings
         case iCloudHelp = "icloud-help"
         case onboarding
+        case onboardingPermissions = "onboarding-permissions"
+        case onboardingYou = "onboarding-you"
         case paywall
     }
 
@@ -70,10 +72,19 @@ extension Snapshots {
                                                freeUsed: screen == .paywall ? FreeQuota.limit : 3)
 
         let navigation = PhoneNavigation.shared
-        navigation.showingOnboarding = screen == .onboarding
+        switch screen {
+        case .onboarding:
+            navigation.showOnboarding(at: .welcome)
+        case .onboardingPermissions:
+            navigation.showOnboarding(at: .permissions)
+        case .onboardingYou:
+            navigation.showOnboarding(at: .you)
+        default:
+            break
+        }
         navigation.showingPaywall = screen == .paywall
         switch screen {
-        case .recordIdle, .recordRecording, .onboarding, .paywall:
+        case .recordIdle, .recordRecording, .onboarding, .onboardingPermissions, .onboardingYou, .paywall:
             navigation.tab = .record
         case .meetings:
             navigation.tab = .meetings
