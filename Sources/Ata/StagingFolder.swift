@@ -36,6 +36,15 @@ enum StagingFolder {
         return (meeting, folder)
     }
 
+    /// Marks are written as they are made. Stop used to be the only save, so a
+    /// crash before it dropped every one of them.
+    static func saveBookmarks(_ ms: [Int], on meeting: Meeting) -> Meeting {
+        var m = meeting
+        m.bookmarks = ms.isEmpty ? nil : ms.map { Bookmark(ms: $0) }
+        Library.save(m)
+        return m
+    }
+
     /// A recording that has stopped: its meeting.json saved in staging, then the
     /// folder moved into the meetings folder, and the meeting as it is now. If the
     /// move fails, `moved` is false and the folder stays in staging, where it is

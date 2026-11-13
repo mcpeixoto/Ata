@@ -230,7 +230,7 @@ struct MeetingView: View {
                     Button(Self.revealTitle, systemImage: "folder") { Platform.actions.reveal(meeting.dir) }
                     Divider()
                     #endif
-                    Button("Open transcript in your editor") {
+                    Button(Self.transcriptTitle) {
                         if let url = meeting.existingTranscriptURL { Platform.actions.open(url) }
                     }
                     .disabled(meeting.existingTranscriptURL == nil)
@@ -300,6 +300,15 @@ struct MeetingView: View {
         #endif
     }
 
+    /// On iPhone this opens the Files app, not an editor.
+    private static var transcriptTitle: String {
+        #if os(iOS)
+        return L("Show transcript in Files")
+        #else
+        return L("Open transcript in your editor")
+        #endif
+    }
+
     private func toolbarButton(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol).frame(width: 26, height: 22).contentShape(Rectangle())
@@ -313,7 +322,7 @@ struct MeetingView: View {
     private func status(_ meeting: Meeting) -> some View {
         switch meeting.status {
         case .pending:
-            statusRow(store.queueReason ?? L("Waiting to be transcribed…"), progress: nil)
+            statusRow(meeting.error ?? store.queueReason ?? L("Waiting to be transcribed…"), progress: nil)
         case .transcribing:
             #if os(macOS)
             if store.transcribingID == meeting.id {
@@ -326,12 +335,19 @@ struct MeetingView: View {
                 statusRow(L("Transcribing…"), progress: nil)
             }
             #else
-            statusRow(L("Transcribing…"), progress: store.transcribingID == meeting.id ? store.transcribeProgress : nil)
+            statusRow(store.transcribingID == meeting.id
+                      ? (store.transcribeStage?.label ?? L("Transcribing…"))
+                      : L("Transcribing…"),
+                      progress: store.transcribingID == meeting.id ? store.transcribeProgress : nil)
             #endif
         case .failed:
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                #if os(iOS)
+                Text(meeting.error ?? L("Failed")).ataFont(11).fixedSize(horizontal: false, vertical: true)
+                #else
                 Text(meeting.error ?? L("Failed")).ataFont(11).lineLimit(2)
+                #endif
                 Spacer()
                 if meeting.hasAudio {
                     Button("Try again") { store.retry(meeting) }.controlSize(.small)

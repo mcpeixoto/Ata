@@ -1,13 +1,14 @@
 import AVFoundation
 
 enum PhoneRecorderError: LocalizedError {
-    case micDenied, noMic, alreadyRecording
+    case micDenied, noMic, alreadyRecording, notEnoughSpace
 
     var errorDescription: String? {
         switch self {
         case .micDenied: return L("Ata does not have access to the microphone.")
         case .noMic: return L("No active microphone was found.")
         case .alreadyRecording: return L("Ata is already recording.")
+        case .notEnoughSpace: return L("This iPhone's storage is almost full. Free some up and try again.")
         }
     }
 }
@@ -41,6 +42,14 @@ final class PhoneRecorder {
     /// Seconds of audio in the file so far.
     var recordedSeconds: Double { writer?.duration ?? 0 }
     var level: Float { state.isCapturing ? (writer?.level ?? 0) : 0 }
+    var isCapturing: Bool { state.isCapturing }
+    /// A write failed, usually because storage filled up. The meter keeps moving.
+    var writeFailed: Bool { writer?.writeFailed == true }
+    /// Zero with no file open, so the stall check stays quiet before capture starts.
+    var secondsSinceBuffer: TimeInterval {
+        guard let writer else { return 0 }
+        return Date().timeIntervalSince(writer.lastBufferAt)
+    }
 
     static func requestPermission() async -> Bool {
         switch AVAudioApplication.shared.recordPermission {
@@ -112,6 +121,18 @@ final class PhoneRecorder {
         handle(.resume)
     }
 
+    /// The microphone stopped delivering. The same restart a route change uses.
+    func restartStalledCapture() {
+        guard state.isCapturing else { return }
+        handle(.routeChanged)
+    }
+
+    /// Written now, not at Stop: a crash or a force-quit would otherwise drop them.
+    func noteBookmarks(_ ms: [Int]) {
+        guard let meeting else { return }
+        self.meeting = StagingFolder.saveBookmarks(ms, on: meeting)
+    }
+
     // MARK: State machine
 
     private func handle(_ event: RecorderState.Event) {
@@ -123,6 +144,14 @@ final class PhoneRecorder {
             onWarning?(nil)
         } catch {
             NSLog("Ata: \(event): \(error.localizedDescription)")
+            if before == .interrupted {
+                // Capture never started. The state machine had already said
+                // "recording"; put it back so the screen stays on Paused.
+                try? apply(state.handle(.resumeFailed))
+                onWarning?(L("The microphone is still in use."))
+                onPhaseChange?(state.phase)
+                return
+            }
             retryCapture()
         }
         if state.phase != before { onPhaseChange?(state.phase) }

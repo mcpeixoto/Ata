@@ -284,12 +284,13 @@ enum LanguageChoice {
 
 /// What a transcription is doing now, for the line under the meeting in the list.
 enum TranscribeStage: Equatable, Sendable {
-    case preparing, languages, speech, voices, summary
+    case preparing, languages, speechModel, speech, voices, summary
 
     var label: String {
         switch self {
         case .preparing: return L("Preparing the audio…")
         case .languages: return L("Detecting languages…")
+        case .speechModel: return L("Downloading speech model…")
         case .speech: return L("Transcribing…")
         case .voices: return L("Recognising voices…")
         case .summary: return L("Writing the summary…")
@@ -462,7 +463,7 @@ enum Transcriber {
                 segments += try await AppleSpeechEngine.transcribe(audio: track.audio, speaker: track.speaker,
                                                                    language: options.language,
                                                                    plausible: LanguageChoice.plausible,
-                                                                   progress: step)
+                                                                   progress: step, stage: stage)
             }
         }
 

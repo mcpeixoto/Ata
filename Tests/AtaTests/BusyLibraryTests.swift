@@ -148,7 +148,8 @@ final class BusyLibraryTests: XCTestCase {
     }
 
     func testEveryStageSaysSomethingDifferent() {
-        let stages: [TranscribeStage] = [.preparing, .languages, .speech, .voices, .summary]
+        let stages: [TranscribeStage] = [.preparing, .languages, .speechModel, .speech, .voices, .summary]
         XCTAssertEqual(Set(stages.map(\.label)).count, stages.count)
+        XCTAssertEqual(TranscribeStage.speechModel.label, "Downloading speech model…")
     }
 }

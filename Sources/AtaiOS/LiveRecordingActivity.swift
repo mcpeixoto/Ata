@@ -22,7 +22,8 @@ final class LiveRecordingActivity {
                                                              pausedSeconds: 0, bookmarks: 0)
         do {
             activity = try Activity.request(attributes: RecordingActivityAttributes(mode: mode),
-                                            content: ActivityContent(state: state, staleDate: nil),
+                                            content: ActivityContent(state: state,
+                                                                     staleDate: RecordingHealth.activityStaleDate(now: Date())),
                                             pushType: nil)
             self.state = state
         } catch {
@@ -31,14 +32,18 @@ final class LiveRecordingActivity {
     }
 
     /// `recorded` is the audio so far: the timer restarts from there after an interruption.
-    func update(recorded: Double, paused: Bool, bookmarks: Int) {
+    /// `force` refreshes the stale date even when nothing else changed, so a
+    /// recording the app no longer has (a force-quit) stops counting.
+    func update(recorded: Double, paused: Bool, bookmarks: Int, force: Bool = false) {
         guard let activity else { return }
         let state = RecordingActivityAttributes.ContentState(timerStart: Date().addingTimeInterval(-recorded),
                                                              isPaused: paused, pausedSeconds: recorded,
                                                              bookmarks: bookmarks)
-        guard state.isPaused != self.state?.isPaused || state.bookmarks != self.state?.bookmarks else { return }
+        let changed = state.isPaused != self.state?.isPaused || state.bookmarks != self.state?.bookmarks
+        guard force || changed else { return }
         self.state = state
-        Task { await activity.update(ActivityContent(state: state, staleDate: nil)) }
+        let content = ActivityContent(state: state, staleDate: RecordingHealth.activityStaleDate(now: Date()))
+        Task { await activity.update(content) }
     }
 
     func end() {

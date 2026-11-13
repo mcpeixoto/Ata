@@ -9,6 +9,13 @@ import Foundation
 /// the Mac through iCloud, a transcript run again, and reading or exporting
 /// never count.
 ///
+/// A recording counts only once it has finished with audio and lasted at least
+/// `minimumSeconds`. Anything shorter is a test tap: it is left out of the
+/// library count and never written to the ledger. While it is still recording
+/// its duration is unknown, and it counts, so it holds its place. An import
+/// counts as soon as it lands, however long the file is — the ledger is written
+/// then, and a short file already in the ledger still counts.
+///
 /// Two sources, so neither deleting a meeting nor reinstalling Ata gives one
 /// back: the library (meetings whose origin is an iPhone and that started this
 /// month) and a ledger of the meetings made this month, kept in the keychain.
@@ -16,6 +23,8 @@ import Foundation
 /// when the file was recorded.
 enum FreeQuota {
     static let limit = 5
+    /// A finished recording shorter than this did not use a free meeting.
+    static let minimumSeconds = 30.0
 
     /// How many of this month's free meetings are used.
     /// - Parameters:
@@ -26,10 +35,25 @@ enum FreeQuota {
                      calendar: Calendar = .current, deviceID: String? = nil) -> Int {
         var counted = ledger
         for m in meetings where madeOnAnIPhone(m, deviceID: deviceID)
-            && calendar.isDate(m.startedAt, equalTo: now, toGranularity: .month) {
+            && calendar.isDate(m.startedAt, equalTo: now, toGranularity: .month)
+            && countsInLibrary(m) {
             counted.insert(m.id)
         }
         return counted.count
+    }
+
+    /// Duration unknown (still recording) counts. A known length under
+    /// `minimumSeconds` does not — unless the ledger already has the id,
+    /// which is how a short import keeps counting.
+    static func countsInLibrary(_ m: Meeting) -> Bool {
+        guard let duration = m.duration else { return true }
+        return duration >= minimumSeconds
+    }
+
+    /// Whether stopping a recording writes it to the keychain ledger.
+    /// Imports do not come through here; they are recorded when they land.
+    static func countsWhenStopped(duration: Double?, hasAudio: Bool) -> Bool {
+        hasAudio && (duration ?? 0) >= minimumSeconds
     }
 
     static func remaining(used: Int) -> Int { max(0, limit - used) }

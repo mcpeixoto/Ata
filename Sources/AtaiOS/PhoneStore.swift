@@ -18,6 +18,8 @@ final class PhoneStore: ObservableObject {
     @Published private(set) var meetings: [Meeting] = []
     @Published private(set) var transcribingID: String?
     @Published private(set) var transcribeProgress: Double = 0
+    /// What the transcription is doing now, so a model download is not "Transcribing…".
+    @Published private(set) var transcribeStage: TranscribeStage?
     /// Meetings are queued but no engine on this iPhone can transcribe them yet.
     @Published private(set) var waitingForEngine = false
     @Published private(set) var warning: String?
@@ -52,6 +54,12 @@ final class PhoneStore: ObservableObject {
     private var searchCache: [String: (stamp: Date?, text: String)] = [:]
     private var bootstrapped = false
     private var drainingInbox = false
+    /// Meetings whose speech model could not be downloaded. Retried when Ata is in front.
+    private var waitingForSpeechModel: Set<String> = []
+    private var lastHealth = Date.distantPast
+    private var lastStallRestart = Date.distantPast
+    private var lastActivityRefresh = Date.distantPast
+    private var terminateObserver: NSObjectProtocol?
 
     private init() {}
 
@@ -75,6 +83,12 @@ final class PhoneStore: ObservableObject {
         recorder.onWarning = { [weak self] w in self?.warning = w }
 
         activity.endLeftovers()
+        // A force-quit does not always deliver this. The Live Activity's stale
+        // date covers that; this covers a termination iOS does announce.
+        terminateObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.willTerminateNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { PhoneStore.shared.stopRecording() }
+        }
         recoverInterrupted()
         MeetingSharing.cleanUp()
         reload()
@@ -89,6 +103,12 @@ final class PhoneStore: ObservableObject {
     /// Ata came to the front: pick up files changed in the meantime, and the queue.
     func becameActive() {
         queuePaused = false
+        // An interruption that never handed the microphone back stays paused
+        // until Ata is in front. Resuming in the background would fight the
+        // app that still holds it.
+        if phase == .interrupted { resumeRecording() }
+        for id in waitingForSpeechModel { RunEnd.retryNow(id) }
+        waitingForSpeechModel.removeAll()
         CloudSync.shared.recheck()
         reload()
         drainShareInbox()
@@ -180,25 +200,53 @@ final class PhoneStore: ObservableObject {
             throw PhoneRecorderError.micDenied
         }
         do {
-            let m = try recorder.start(mode: mode)
-            counted(m.id)
+            guard RecordingHealth.hasRoom(available: Self.freeBytes()) else {
+                throw PhoneRecorderError.notEnoughSpace
+            }
+            _ = try recorder.start(mode: mode)
             bookmarks = []
+            lastHealth = .distantPast
+            lastStallRestart = .distantPast
+            lastActivityRefresh = Date()
             activity.start(mode: mode)
             startTicker()
             reload()
         } catch {
             phase = .idle
-            lastError = error.localizedDescription
+            lastError = Self.message(forStartFailure: error)
             throw error
         }
+    }
+
+    /// `volumeAvailableCapacityForImportantUsageKey` — declared in the privacy
+    /// manifest (disk space, E174.1) because a recording has to have somewhere to go.
+    private static func freeBytes() -> Int64? {
+        let values = try? Paths.meetingsDir.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        return values?.volumeAvailableCapacityForImportantUsage
+    }
+
+    /// A sentence Ata wrote passes through. Anything from the audio system
+    /// becomes one line; the raw error stays in the log.
+    static func message(forStartFailure error: Error) -> String {
+        if error is PhoneRecorderError || error is FreeQuotaError {
+            return RecordingStartMessage.text(knownDescription: error.localizedDescription)
+        }
+        NSLog("Ata: could not start recording: \(error)")
+        return RecordingStartMessage.text(knownDescription: nil)
     }
 
     func stopRecording() {
         guard isRecording else { return }
         phase = .stopping
+        warning = nil
+        Notifier.shared.clear("paused")
         let finished = recorder.stop(bookmarks: bookmarks.map { Bookmark(ms: $0) })
         stopTicker()
         activity.end()
+        if let finished, FreeQuota.countsWhenStopped(duration: finished.meeting.duration,
+                                                     hasAudio: finished.meeting.status != .failed) {
+            counted(finished.meeting.id)
+        }
         if finished?.moved == false {
             lastError = L("The recording could not be moved into your meetings. It is safe and will be tried again next time Ata opens.")
         }
@@ -225,6 +273,7 @@ final class PhoneStore: ObservableObject {
     func addBookmark() {
         guard isRecording else { return }
         bookmarks.append(Int(recorder.recordedSeconds * 1000))
+        recorder.noteBookmarks(bookmarks)
         updateActivity()
     }
 
@@ -234,27 +283,69 @@ final class PhoneStore: ObservableObject {
 
     private func recorderChanged(_ phase: RecorderState.Phase) {
         switch phase {
-        case .recording: self.phase = .recording
-        case .interrupted: self.phase = .interrupted
+        case .recording:
+            self.phase = .recording
+            Notifier.shared.clear("paused")
+        case .interrupted:
+            self.phase = .interrupted
+            // shouldResume: false leaves it here, and iOS will not hand the
+            // microphone back. Say so only when nobody is looking at the screen.
+            if UIApplication.shared.applicationState != .active {
+                let message = L("Recording paused. Open Ata to resume.")
+                Notifier.shared.recordingAlert(message, id: "paused")
+            }
         case .idle, .stopped: break // stopRecording sets the phase itself
         }
         updateActivity()
     }
 
-    private func updateActivity() {
-        activity.update(recorded: recorder.recordedSeconds, paused: phase == .interrupted, bookmarks: bookmarks.count)
+    private func updateActivity(force: Bool = false) {
+        activity.update(recorded: recorder.recordedSeconds, paused: phase == .interrupted,
+                        bookmarks: bookmarks.count, force: force)
     }
 
     private func startTicker() {
         ticker?.invalidate()
-        ticker = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+        let timer = Timer(timeInterval: 0.1, repeats: true) { _ in
             MainActor.assumeIsolated {
                 let store = PhoneStore.shared
+                store.maintainRecording()
                 // Locked or in the background, nothing is drawing these: save the battery.
                 guard UIApplication.shared.applicationState == .active else { return }
                 store.elapsed = store.recorder.recordedSeconds
                 store.level = store.recorder.level
             }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        ticker = timer
+    }
+
+    /// Disk full and a stalled microphone, once a second, including in the
+    /// background. The level meter above this stays on the tenth-of-a-second tick.
+    private func maintainRecording() {
+        guard isRecording else { return }
+        let now = Date()
+        if RecordingHealth.shouldRefreshActivity(secondsSinceRefresh: now.timeIntervalSince(lastActivityRefresh)) {
+            lastActivityRefresh = now
+            updateActivity(force: true)
+        }
+        guard now.timeIntervalSince(lastHealth) >= 1 else { return }
+        lastHealth = now
+        if recorder.writeFailed {
+            let message = L("This iPhone's storage is full, so the recording stopped growing.")
+            Notifier.shared.recordingAlert(message, id: "storage")
+            stopRecording()
+            warning = message
+            return
+        }
+        guard RecordingHealth.shouldRestartCapture(
+            capturing: recorder.isCapturing,
+            secondsSinceBuffer: recorder.secondsSinceBuffer,
+            secondsSinceRestart: now.timeIntervalSince(lastStallRestart)) else { return }
+        lastStallRestart = now
+        recorder.restartStalledCapture()
+        if warning == nil {
+            warning = L("The microphone went quiet. Ata is starting it again.")
         }
     }
 
@@ -413,7 +504,9 @@ final class PhoneStore: ObservableObject {
 
         transcribingID = m.id
         transcribeProgress = 0
+        transcribeStage = nil
         m.status = .transcribing
+        m.error = nil
         m.override = nil
         m.claim = Claim(device: Device.current, at: Date())
         Library.save(m)
@@ -431,14 +524,20 @@ final class PhoneStore: ObservableObject {
             // run's (see `RunEnd`): if the Mac took it over while this iPhone was away, the
             // Mac owns the meeting, so nothing here is saved and its audio is left alone.
             do {
-                let outcome = try await Transcriber.transcribe(queued, options: options) { p in
+                let outcome = try await Transcriber.transcribe(queued, options: options, progress: { p in
                     Task { @MainActor in
                         let store = PhoneStore.shared
                         guard store.transcribingID == queued.id else { return }
                         store.transcribeProgress = p
                         store.background?.report(p)
                     }
-                }
+                }, stage: { s in
+                    Task { @MainActor in
+                        let store = PhoneStore.shared
+                        guard store.transcribingID == queued.id else { return }
+                        store.transcribeStage = s
+                    }
+                })
                 if let m = await RunEnd.save(queued.id, as: .done, apply: RunEnd.done(outcome)) {
                     await handleAudio(of: m)
                     Notifier.shared.transcriptReady(m)
@@ -447,7 +546,18 @@ final class PhoneStore: ObservableObject {
             } catch let error where Self.shouldRequeue(error) {
                 // Stopped, not failed: back in the queue with its audio untouched. Audio
                 // still in iCloud gives up the claim, so the Mac that has it can do it.
-                if RunEnd.releasesClaim(error) {
+                // A missing speech model waits for a connection instead of failing the
+                // meeting, and is not tried again until Ata is in front — an offline
+                // phone would otherwise spin the queue.
+                if SpeechModelQueue.waitsForConnection(error) {
+                    if await RunEnd.save(queued.id, as: .pending, apply: { m in
+                        m.claim = nil
+                        m.error = L("Waiting for a connection to download the speech model")
+                    }) != nil {
+                        waitingForSpeechModel.insert(queued.id)
+                        RunEnd.retryLater(queued.id)
+                    }
+                } else if RunEnd.releasesClaim(error) {
                     RunEnd.retryLater(queued.id)
                     _ = await RunEnd.save(queued.id, as: .pending) { $0.claim = nil }
                 } else {
@@ -468,6 +578,7 @@ final class PhoneStore: ObservableObject {
             job = nil
             transcribingID = nil
             transcribeProgress = 0
+            transcribeStage = nil
             reload()
             pump()
         }
@@ -500,6 +611,7 @@ final class PhoneStore: ObservableObject {
     /// block the queue.
     static func shouldRequeue(_ error: Error) -> Bool {
         if error is CancellationError || RunEnd.releasesClaim(error) { return true }
+        if SpeechModelQueue.waitsForConnection(error) { return true }
         switch error as? TranscriberError {
         case .cancelled?, .whisperMissing?, .modelMissing?: return true
         default: return false

@@ -102,6 +102,26 @@ final class FreeQuotaTests: XCTestCase {
         XCTAssertEqual(FreeQuota.used(meetings: [m], ledger: [], now: date(2026, 10, 20), calendar: calendar), 0)
     }
 
+    func testAShortRecordingDoesNotCountAndOneStillGoingDoes() {
+        let now = date(2026, 10, 20)
+        var tap = meeting("tap", at: date(2026, 10, 2), origin: phone)
+        tap.duration = 12
+        var almost = meeting("almost", at: date(2026, 10, 3), origin: phone)
+        almost.duration = 29.9
+        var going = meeting("going", at: date(2026, 10, 4), origin: phone)
+        var real = meeting("real", at: date(2026, 10, 5), origin: phone)
+        real.duration = FreeQuota.minimumSeconds
+        XCTAssertNil(going.duration, "still recording")
+        XCTAssertEqual(FreeQuota.used(meetings: [tap, almost, going, real], ledger: [],
+                                      now: now, calendar: calendar), 2)
+        XCTAssertFalse(FreeQuota.countsWhenStopped(duration: 12, hasAudio: true))
+        XCTAssertFalse(FreeQuota.countsWhenStopped(duration: 29.9, hasAudio: true))
+        XCTAssertFalse(FreeQuota.countsWhenStopped(duration: 60, hasAudio: false), "no audio, nothing to count")
+        XCTAssertTrue(FreeQuota.countsWhenStopped(duration: FreeQuota.minimumSeconds, hasAudio: true))
+        // A short import is written to the ledger when it lands, so it still counts.
+        XCTAssertEqual(FreeQuota.used(meetings: [tap], ledger: ["tap"], now: now, calendar: calendar), 1)
+    }
+
     func testTheMacIsAMac() {
         #if os(macOS)
         XCTAssertEqual(Device.current.kind, DeviceRef.mac)

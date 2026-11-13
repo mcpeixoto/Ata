@@ -40,6 +40,11 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sen
              body: L("Record and transcribe this meeting?"), info: ["app": app])
     }
 
+    /// The same sentence the screen is showing, for when the phone is locked.
+    func recordingAlert(_ message: String, id: String) {
+        post(id: id, category: "", title: L("Recording"), body: message, info: [:])
+    }
+
     func recordingStarted(app: String?) {
         post(id: "recording", category: ID.recording, title: L("Recording") + (app.map { " · \($0)" } ?? ""),
              body: L("Ata is recording your microphone and your Mac's audio."), info: [:], sound: false)

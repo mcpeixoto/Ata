@@ -623,3 +623,12 @@
 "Part of this conversation could not be summarized." = "Não foi possível resumir parte desta conversa.";
 "Share anonymous usage stats" = "Partilhar estatísticas de uso anónimas";
 "Once a day: the app version, your country and how many minutes you recorded. Never your audio, transcripts or names." = "Uma vez por dia: a versão da app, o teu país e quantos minutos gravaste. Nunca o teu áudio, as transcrições ou nomes.";
+"This iPhone's storage is full, so the recording stopped growing." = "O armazenamento deste iPhone está cheio, por isso a gravação deixou de crescer.";
+"This iPhone's storage is almost full. Free some up and try again." = "O armazenamento deste iPhone está quase cheio. Liberta algum espaço e tenta outra vez.";
+"Recording paused. Open Ata to resume." = "Gravação em pausa. Abre a Ata para continuar.";
+"Ata could not start recording. If you are on a call, end it and try again." = "A Ata não conseguiu começar a gravar. Se estiveres numa chamada, termina-a e tenta outra vez.";
+"Waiting for a connection to download the speech model" = "À espera de uma ligação para descarregar o modelo de fala";
+"Downloading speech model…" = "A descarregar o modelo de fala…";
+"The microphone is still in use." = "O microfone ainda está a ser usado.";
+"The microphone went quiet. Ata is starting it again." = "O microfone ficou em silêncio. A Ata está a reiniciá-lo.";
+"Show transcript in Files" = "Mostrar a transcrição em Ficheiros";
