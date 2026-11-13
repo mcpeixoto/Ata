@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.7.0
+
+Your own AI agent can read your meetings, without them leaving the Mac.
+
+- **Connect your agent.** Claude, Cursor and other agents that speak MCP can list, search and read your meetings: the summary, your notes and the transcript with each speaker's name. Turn it on in Settings, under Connect your agent, and paste the configuration shown there into your agent.
+- **On this Mac only.** The agent starts Ata itself and talks to it directly. Nothing listens on the network and nothing is sent anywhere.
+- **Read-only.** An agent cannot change or delete a meeting.
+- Off until you switch it on.
+
 ## 3.6.0
 
 The iPhone app, gone over as someone would meet it for the first time.
