@@ -188,14 +188,21 @@ struct PhoneOnboarding: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             VStack(alignment: .leading, spacing: 6) {
-                Picker("Language of your meetings", selection: $language) {
-                    Text("Automatic").tag("auto")
-                    ForEach(Pref.languageChoices, id: \.code) { choice in
-                        Text(choice.name).tag(choice.code)
+                // A menu picker draws only its value: the question is written out.
+                HStack {
+                    Text("Language of your meetings")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer(minLength: 8)
+                    Picker("Language of your meetings", selection: $language) {
+                        Text("Automatic").tag("auto")
+                        ForEach(Pref.languageChoices, id: \.code) { choice in
+                            Text(choice.name).tag(choice.code)
+                        }
                     }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .accessibilityIdentifier("onboarding-language")
                 }
-                .pickerStyle(.menu)
-                .accessibilityIdentifier("onboarding-language")
                 Text("Automatic chooses among your iPhone's languages. Pick one if your meetings are in another.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
