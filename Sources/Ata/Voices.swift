@@ -129,10 +129,15 @@ final class VoiceLibrary {
     /// `voices.json` was read in; it is put aside once every voice in it has its own file.
     private var migrating = false
 
+    /// False for a reader that must not migrate or renumber voices on disk.
+    /// `Ata --mcp` is read-only; every other caller still writes, as before.
+    private let persist: Bool
+
     /// The library in `directory`: Ata's voices folder unless a test says otherwise.
-    init(directory: URL = Paths.voicesDir) {
+    init(directory: URL = Paths.voicesDir, persist: Bool = true) {
         self.directory = directory
         self.file = directory.appendingPathComponent(VoiceLibrary.legacyFileName)
+        self.persist = persist
         load()
     }
 
@@ -143,6 +148,7 @@ final class VoiceLibrary {
         self.file = file
         self.directory = file.lastPathComponent == VoiceLibrary.legacyFileName
             ? file.deletingLastPathComponent() : file.deletingPathExtension()
+        self.persist = true
         load()
     }
 
@@ -204,7 +210,10 @@ final class VoiceLibrary {
             }
             guard let id = Self.voiceID(fileName: name) else { continue }
             let url = directory.appendingPathComponent(name)
-            if CloudFiles.readable(url) == nil {
+            // `readable` asks iCloud for a file that isn't here yet. A read-only
+            // caller skips that: it must not start a download.
+            let stillInCloud = !persist && CloudFiles.state(of: url) == .inCloud
+            if stillInCloud || CloudFiles.readable(url) == nil {
                 downloading.insert(id)
                 unreadable.append(url)
             } else if let data = try? Data(contentsOf: url), let voice = try? decoder.decode(Voice.self, from: data) {
@@ -219,13 +228,17 @@ final class VoiceLibrary {
         // it without a file of its own yet joins, then the file is put aside. A
         // migration cut short is finished the same way the next time.
         if fm.fileExists(atPath: file.path) {
-            if let data = try? Data(contentsOf: file), let legacy = try? decoder.decode([Voice].self, from: data) {
-                let taken = Set(found.map(\.id))
-                    .union(unreadable.compactMap { Self.voiceID(fileName: $0.lastPathComponent) })
-                found += legacy.filter { !taken.contains($0.id) }
-                migrating = true
-            } else {
-                loadFailed = true
+            // Reading a dataless `voices.json` waits for iCloud. A read-only caller leaves it.
+            let leaveInCloud = !persist && CloudFiles.state(of: file) == .inCloud
+            if !leaveInCloud {
+                if let data = try? Data(contentsOf: file), let legacy = try? decoder.decode([Voice].self, from: data) {
+                    let taken = Set(found.map(\.id))
+                        .union(unreadable.compactMap { Self.voiceID(fileName: $0.lastPathComponent) })
+                    found += legacy.filter { !taken.contains($0.id) }
+                    migrating = true
+                } else {
+                    loadFailed = true
+                }
             }
         }
         voices = found.sorted { a, b in
@@ -234,7 +247,7 @@ final class VoiceLibrary {
             return a.id.uuidString < b.id.uuidString
         }
         let numbered = numberTheUnnumbered()
-        if migrating || numbered {
+        if persist && (migrating || numbered) {
             do {
                 try save()
             } catch {

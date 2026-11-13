@@ -138,6 +138,7 @@ enum Pref {
     static let iCloudDocuments = "iCloudDocuments" // the container's Documents folder, as last found
     static let iCloudWanted = "iCloudWanted"     // iPhone: switched on before iCloud Drive was, so it turns on when iCloud answers
     static let fixedSystemWriterSince = "fixedSystemWriterSince" // first launch of a build whose system-audio writer is fixed
+    static let agentAccess = "agentAccess"  // let agents on this Mac read meetings over MCP
     static let shareUsage = "shareUsage"     // send the daily anonymous ping (Metrics)
     static let metricsID = "metricsID"       // random, metrics only; never Device.id
     static let metricsPendingMeetings = "metricsPendingMeetings" // recorded since the last ping
@@ -217,6 +218,9 @@ enum Pref {
             menuIconTimer: true,
             menuIconPulse: false,
             menuIconProgress: true,
+            // Off until it's turned on. The server still answers `initialize`,
+            // so an agent can say the switch is off instead of failing to connect.
+            agentAccess: false,
         ]
         #else
         // The phone transcribes and summarizes with Apple's on-device models, which

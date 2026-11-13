@@ -180,7 +180,12 @@ enum Speakers {
     /// The labels in this meeting whose voice the user left out of transcripts.
     static func leftOut(for meeting: Meeting) -> Set<String> {
         guard let map = MeetingVoices.load(for: meeting) else { return [] }
-        let library = VoiceLibrary()
+        return leftOut(map: map, library: VoiceLibrary())
+    }
+
+    /// Same rules as `leftOut(for:)`. `Ata --mcp` passes a library that does not write.
+    static func leftOut(map: MeetingVoices?, library: VoiceLibrary) -> Set<String> {
+        guard let map else { return [] }
         return Set(map.speakers.compactMap { s in
             s.voiceID.flatMap { library.voice($0) }?.isExcluded == true ? s.label : nil
         })
@@ -189,7 +194,13 @@ enum Speakers {
     /// Label → name for one meeting: you, a named voice, "Speaker 2", or "Others".
     static func names(for meeting: Meeting, myName: String) -> (String) -> String {
         let map = MeetingVoices.load(for: meeting)
+        // No speakers file: nothing to look up, and no reason to open the library.
         let library = map == nil ? nil : VoiceLibrary()
+        return names(map: map, library: library, myName: myName)
+    }
+
+    /// Same rules as `names(for:myName:)`, with a library the caller already loaded.
+    static func names(map: MeetingVoices?, library: VoiceLibrary?, myName: String) -> (String) -> String {
         return { label in
             switch label {
             case me: return myName

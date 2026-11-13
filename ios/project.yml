@@ -61,6 +61,7 @@ targets:
       # bar, system audio capture, meeting detection, the updater, Mac windows.
       - path: ../Sources/Ata
         excludes:
+          - AgentServer.swift
           - App.swift
           - AppStore.swift
           - CalendarAccess.swift

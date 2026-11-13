@@ -1,7 +1,19 @@
 import AppKit
 import SwiftUI
 
+/// Process entry. `--mcp` is handled here, before `NSApplication` starts, so the
+/// child an agent launches shows no Dock icon and no menu bar icon, and never
+/// reaches `endStaleCopies()` — that would quit the Ata the person is using.
 @main
+enum AtaMain {
+    static func main() {
+        if AgentServer.requested {
+            AgentServer.run()
+        }
+        AtaApp.main()
+    }
+}
+
 struct AtaApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var store = AppStore.shared

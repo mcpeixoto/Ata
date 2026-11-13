@@ -645,3 +645,10 @@
 "The microphone is still in use." = "The microphone is still in use.";
 "The microphone went quiet. Ata is starting it again." = "The microphone went quiet. Ata is starting it again.";
 "Show transcript in Files" = "Show transcript in Files";
+/* Connect your agent */
+"Connect your agent" = "Connect your agent";
+"Let AI agents on this Mac read your meetings" = "Let AI agents on this Mac read your meetings";
+"Claude, Cursor and other agents that speak MCP can list, search and read your meetings. Ata answers them on this Mac only: nothing is sent anywhere, and agents cannot change or delete anything." = "Claude, Cursor and other agents that speak MCP can list, search and read your meetings. Ata answers them on this Mac only: nothing is sent anywhere, and agents cannot change or delete anything.";
+"Copy configuration" = "Copy configuration";
+"Paste it into your agent's MCP settings. For Claude Code: %@" = "Paste it into your agent's MCP settings. For Claude Code: %@";
+"Copied." = "Copied.";
