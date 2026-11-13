@@ -93,8 +93,8 @@ enum Snapshots {
 
             // Taller than the real window so the README shows every section
             // instead of a form cut off mid-scroll.
-            let settings = render(SettingsView(height: 1960).environmentObject(store).environmentObject(store.setup),
-                                  width: 540, height: 1960, appearance: appearance)
+            let settings = render(SettingsView(height: 2280).environmentObject(store).environmentObject(store.setup),
+                                  width: 540, height: 2280, appearance: appearance)
             write(frame(settings, appearance), to: out, name: "settings-\(appearance.name)")
 
             let onboarding = render(OnboardingView(height: 520, previewStep: .done).environmentObject(store).environmentObject(store.setup),

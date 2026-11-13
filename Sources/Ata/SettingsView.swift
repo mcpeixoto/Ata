@@ -35,6 +35,8 @@ struct SettingsView: View {
     @AppStorage(Pref.menuIconTimer) private var menuIconTimer = true
     @AppStorage(Pref.menuIconPulse) private var menuIconPulse = false
     @AppStorage(Pref.menuIconProgress) private var menuIconProgress = true
+    @AppStorage(Pref.agentAccess) private var agentAccess = false
+    @State private var agentCopied = false
 
     /// The window's height. Only the snapshot renderer asks for a taller one.
     var height: CGFloat = 660
@@ -50,6 +52,7 @@ struct SettingsView: View {
                 transcriptionSection
                 audioSection
                 iCloudSection
+                agentSection
                 systemSection
                 advancedSection
                 aboutSection
@@ -383,6 +386,47 @@ struct SettingsView: View {
             return L("Sign in to iCloud and turn on iCloud Drive in System Settings to use this.")
         case .notOnThisMac:
             return L("Turn on “Keep meetings in iCloud” in Ata on your iPhone first. This Mac then uses the same folder.")
+        }
+    }
+
+    private var agentExecutable: String {
+        Bundle.main.executablePath ?? "Ata"
+    }
+
+    private var agentSection: some View {
+        Section("Connect your agent") {
+            Toggle("Let AI agents on this Mac read your meetings", isOn: $agentAccess)
+            Text("Claude, Cursor and other agents that speak MCP can list, search and read your meetings. Ata answers them on this Mac only: nothing is sent anywhere, and agents cannot change or delete anything.")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if agentAccess {
+                Text(verbatim: AgentConfiguration.json(executable: agentExecutable))
+                    .font(.system(size: 11, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(8)
+                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.primary.opacity(0.05)))
+                Button("Copy configuration") {
+                    Platform.actions.copy(AgentConfiguration.json(executable: agentExecutable))
+                    agentCopied = true
+                }
+                if agentCopied {
+                    Label("Copied.", systemImage: "checkmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.green)
+                        .task {
+                            try? await Task.sleep(nanoseconds: 3_000_000_000)
+                            agentCopied = false
+                        }
+                }
+                Text(L("Paste it into your agent's MCP settings. For Claude Code: %@",
+                       AgentConfiguration.claudeCode(executable: agentExecutable)))
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 

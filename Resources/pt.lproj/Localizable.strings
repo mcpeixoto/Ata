@@ -645,3 +645,10 @@
 "The microphone is still in use." = "O microfone ainda está a ser usado.";
 "The microphone went quiet. Ata is starting it again." = "O microfone ficou em silêncio. A Ata está a reiniciá-lo.";
 "Show transcript in Files" = "Mostrar a transcrição em Ficheiros";
+/* Connect your agent */
+"Connect your agent" = "Liga o teu agente";
+"Let AI agents on this Mac read your meetings" = "Deixar os agentes de IA neste Mac ler as tuas reuniões";
+"Claude, Cursor and other agents that speak MCP can list, search and read your meetings. Ata answers them on this Mac only: nothing is sent anywhere, and agents cannot change or delete anything." = "O Claude, o Cursor e outros agentes que falam MCP podem listar, pesquisar e ler as tuas reuniões. A Ata responde-lhes só neste Mac: nada é enviado para lado nenhum, e os agentes não podem alterar nem apagar nada.";
+"Copy configuration" = "Copiar configuração";
+"Paste it into your agent's MCP settings. For Claude Code: %@" = "Cola-a nas definições MCP do teu agente. No Claude Code: %@";
+"Copied." = "Copiado.";
