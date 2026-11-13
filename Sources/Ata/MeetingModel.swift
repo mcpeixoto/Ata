@@ -322,6 +322,16 @@ final class MeetingModel: ObservableObject {
         player.play()
     }
 
+    /// The library's copy of this meeting, as of the last reload it caused.
+    private var libraryCopy: Meeting??
+
+    /// The library was read again: reload if this meeting is not as it was.
+    func libraryChanged(_ copy: Meeting?) {
+        if let libraryCopy, libraryCopy == copy { return }
+        libraryCopy = .some(copy)
+        reload()
+    }
+
     func reload() {
         guard let m = Library.load(id) else {
             meeting = nil

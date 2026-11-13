@@ -176,12 +176,12 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build test
 
-      # For reviewers, not a gate, like the Mac's Screenshots job: every screen in
-      # light and dark, with fixture meetings. Download the "iphone-screenshots"
-      # artifact from the run's summary page.
+      # Every screen in light and dark, with fixture meetings: download the
+      # "iphone-screenshots" artifact from the run's summary page. A gate since
+      # 3.5.2, whose meeting screen froze on opening while this step failed
+      # quietly: these UI tests are the only ones that open the real screens.
       - name: Take iPhone screenshots
-        continue-on-error: true
-        timeout-minutes: 15
+        timeout-minutes: 20
         run: ./ios/snapshots.sh "${{ steps.sim.outputs.udid }}"
 
       - name: Upload iPhone screenshots
