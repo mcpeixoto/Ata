@@ -42,8 +42,11 @@ struct MeetingView: View {
         .frame(height: height)
         // Only when this meeting changed: a reload reads its whole transcript,
         // and the library changes every few seconds while another one transcribes.
-        .onReceive(store.$meetings.map { [id = model.id] all in all.first { $0.id == id } }
-            .removeDuplicates()) { _ in model.reload() }
+        // The model compares, not a publisher built here: `body` would build a new
+        // one each time, it would send the meeting again on subscribing, the
+        // reload would change the model, and `body` would run again without end.
+        // On iPhone that happened inside one layout pass and froze the app.
+        .onReceive(store.$meetings) { all in model.libraryChanged(all.first { $0.id == model.id }) }
         .onReceive(people.$voices.dropFirst()) { _ in model.reload() }
     }
 
