@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.6.0
+
+The iPhone app, gone over as someone would meet it for the first time.
+
+- **Opening a meeting on iPhone no longer freezes the app.** 3.5.2 broke it: the meeting screen kept reloading itself and never finished drawing.
+- **A first launch in three steps.** What Ata does, then the microphone and notifications, then your name and the language of your meetings. Skipping the microphone no longer brings the sheet back every time you open Ata.
+- **Ata asks what language your meetings are in.** Automatic only chooses among your iPhone's own languages, so a Portuguese meeting on an English iPhone came out as English.
+- **A recording under 30 seconds does not use a free meeting.** Neither does one with no audio. Trying the button costs nothing.
+- **Storage full is no longer silent.** The recording stops with everything it had written, and Ata says why on screen and in a notification. With under 200 MB free, it says so before starting.
+- **A recording paused by another app tells you.** A notification when Ata is not in front, and it carries on when you come back. If the microphone is still taken, the screen stays on Paused instead of showing Recording.
+- **A microphone that stops delivering is started again.**
+- **Force-quitting Ata no longer leaves "Recording" on the Lock Screen.** It clears within two minutes.
+- **The first transcript without a connection waits instead of failing.** The speech model has to be downloaded once; the meeting says it is waiting and is tried again when you open Ata. While it downloads, the bar says so.
+- **Moments you mark are saved as you mark them**, so a crash keeps them.
+- **Clearer words when a recording can't start**, and the whole message when a transcript fails.
+- Terms of Use is in Settings, beside the Privacy Policy.
+
 ## 3.5.2
 
 Ata keeps up with a long history and a busy day of calls.

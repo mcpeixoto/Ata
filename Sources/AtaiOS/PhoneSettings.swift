@@ -161,6 +161,7 @@ struct PhoneSettings: View {
                     if let url = URL(string: "https://mcpeixoto.github.io/Ata/") {
                         Link("Help", destination: url)
                     }
+                    Link("Terms of Use", destination: Paywall.termsURL)
                     if let url = URL(string: "https://mcpeixoto.github.io/Ata/privacy/") {
                         Link("Privacy Policy", destination: url)
                     }

@@ -326,7 +326,6 @@
 "Recordings wait here until this iPhone can transcribe them. The audio is kept." = "Recordings wait here until this iPhone can transcribe them. The audio is kept.";
 "Search meetings" = "Search meetings";
 "The recording, the transcript and your notes are deleted from this iPhone." = "The recording, the transcript and your notes are deleted from this iPhone.";
-"Ata records conversations on this iPhone, even with the screen locked, and turns them into transcripts you can search." = "Ata records conversations on this iPhone, even with the screen locked, and turns them into transcripts you can search.";
 "To record. Audio stays on this iPhone." = "To record. Audio stays on this iPhone.";
 "When a transcript is ready." = "When a transcript is ready.";
 "Start using Ata" = "Start using Ata";
@@ -623,6 +622,20 @@
 "Part of this conversation could not be summarized." = "Part of this conversation could not be summarized.";
 "Share anonymous usage stats" = "Share anonymous usage stats";
 "Once a day: the app version, your country and how many minutes you recorded. Never your audio, transcripts or names." = "Once a day: the app version, your country and how many minutes you recorded. Never your audio, transcripts or names.";
+/* iPhone onboarding */
+"Record it. Ata writes it up." = "Record it. Ata writes it up.";
+"Records with the screen locked" = "Records with the screen locked";
+"A meeting, a lecture, a doctor's visit. Tap once and put the iPhone down." = "A meeting, a lecture, a doctor's visit. Tap once and put the iPhone down.";
+"Knows who said what" = "Knows who said what";
+"Ata tells the voices apart. Name a voice once and it is recognised next time." = "Ata tells the voices apart. Name a voice once and it is recognised next time.";
+"Made on this iPhone" = "Made on this iPhone";
+"Transcripts are written on the device. No account, and your recordings are not sent to a server." = "Transcripts are written on the device. No account, and your recordings are not sent to a server.";
+"Let Ata hear the room" = "Let Ata hear the room";
+"Next" = "Next";
+"Two questions" = "Two questions";
+"Language of your meetings" = "Language of your meetings";
+"Automatic chooses among your iPhone's languages. Pick one if your meetings are in another." = "Automatic chooses among your iPhone's languages. Pick one if your meetings are in another.";
+"%d meetings a month are free. Ata Pro removes the limit." = "%d meetings a month are free. Ata Pro removes the limit.";
 "This iPhone's storage is full, so the recording stopped growing." = "This iPhone's storage is full, so the recording stopped growing.";
 "This iPhone's storage is almost full. Free some up and try again." = "This iPhone's storage is almost full. Free some up and try again.";
 "Recording paused. Open Ata to resume." = "Recording paused. Open Ata to resume.";

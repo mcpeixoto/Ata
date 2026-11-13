@@ -13,6 +13,9 @@ final class PhoneNavigation: ObservableObject {
     /// Meeting ids pushed on the Meetings tab.
     @Published var meetingPath: [String] = []
     @Published var showingOnboarding = false
+    /// Which step a presentation opens on. The sheet's own step changes as the
+    /// person moves through it; this stays put so the view is not recreated.
+    @Published var onboardingStep: PhoneOnboarding.Step = .welcome
     /// Ata Pro; see `Paywall`.
     @Published var showingPaywall = false
 
@@ -34,6 +37,13 @@ final class PhoneNavigation: ObservableObject {
     }
 
     func showOnboarding() {
+        showOnboarding(at: .welcome)
+    }
+
+    /// Recording with the microphone denied opens on the permissions step:
+    /// welcome has already been seen.
+    func showOnboarding(at step: PhoneOnboarding.Step) {
+        onboardingStep = step
         showingOnboarding = true
     }
 }
