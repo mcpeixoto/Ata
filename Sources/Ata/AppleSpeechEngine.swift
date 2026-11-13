@@ -27,7 +27,8 @@ enum AppleSpeechEngine {
     /// more than one plausible language, each stretch of speech is transcribed
     /// in its own language, as `LocalEngine.transcribeMixed` does for whisper.
     static func transcribe(audio: URL, speaker: String, language: String, plausible: [String],
-                           progress: @escaping @Sendable (Double) -> Void) async throws -> [Segment] {
+                           progress: @escaping @Sendable (Double) -> Void,
+                           stage: @escaping @Sendable (TranscribeStage) -> Void = { _ in }) async throws -> [Segment] {
         guard #available(macOS 26.0, iOS 26.0, *) else { throw AppleSpeechError.unavailable }
 
         let supported = await AppleSpeechRecognizer.supportedLocaleIDs()
@@ -37,12 +38,18 @@ enum AppleSpeechEngine {
         }
         guard !locales.isEmpty else { throw AppleSpeechError.unsupported(codes.first ?? language) }
 
-        // A model that isn't on this Mac yet is downloaded first: the first tenth of the bar.
+        // A model that isn't on the device yet is downloaded first: the first tenth
+        // of the bar. The line changes only while bytes are actually arriving, so
+        // a model already on the device never looks like a download.
         let count = Double(locales.count)
         for (i, locale) in locales.enumerated() {
             let base = 0.1 * Double(i) / count
-            try await install(locale.id) { p in progress(base + 0.1 * p / count) }
+            try await install(locale.id) { p in
+                if p < 1 { stage(.speechModel) }
+                progress(base + 0.1 * p / count)
+            }
         }
+        stage(.speech)
         progress(0.1)
 
         if locales.count == 1 {
@@ -126,6 +133,15 @@ enum AppleSpeechError: LocalizedError {
         case .download(let message):
             return L("Apple's speech model could not be downloaded: %@", message)
         }
+    }
+}
+
+/// A missing speech model is a connection problem, not a bad recording: the
+/// meeting waits and is tried again, instead of being marked failed.
+enum SpeechModelQueue {
+    static func waitsForConnection(_ error: Error) -> Bool {
+        if case .download = error as? AppleSpeechError { return true }
+        return false
     }
 }
 

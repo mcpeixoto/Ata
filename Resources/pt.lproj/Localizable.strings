@@ -636,3 +636,12 @@
 "Language of your meetings" = "Idioma das tuas reuniões";
 "Automatic chooses among your iPhone's languages. Pick one if your meetings are in another." = "Automático escolhe entre os idiomas do teu iPhone. Escolhe um se as tuas reuniões forem noutro.";
 "%d meetings a month are free. Ata Pro removes the limit." = "%d reuniões por mês são gratuitas. A Ata Pro acaba com o limite.";
+"This iPhone's storage is full, so the recording stopped growing." = "O armazenamento deste iPhone está cheio, por isso a gravação deixou de crescer.";
+"This iPhone's storage is almost full. Free some up and try again." = "O armazenamento deste iPhone está quase cheio. Liberta algum espaço e tenta outra vez.";
+"Recording paused. Open Ata to resume." = "Gravação em pausa. Abre a Ata para continuar.";
+"Ata could not start recording. If you are on a call, end it and try again." = "A Ata não conseguiu começar a gravar. Se estiveres numa chamada, termina-a e tenta outra vez.";
+"Waiting for a connection to download the speech model" = "À espera de uma ligação para descarregar o modelo de fala";
+"Downloading speech model…" = "A descarregar o modelo de fala…";
+"The microphone is still in use." = "O microfone ainda está a ser usado.";
+"The microphone went quiet. Ata is starting it again." = "O microfone ficou em silêncio. A Ata está a reiniciá-lo.";
+"Show transcript in Files" = "Mostrar a transcrição em Ficheiros";

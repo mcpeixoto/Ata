@@ -116,6 +116,13 @@ final class AppleSpeechTests: XCTestCase {
         XCTAssertFalse(AppleSpeech.sameLocale("pt-PT", "pt-BR"))
     }
 
+    func testAMissingSpeechModelWaitsForAConnection() {
+        XCTAssertTrue(SpeechModelQueue.waitsForConnection(AppleSpeechError.download("offline")))
+        XCTAssertFalse(SpeechModelQueue.waitsForConnection(AppleSpeechError.unavailable))
+        XCTAssertFalse(SpeechModelQueue.waitsForConnection(AppleSpeechError.unsupported("pt")))
+        XCTAssertFalse(SpeechModelQueue.waitsForConnection(CocoaError(.fileReadNoSuchFile)))
+    }
+
     func testTheUnsupportedErrorNamesTheLanguageAndTheWayOut() {
         let message = AppleSpeechError.unsupported("pt").errorDescription ?? ""
         XCTAssertTrue(message.lowercased().contains("portug"), message)

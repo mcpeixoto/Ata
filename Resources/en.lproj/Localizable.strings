@@ -636,3 +636,12 @@
 "Language of your meetings" = "Language of your meetings";
 "Automatic chooses among your iPhone's languages. Pick one if your meetings are in another." = "Automatic chooses among your iPhone's languages. Pick one if your meetings are in another.";
 "%d meetings a month are free. Ata Pro removes the limit." = "%d meetings a month are free. Ata Pro removes the limit.";
+"This iPhone's storage is full, so the recording stopped growing." = "This iPhone's storage is full, so the recording stopped growing.";
+"This iPhone's storage is almost full. Free some up and try again." = "This iPhone's storage is almost full. Free some up and try again.";
+"Recording paused. Open Ata to resume." = "Recording paused. Open Ata to resume.";
+"Ata could not start recording. If you are on a call, end it and try again." = "Ata could not start recording. If you are on a call, end it and try again.";
+"Waiting for a connection to download the speech model" = "Waiting for a connection to download the speech model";
+"Downloading speech model…" = "Downloading speech model…";
+"The microphone is still in use." = "The microphone is still in use.";
+"The microphone went quiet. Ata is starting it again." = "The microphone went quiet. Ata is starting it again.";
+"Show transcript in Files" = "Show transcript in Files";
