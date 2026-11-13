@@ -21,6 +21,8 @@ struct RecorderState: Equatable {
         case interruptionEnded(shouldResume: Bool)
         /// You asked to carry on after an interruption iOS did not hand back.
         case resume
+        /// Carrying on failed: the microphone is still taken. Back to waiting.
+        case resumeFailed
         /// The input changed: AirPods connected or gone, a headset plugged in.
         case routeChanged
         /// The audio system restarted, and every audio object with it.
@@ -77,6 +79,12 @@ struct RecorderState: Equatable {
             phase = .recording
             defer { needsRebuild = false }
             return needsRebuild ? [.rebuildSession] : [.resumeCapture]
+
+        case (.recording, .resumeFailed):
+            // The phase had already moved to recording, before capture actually
+            // started. Undo that, or the screen says "Recording" over a dead mic.
+            phase = .interrupted
+            return [.pauseCapture]
 
         case (.recording, .routeChanged):
             return [.restartCapture]

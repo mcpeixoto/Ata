@@ -106,6 +106,11 @@ enum RunEnd {
         waiting.withLock { $0[id] = now.addingTimeInterval(retryAfter) }
     }
 
+    /// The app is in front again: a meeting told to wait may be tried now.
+    static func retryNow(_ id: String) {
+        waiting.withLock { $0[id] = nil }
+    }
+
     static func isWaiting(_ id: String, now: Date = Date()) -> Bool {
         waiting.withLock { ($0[id] ?? .distantPast) > now }
     }

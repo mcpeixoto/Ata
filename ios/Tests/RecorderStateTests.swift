@@ -115,6 +115,29 @@ final class RecorderStateTests: XCTestCase {
         XCTAssertFalse(s.needsRebuild)
     }
 
+    func testAFailedResumeGoesBackToInterrupted() {
+        var s = RecorderState()
+        _ = s.handle(.start)
+        _ = s.handle(.interruptionBegan)
+        XCTAssertEqual(s.handle(.resume), [.resumeCapture])
+        XCTAssertEqual(s.phase, .recording)
+        XCTAssertEqual(s.handle(.resumeFailed), [.pauseCapture])
+        XCTAssertEqual(s.phase, .interrupted)
+        XCTAssertFalse(s.isCapturing)
+        XCTAssertTrue(s.isActive, "the file stays open")
+        XCTAssertEqual(s.handle(.resume), [.resumeCapture], "you can try again")
+    }
+
+    func testResumeFailedOutsideARecordingChangesNothing() {
+        var s = RecorderState()
+        XCTAssertEqual(s.handle(.resumeFailed), [])
+        XCTAssertEqual(s.phase, .idle)
+        _ = s.handle(.start)
+        _ = s.handle(.interruptionBegan)
+        XCTAssertEqual(s.handle(.resumeFailed), [], "only a resume that already moved to recording is undone")
+        XCTAssertEqual(s.phase, .interrupted)
+    }
+
     func testInterruptionsAreCounted() {
         var s = RecorderState()
         _ = s.handle(.start)

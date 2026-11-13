@@ -39,7 +39,8 @@ struct MeetingsList: View {
                 ForEach(shown) { meeting in
                     NavigationLink(value: meeting.id) {
                         PhoneMeetingRow(meeting: meeting,
-                                        progress: store.transcribingID == meeting.id ? store.transcribeProgress : nil)
+                                        progress: store.transcribingID == meeting.id ? store.transcribeProgress : nil,
+                                        stage: store.transcribingID == meeting.id ? store.transcribeStage : nil)
                     }
                     .swipeActions {
                         Button(role: .destructive) { pendingDelete = meeting } label: {
@@ -116,6 +117,7 @@ struct MeetingsList: View {
 private struct PhoneMeetingRow: View {
     let meeting: Meeting
     let progress: Double?
+    let stage: TranscribeStage?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -143,10 +145,20 @@ private struct PhoneMeetingRow: View {
     private var statusLine: some View {
         switch meeting.status {
         case .pending:
-            Text("Waiting to be transcribed…").font(.caption).foregroundStyle(.secondary)
+            if let error = meeting.error {
+                Text(verbatim: error).font(.caption).foregroundStyle(.secondary)
+            } else {
+                Text("Waiting to be transcribed…").font(.caption).foregroundStyle(.secondary)
+            }
         case .transcribing:
             if let progress {
-                ProgressView(value: progress) { Text("Transcribing…").font(.caption) }
+                ProgressView(value: progress) {
+                    if let stage {
+                        Text(verbatim: stage.label).font(.caption)
+                    } else {
+                        Text("Transcribing…").font(.caption)
+                    }
+                }
             } else {
                 Text("Transcribing…").font(.caption).foregroundStyle(.secondary)
             }

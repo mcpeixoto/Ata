@@ -623,3 +623,12 @@
 "Part of this conversation could not be summarized." = "Part of this conversation could not be summarized.";
 "Share anonymous usage stats" = "Share anonymous usage stats";
 "Once a day: the app version, your country and how many minutes you recorded. Never your audio, transcripts or names." = "Once a day: the app version, your country and how many minutes you recorded. Never your audio, transcripts or names.";
+"This iPhone's storage is full, so the recording stopped growing." = "This iPhone's storage is full, so the recording stopped growing.";
+"This iPhone's storage is almost full. Free some up and try again." = "This iPhone's storage is almost full. Free some up and try again.";
+"Recording paused. Open Ata to resume." = "Recording paused. Open Ata to resume.";
+"Ata could not start recording. If you are on a call, end it and try again." = "Ata could not start recording. If you are on a call, end it and try again.";
+"Waiting for a connection to download the speech model" = "Waiting for a connection to download the speech model";
+"Downloading speech model…" = "Downloading speech model…";
+"The microphone is still in use." = "The microphone is still in use.";
+"The microphone went quiet. Ata is starting it again." = "The microphone went quiet. Ata is starting it again.";
+"Show transcript in Files" = "Show transcript in Files";

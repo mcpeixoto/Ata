@@ -202,6 +202,16 @@ final class SyncHardeningTests: XCTestCase {
         XCTAssertTrue(RunEnd.awaits(pending, now: now.addingTimeInterval(RunEnd.retryAfter + 1)))
     }
 
+    func testComingToTheFrontRetriesAMeetingThatWasWaiting() {
+        let id = "model-\(UUID().uuidString)"
+        let now = Date()
+        let pending = meeting(id, status: .pending)
+        RunEnd.retryLater(id, now: now)
+        XCTAssertFalse(RunEnd.awaits(pending, now: now.addingTimeInterval(60)))
+        RunEnd.retryNow(id)
+        XCTAssertTrue(RunEnd.awaits(pending, now: now.addingTimeInterval(60)))
+    }
+
     // MARK: 6. Conflicts settled once
 
     func testAConflictIsNotSettledTwiceAtOnce() {

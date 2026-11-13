@@ -33,6 +33,7 @@ struct RecordView: View {
             LevelMeter(level: store.level, tint: Theme.meTint)
                 .frame(maxWidth: 240)
                 .opacity(store.isRecording ? 1 : 0.4)
+                .accessibilityHidden(true)
 
             recordButton
 

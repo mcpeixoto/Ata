@@ -93,6 +93,20 @@ final class PhoneStagingTests: XCTestCase {
         XCTAssertFalse(fm.fileExists(atPath: Paths.meetingsDir.appendingPathComponent(m.id).path))
     }
 
+    func testBookmarksSavedWhileRecordingSurviveACrash() throws {
+        let staged = try StagingFolder.create(app: label("Marks"))
+        try wav(seconds: 2, at: staged.folder.appendingPathComponent("mic.wav"), headerBytes: 0)
+        let saved = StagingFolder.saveBookmarks([1_500, 4_000], on: staged.meeting)
+        XCTAssertEqual(saved.bookmarks?.map(\.ms), [1_500, 4_000])
+        XCTAssertEqual(saved.status, .recording, "saving a mark does not finish the recording")
+
+        Library.recoverStaged()
+        let recovered = try XCTUnwrap(Library.load(staged.meeting.id))
+        XCTAssertEqual(recovered.bookmarks?.map(\.ms), [1_500, 4_000])
+        XCTAssertEqual(recovered.status, .pending)
+        XCTAssertFalse(isStaged(staged.meeting.id))
+    }
+
     func testARecordingCutShortIsStillRecoveredBesideAnUnfinishedImport() throws {
         let cut = try Meeting.newImport(app: label("Half"), at: Date())
         try wav(seconds: 1, at: cut.micURL, headerBytes: 0)
