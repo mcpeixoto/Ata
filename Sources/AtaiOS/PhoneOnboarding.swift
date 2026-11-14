@@ -145,21 +145,21 @@ struct PhoneOnboarding: View {
     }
 
     private var permissions: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: Theme.Space.xl) {
             Text("Let Ata hear the room")
                 .font(.title.bold())
                 .fixedSize(horizontal: false, vertical: true)
-            VStack(spacing: 4) {
-                CheckRow(ok: mic == .granted, title: L("Microphone"),
-                         detail: L("To record. Audio stays on this iPhone.")) {
+            VStack(spacing: Theme.Space.m) {
+                PermissionCard(ok: mic == .granted, title: L("Microphone"),
+                               detail: L("To record. Audio stays on this iPhone.")) {
                     // App Review rejects "Allow" before the system prompt (5.1.1(iv)):
                     // the choice is the system's, this button only leads to it.
                     Button(mic == .denied ? L("Open Settings") : L("Continue")) { requestMic() }
                         .buttonStyle(.borderedProminent)
                         .accessibilityIdentifier("microphone-permission")
                 }
-                CheckRow(ok: notifications == .authorized || notifications == .provisional,
-                         title: L("Notifications"), detail: L("When a transcript is ready."), optional: true) {
+                PermissionCard(ok: notifications == .authorized || notifications == .provisional,
+                               title: L("Notifications"), detail: L("When a transcript is ready."), optional: true) {
                     Button(L("Continue")) { requestNotifications() }
                         .buttonStyle(.bordered)
                         .accessibilityIdentifier("notifications-permission")
@@ -312,5 +312,82 @@ struct PhoneOnboarding: View {
     private func refresh() async {
         mic = AVAudioApplication.shared.recordPermission
         notifications = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+}
+
+/// One permission on the second onboarding step. Same meaning as `CheckRow`:
+/// granted replaces the symbol with a check and hides the button. At the
+/// largest text sizes the button moves under the title so nothing is clipped.
+private struct PermissionCard<Trailing: View>: View {
+    let ok: Bool
+    let title: String
+    let detail: String
+    var optional = false
+    @ViewBuilder var trailing: Trailing
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var tint: Color {
+        if ok { return .green }
+        return optional ? Color.secondary : Theme.warning
+    }
+
+    private var symbol: String {
+        if ok { return "checkmark" }
+        return optional ? "bell" : "exclamationmark"
+    }
+
+    private var circleFill: Color {
+        if ok { return Color.green.opacity(0.15) }
+        if optional { return Color.secondary.opacity(0.12) }
+        return Theme.warning.opacity(0.15)
+    }
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: Theme.Space.m) {
+                    summary
+                    if !ok {
+                        trailing.frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                }
+            } else {
+                HStack(alignment: .center, spacing: Theme.Space.m) {
+                    summary
+                    if !ok { trailing.fixedSize() }
+                }
+            }
+        }
+        .padding(Theme.Space.l)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous)
+                .fill(Color.primary.opacity(0.045))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.06))
+        }
+        .animation(.easeInOut(duration: 0.2), value: ok)
+    }
+
+    private var summary: some View {
+        HStack(alignment: .top, spacing: Theme.Space.m) {
+            Image(systemName: symbol)
+                .font(.body.weight(.bold))
+                .foregroundStyle(tint)
+                .padding(Theme.Space.m)
+                .background(Circle().fill(circleFill))
+            VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                Text(title)
+                    .font(.headline)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
