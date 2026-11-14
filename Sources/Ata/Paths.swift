@@ -120,7 +120,8 @@ enum Pref {
     static let calendarIDs = "calendarIDs"                 // EKCalendar identifiers to watch; absent = all
     static let calendarCategories = "calendarCategories"   // [EKCalendar identifier: MeetingCategory.rawValue]
     static let defaultCategory = "defaultCategory"         // MeetingCategory.rawValue for new meetings; absent = none
-    static let categoryFilter = "categoryFilter"           // the lists' filter: "" = all, or MeetingCategory.rawValue
+    static let categoryFilter = "categoryFilter"           // Insights (and the Mac list): "" = all, or MeetingCategory.rawValue
+    static let meetingsCategoryFilter = "meetingsCategoryFilter" // iPhone meetings list, kept apart from Insights
     static let recordShortcut = "recordShortcut" // global key combination that starts or stops recording
     static let dockIcon = "dockIcon"         // show Ata in the Dock and ⌘-Tab, like any other app
     static let menuBarIcon = "menuBarIcon"   // keep the menu bar icon (the only way in, unless the Dock icon is on)

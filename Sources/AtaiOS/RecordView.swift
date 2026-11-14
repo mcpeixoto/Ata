@@ -4,6 +4,7 @@ import SwiftUI
 /// conversation this is.
 struct RecordView: View {
     @EnvironmentObject var store: PhoneStore
+    @ObservedObject private var live = PhoneLive.shared
     @ObservedObject private var pro = ProStore.shared
 
     var body: some View {
@@ -24,13 +25,13 @@ struct RecordView: View {
         VStack(spacing: 24) {
             status
 
-            Text(verbatim: Transcriber.timestamp(Int(store.elapsed * 1000)))
+            Text(verbatim: Transcriber.timestamp(Int(live.elapsed * 1000)))
                 .font(.system(size: 56, weight: .light, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(store.isRecording ? Color.primary : Color.secondary)
                 .contentTransition(.numericText())
 
-            LevelMeter(level: store.level, tint: Theme.meTint)
+            LevelMeter(level: live.level, tint: Theme.meTint)
                 .frame(maxWidth: 240)
                 .opacity(store.isRecording ? 1 : 0.4)
                 .accessibilityHidden(true)
@@ -51,9 +52,10 @@ struct RecordView: View {
 
             if !pro.isPro && !store.isRecording { freeMeetings }
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 28)
-        .frame(maxWidth: .infinity)
+            .padding(.horizontal, 24)
+            .padding(.top, 28)
+            .frame(maxWidth: .infinity)
+            .onAppear { store.clearMicrophoneDenialIfGranted() }
     }
 
     /// What is happening, in words: the white timer alone said too little. Idle

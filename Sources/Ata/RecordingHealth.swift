@@ -27,6 +27,11 @@ enum RecordingHealth {
         capturing && secondsSinceBuffer > stallAfter && secondsSinceRestart >= stallRetryAfter
     }
 
+    /// Warn, then restart. The restart clears the warning when it succeeds, so
+    /// raising it afterwards left "the microphone went quiet" on screen for good.
+    enum StallStep: Equatable { case warn, restart }
+    static let stallRecoveryOrder: [StallStep] = [.warn, .restart]
+
     static func shouldRefreshActivity(secondsSinceRefresh: TimeInterval) -> Bool {
         secondsSinceRefresh >= activityRefreshAfter
     }

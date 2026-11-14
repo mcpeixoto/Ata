@@ -7,6 +7,8 @@ struct InsightsView: View {
     @State private var data = Insights()
     /// Drives every entrance animation: charts grow and numbers count up from zero.
     @State private var shown = false
+    /// Set the first time the entrance runs, so a later change of the data does not replay it.
+    @State private var didAnimate = false
     /// The same filter as the meeting list: Insights for work alone, or for the rest.
     @AppStorage(Pref.categoryFilter) private var categoryFilter = ""
 
@@ -49,9 +51,10 @@ struct InsightsView: View {
         let computed = Insights.compute(meetings, myName: myName)
         guard computed != data || !shown else { return }
         data = computed
-        if Snapshots.rendering {
+        if Snapshots.rendering || !InsightsEntrance.animates(already: didAnimate) {
             shown = true
         } else {
+            didAnimate = true
             shown = false
             withAnimation(.spring(response: 0.9, dampingFraction: 0.85).delay(0.05)) { shown = true }
         }

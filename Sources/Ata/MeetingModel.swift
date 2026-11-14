@@ -46,6 +46,13 @@ enum MeetingNotes {
         (try? String(contentsOf: m.notesURL, encoding: .utf8)) ?? ""
     }
 
+    /// A meeting deleted while its window is open. Notes still waiting are written
+    /// only when the folder is still there: Trash has moved it, and saving would
+    /// create a new empty one.
+    static func shouldWritePending(folderExists: Bool, changed: Bool) -> Bool {
+        folderExists && changed
+    }
+
     /// Saves your notes as notes.md. Clearing them removes the file, so an
     /// empty notes.md never lingers in the folder.
     static func save(_ text: String, for m: Meeting) throws {
@@ -334,6 +341,17 @@ final class MeetingModel: ObservableObject {
 
     func reload() {
         guard let m = Library.load(id) else {
+            // Deleted out from under this window: keep notes that were still
+            // waiting, then stop the audio. A folder the Trash already took is
+            // not recreated.
+            if let meeting, MeetingNotes.shouldWritePending(
+                folderExists: FileManager.default.fileExists(atPath: meeting.dir.path),
+                changed: notes != savedNotes) {
+                saveNotes()
+            } else {
+                pendingSave?.cancel()
+            }
+            player.close()
             meeting = nil
             return
         }
@@ -400,7 +418,11 @@ final class MeetingModel: ObservableObject {
         let waveformHere = CloudFiles.readable(m.waveformURL) != nil
         if waveform == nil, waveformHere { waveform = Waveform.read(from: m.waveformURL) }
         guard !Snapshots.rendering else { return }
-        if !player.loaded, m.hasAudio || m.hasMergedAudio {
+        if player.loaded, !(m.hasAudio || m.hasMergedAudio) {
+            // Retention, or a delete of the audio only: the player was holding
+            // files that are gone.
+            player.close()
+        } else if !player.loaded, m.hasAudio || m.hasMergedAudio {
             player.load(m)
         }
         // Meetings transcribed before Ata 2.5 get their waveform the first time they're opened.
@@ -587,13 +609,13 @@ final class MeetingModel: ObservableObject {
     func rename(_ speaker: Speaker, to name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard let voice = speaker.voice, !trimmed.isEmpty else { return }
-        PeopleModel.shared.rename(voice, to: trimmed)
+        PeopleModel.shared.rename(voice, to: trimmed, redraw: .focused(id))
         reload()
     }
 
     func merge(_ speaker: Speaker, into other: Voice) {
         guard let voice = speaker.voice else { return }
-        PeopleModel.shared.merge(voice, into: other)
+        PeopleModel.shared.merge(voice, into: other, redraw: .focused(id))
         reload()
     }
 
@@ -702,12 +724,16 @@ final class MeetingPlayer: ObservableObject {
     private let player = AVPlayer()
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
+    private var statusObserver: NSKeyValueObservation?
     private var loading = false
     private var playWhenLoaded = false
     /// A meeting whose audio is still in iCloud: loaded when it is played.
     private var waiting: Meeting?
+    /// Remembered across `close`, so Play works again after a tab switch unloaded it.
+    private var source: Meeting?
 
     func load(_ m: Meeting) {
+        source = m
         guard !loaded, !loading else { return }
         let files = m.hasMergedAudio ? [m.mergedAudioURL] : [m.micAudioURL, m.systemAudioURL].compactMap { $0 }
         // Audio still in iCloud is downloaded when it's played, not when the meeting is opened.
@@ -738,21 +764,22 @@ final class MeetingPlayer: ObservableObject {
     }
 
     func play() {
+        // One meeting at a time, on the Mac and the iPhone.
+        NowPlaying.shared.claim(self)
         guard loaded else {
             playWhenLoaded = true
-            if let waiting { load(waiting) }
+            if let source { load(source) }
             return
         }
         playWhenLoaded = false
         if duration > 0, time >= duration - 0.1 { seek(to: 0) }
         player.playImmediately(atRate: rate)
-        isPlaying = true
     }
 
     func pause() {
         playWhenLoaded = false
         player.pause()
-        isPlaying = false
+        NowPlaying.shared.release(self)
     }
 
     func toggle() { isPlaying ? pause() : play() }
@@ -764,6 +791,8 @@ final class MeetingPlayer: ObservableObject {
     }
 
     func close() {
+        statusObserver?.invalidate()
+        statusObserver = nil
         pause()
         if let timeObserver { player.removeTimeObserver(timeObserver) }
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
@@ -771,6 +800,8 @@ final class MeetingPlayer: ObservableObject {
         endObserver = nil
         player.replaceCurrentItem(with: nil)
         loaded = false
+        loading = false
+        isPlaying = false
     }
 
     func seek(to seconds: Double) {
@@ -782,6 +813,12 @@ final class MeetingPlayer: ObservableObject {
 
     func skip(by seconds: Double) { seek(to: time + seconds) }
 
+    /// AirPods, a call, Siri and Control Center pause the player without calling
+    /// `pause`. The button follows the player, not the last tap.
+    nonisolated static func showsPlaying(_ status: AVPlayer.TimeControlStatus) -> Bool {
+        status != .paused
+    }
+
     private func observe(_ item: AVPlayerItem) {
         // 20 Hz, so the highlighted word keeps up with the voice.
         timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 20),
@@ -789,6 +826,13 @@ final class MeetingPlayer: ObservableObject {
             MainActor.assumeIsolated {
                 guard let self, t.seconds.isFinite else { return }
                 self.time = t.seconds
+            }
+        }
+        statusObserver?.invalidate()
+        statusObserver = player.observe(\.timeControlStatus, options: [.initial, .new]) { [weak self] player, _ in
+            let playing = Self.showsPlaying(player.timeControlStatus)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.isPlaying = playing }
             }
         }
         endObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime,
@@ -811,5 +855,28 @@ final class MeetingPlayer: ObservableObject {
             try? track.insertTimeRange(range, of: source, at: .zero)
         }
         return composition.tracks.isEmpty ? nil : composition
+    }
+}
+
+/// The meeting whose audio is playing. Starting another pauses this one.
+@MainActor
+final class NowPlaying {
+    static let shared = NowPlaying()
+    private weak var current: MeetingPlayer?
+
+    static func shouldPause(current: ObjectIdentifier?, next: ObjectIdentifier) -> Bool {
+        guard let current else { return false }
+        return current != next
+    }
+
+    func claim(_ player: MeetingPlayer) {
+        if let current, Self.shouldPause(current: ObjectIdentifier(current), next: ObjectIdentifier(player)) {
+            current.pause()
+        }
+        current = player
+    }
+
+    func release(_ player: MeetingPlayer) {
+        if current === player { current = nil }
     }
 }

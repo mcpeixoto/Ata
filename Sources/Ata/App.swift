@@ -150,16 +150,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Whatever is quitting Ata: the last words typed are waiting on a timer.
         WindowManager.shared.saveOpenNotes()
         AppStore.shared.setup.keepDownloadForLater()
-        // Only a live recording needs an asynchronous shutdown. Anything else
-        // quits at once: replying later from a Task deadlocks when terminate()
-        // itself was called from a Task — the updater does exactly that — and
-        // left the old copy hung beside the new one after every update.
-        guard AppStore.shared.phase == .recording else {
+        // A live recording, or a meeting stopped a moment ago whose files are
+        // still closing, needs an asynchronous shutdown. Anything else quits at
+        // once: replying later from a Task deadlocks when terminate() itself was
+        // called from a Task — the updater does exactly that — and left the old
+        // copy hung beside the new one after every update. The updater refuses
+        // to install while either is true, so it never takes this path.
+        let store = AppStore.shared
+        guard QuitShutdown.waits(recording: store.phase == .recording, finishing: store.isFinishing) else {
             LocalEngine.currentProcess?.terminate()
             return .terminateNow
         }
         Task { @MainActor in
-            await AppStore.shared.prepareForQuit()
+            await store.prepareForQuit()
             sender.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
@@ -197,18 +200,33 @@ final class WindowManager {
     private var meetings: [String: (window: NSWindow, model: MeetingModel, closing: NSObjectProtocol)] = [:]
 
     func showOnboarding() {
-        let isNew = onboarding == nil
-        let window = present(onboarding, title: L("Welcome to Ata"), size: NSSize(width: 520, height: 520)) {
+        if let onboarding {
+            comeForward(onboarding)
+            return
+        }
+        let window = present(nil, title: L("Welcome to Ata"), size: NSSize(width: 520, height: 520)) {
             OnboardingView()
                 .environmentObject(AppStore.shared)
                 .environmentObject(AppStore.shared.setup)
         }
         onboarding = window
-        guard isNew else { return }
         NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window,
                                                queue: .main) { _ in
             Pref.d.set(true, forKey: Pref.onboarded)
+            // Drop the view, the way a meeting window does. The welcome screen's
+            // poll otherwise keeps firing after the window is gone.
+            MainActor.assumeIsolated { WindowManager.shared.forgetOnboarding() }
         }
+    }
+
+    private func forgetOnboarding() {
+        guard let window = onboarding else { return }
+        onboarding = nil
+        window.contentView = nil
+    }
+
+    func reloadOpenMeetings() {
+        for open in meetings.values { open.model.reload() }
     }
 
     func closeOnboarding() {

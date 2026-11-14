@@ -178,7 +178,11 @@ struct PhoneSettings: View {
                 }
             }
             .navigationTitle("Settings")
-            .onAppear { cloud.recheck() }
+            .onAppear {
+                cloud.recheck()
+                // A purchase or restore message from last time is not this visit's.
+                pro.message = nil
+            }
             .manageSubscriptionsSheet(isPresented: $managingSubscription)
             .sheet(isPresented: $showingICloudHelp) {
                 ICloudHelpSheet(cloud: cloud)

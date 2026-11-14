@@ -23,6 +23,22 @@ enum BlockedStartPresentation: Equatable {
     case doNotArm
 }
 
+/// The microphone message goes away once permission is granted. Any other
+/// error on the Record tab stays until the next attempt.
+enum MicDenial {
+    static func shouldClear(granted: Bool, showingDenial: Bool) -> Bool {
+        granted && showingDenial
+    }
+}
+
+/// "No meetings yet" covers the import row and the waiting-for-engine row
+/// when it is drawn on top of an empty list.
+enum MeetingsPlaceholder {
+    static func shown(meetings: Int, importing: Int, waitingForEngine: Bool) -> Bool {
+        meetings == 0 && importing == 0 && !waitingForEngine
+    }
+}
+
 enum BlockedStart {
     static func presentation(appIsActive: Bool, becomingForeground: Bool) -> BlockedStartPresentation {
         if appIsActive || becomingForeground { return .showNow }

@@ -19,6 +19,14 @@ enum QuitKey {
 
 /// What Quit Ata should warn about. Quitting always keeps the audio; what it
 /// costs is time, and that is worth one question.
+/// Quit has to wait when a recording is live, or a meeting just stopped is still
+/// being filed. Answering later is what lets those files close.
+enum QuitShutdown {
+    static func waits(recording: Bool, finishing: Bool) -> Bool {
+        recording || finishing
+    }
+}
+
 enum QuitWarning: Equatable {
     case recording, transcribing
 

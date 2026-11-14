@@ -1,5 +1,10 @@
 import Foundation
 
+/// The opening animation plays once. A later change of the numbers just updates them.
+enum InsightsEntrance {
+    static func animates(already: Bool) -> Bool { !already }
+}
+
 /// Everything the Insights tab shows, computed from the meeting folders.
 struct Insights: Equatable {
     struct Week: Equatable, Identifiable {

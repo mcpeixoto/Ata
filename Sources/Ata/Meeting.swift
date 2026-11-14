@@ -683,3 +683,20 @@ enum Library {
         return !FileManager.default.fileExists(atPath: m.dir.path)
     }
 }
+
+/// Whether Delete and Transcribe again may run. Both used to return without
+/// saying so while a meeting's audio was still being saved, and the menus
+/// closed or did nothing.
+enum MeetingCommands {
+    static func canDelete(id: String, status: Meeting.Status, currentID: String?,
+                          transcribingID: String?, savingAudio: Bool) -> Bool {
+        status != .recording && id != currentID && id != transcribingID && !savingAudio
+    }
+
+    static func canRetry(hasAudio: Bool, isPlaceholder: Bool, id: String, currentID: String?,
+                         transcribingID: String?, summarizingID: String?, savingAudio: Bool,
+                         canClaim: Bool) -> Bool {
+        hasAudio && !isPlaceholder && id != currentID && id != transcribingID
+            && id != summarizingID && !savingAudio && canClaim
+    }
+}

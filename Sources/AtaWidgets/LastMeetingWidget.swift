@@ -60,9 +60,9 @@ private struct LastMeetingView: View {
     private var small: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let paused = entry.snapshot.pausedSeconds {
-                Label("Recording", systemImage: "record.circle")
+                Label("Paused", systemImage: "pause.circle")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.red)
+                    .foregroundStyle(.orange)
                 Text(verbatim: WidgetRecordingFace.clock(paused))
                     .font(.title2.weight(.semibold))
                     .monospacedDigit()

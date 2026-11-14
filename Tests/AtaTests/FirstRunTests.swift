@@ -70,6 +70,16 @@ final class FirstRunTests: XCTestCase {
         XCTAssertFalse(Recorder.micIsSilent(micPeak: 0.02, systemPeak: 0.4, elapsed: 60), "room noise is not silence")
         XCTAssertFalse(Recorder.micIsSilent(micPeak: 0, systemPeak: 0, elapsed: 60), "nothing is happening yet")
     }
+
+    func testAMicrophoneThatSpeaksAgainClearsTheSilentWarning() {
+        XCTAssertTrue(Recorder.clearMicWarning(micPeak: 0.01, warned: true))
+        XCTAssertFalse(Recorder.clearMicWarning(micPeak: 0.009, warned: true), "still under the silence line")
+        XCTAssertFalse(Recorder.clearMicWarning(micPeak: 1, warned: false), "nothing was raised")
+        XCTAssertTrue(Recorder.warningIsRetry(L("No microphone — retrying…")))
+        XCTAssertTrue(Recorder.warningIsRetry(L("Reconnecting system audio…")))
+        XCTAssertFalse(Recorder.warningIsRetry(L("Ata can't save this recording — the disk may be full. Free up space now.")))
+        XCTAssertFalse(Recorder.warningIsRetry(L("Ata can't hear your microphone — check it isn't muted")))
+    }
 }
 
 private extension JSONDecoder {

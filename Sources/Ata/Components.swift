@@ -114,7 +114,9 @@ struct GhostButton: View {
         Button(role: role, action: action) {
             Label(title, systemImage: systemImage)
                 .ataFont(12, weight: .medium)
-                .padding(.horizontal, 8)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .padding(.horizontal, 6)
                 .padding(.vertical, 5)
                 .background(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)

@@ -1,5 +1,31 @@
 # Changelog
 
+## 3.7.2
+
+Thirty small things that made Ata feel unreliable, on the Mac and the iPhone.
+
+**Mac**
+- **Delete and Transcribe again say why they are waiting** while a meeting's audio is still being saved, instead of doing nothing. The meeting window no longer closes on a delete that didn't happen.
+- **Meeting windows stop reloading over and over** when the voice list is read again, and they show a rename or merge made elsewhere.
+- **Naming a voice from a meeting window no longer freezes the app**; the other meetings update in the background. So does Forget all.
+- **"Ata can't hear your microphone" goes away once you unmute**, and only warnings that are being retried show a spinner.
+- **An update or the system-audio restart waits for a transcription to finish** instead of starting it over.
+- **Quitting right after Stop finishes saving the meeting first.**
+- A meeting deleted while it plays stops playing and keeps the notes you just typed. Only one meeting plays at a time.
+- **Shortening "Delete saved audio after" asks first**, and the sizes update afterwards.
+- The welcome window no longer keeps checking permissions after it closes.
+- The menu's footer fits on one line.
+
+**iPhone**
+- **The Meetings list shows when it is filtered**, with a way back to All, and Insights no longer filters it.
+- **Play works again after switching tabs**, there is sound after recording your voice in People, and the play button follows AirPods, calls and Control Center.
+- **Renaming a voice can be cancelled.**
+- **Warnings and errors appear where they happen and go away** when the problem does.
+- The recording in progress can't be deleted from its own screen.
+- The home screen widget says Paused while paused.
+- Insights opens its animation once, the empty Meetings screen no longer covers an import, and larger text sizes no longer crush speaker rows.
+- Typing no longer lags while recording or transcribing.
+
 ## 3.7.1
 
 Fixes found while getting Ata ready to launch.

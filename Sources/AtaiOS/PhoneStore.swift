@@ -13,8 +13,6 @@ final class PhoneStore: ObservableObject {
 
     @Published private(set) var phase: Phase = .idle
     /// Seconds of audio recorded so far.
-    @Published private(set) var elapsed: Double = 0
-    @Published private(set) var level: Float = 0
     @Published private(set) var meetings: [Meeting] = []
     @Published private(set) var transcribingID: String?
     @Published private(set) var transcribeProgress: Double = 0
@@ -24,6 +22,8 @@ final class PhoneStore: ObservableObject {
     @Published private(set) var waitingForEngine = false
     @Published private(set) var warning: String?
     @Published var lastError: String?
+    /// A delete that failed, shown by the meetings list rather than the Record tab.
+    @Published var deleteError: String?
     /// Audio files still being decoded into meetings.
     @Published private(set) var importing = 0
     /// Why the last import failed, until it's dismissed.
@@ -102,6 +102,7 @@ final class PhoneStore: ObservableObject {
 
     /// Ata came to the front: pick up files changed in the meantime, and the queue.
     func becameActive() {
+        clearMicrophoneDenialIfGranted()
         queuePaused = false
         // An interruption that never handed the microphone back stays paused
         // until Ata is in front. Resuming in the background would fight the
@@ -222,6 +223,7 @@ final class PhoneStore: ObservableObject {
         }
         phase = .starting
         lastError = nil
+        warning = nil
         guard await PhoneRecorder.requestPermission() else {
             phase = .idle
             if !fromIntent {
@@ -354,8 +356,10 @@ final class PhoneStore: ObservableObject {
                 store.maintainRecording()
                 // Locked or in the background, nothing is drawing these: save the battery.
                 guard UIApplication.shared.applicationState == .active else { return }
-                store.elapsed = store.recorder.recordedSeconds
-                store.level = store.recorder.level
+                // Not on the store: every tab observes it, and this fires ten times a second.
+                let live = PhoneLive.shared
+                live.elapsed = store.recorder.recordedSeconds
+                live.level = store.recorder.level
             }
         }
         RunLoop.main.add(timer, forMode: .common)
@@ -384,18 +388,24 @@ final class PhoneStore: ObservableObject {
             capturing: recorder.isCapturing,
             secondsSinceBuffer: recorder.secondsSinceBuffer,
             secondsSinceRestart: now.timeIntervalSince(lastStallRestart)) else { return }
-        lastStallRestart = now
-        recorder.restartStalledCapture()
-        if warning == nil {
-            warning = L("The microphone went quiet. Ata is starting it again.")
+        // Warn first. The restart clears the warning when the microphone comes back,
+        // and setting it afterwards put it back for the rest of the recording.
+        for step in RecordingHealth.stallRecoveryOrder {
+            switch step {
+            case .warn:
+                warning = L("The microphone went quiet. Ata is starting it again.")
+            case .restart:
+                lastStallRestart = now
+                recorder.restartStalledCapture()
+            }
         }
     }
 
     private func stopTicker() {
         ticker?.invalidate()
         ticker = nil
-        elapsed = 0
-        level = 0
+        PhoneLive.shared.elapsed = 0
+        PhoneLive.shared.level = 0
     }
 
     // MARK: Meetings
@@ -407,7 +417,7 @@ final class PhoneStore: ObservableObject {
     func retry(_ m: Meeting, with override: TranscribeOverride?) {
         var m = m
         // Not while the Mac is transcribing it: its run would overwrite this one.
-        guard m.hasAudio, !m.isPlaceholder, m.id != transcribingID, m.canClaim() else { return }
+        guard canRetry(m) else { return }
         m.status = .pending
         m.error = nil
         m.override = override
@@ -416,15 +426,41 @@ final class PhoneStore: ObservableObject {
         pump()
     }
 
-    func delete(_ m: Meeting) {
-        guard m.id != transcribingID else { return }
-        if !Library.trash(m) {
-            lastError = L("Could not delete this meeting.")
-        } else {
-            PeopleModel.shared.removeMeeting(m.id)
-        }
-        reload()
+    func canDelete(_ m: Meeting) -> Bool {
+        MeetingCommands.canDelete(id: m.id, status: m.status, currentID: recorder.meeting?.id,
+                                  transcribingID: transcribingID, savingAudio: false)
     }
+
+    func canRetry(_ m: Meeting) -> Bool {
+        MeetingCommands.canRetry(hasAudio: m.hasAudio, isPlaceholder: m.isPlaceholder, id: m.id,
+                                 currentID: recorder.meeting?.id, transcribingID: transcribingID,
+                                 summarizingID: nil, savingAudio: false, canClaim: m.canClaim())
+    }
+
+    func isSavingAudio(_ id: String) -> Bool { false }
+
+    @discardableResult
+    func delete(_ m: Meeting) -> Bool {
+        guard canDelete(m) else { return false }
+        if !Library.trash(m) {
+            deleteError = L("Could not delete this meeting.")
+            reload()
+            return false
+        }
+        deleteError = nil
+        PeopleModel.shared.removeMeeting(m.id)
+        reload()
+        return true
+    }
+
+    /// The denial is the only lastError this clears. A full disk stays put.
+    func clearMicrophoneDenialIfGranted() {
+        guard MicDenial.shouldClear(granted: AVAudioApplication.shared.recordPermission == .granted,
+                                    showingDenial: lastError == Self.microphoneDenial) else { return }
+        lastError = nil
+    }
+
+    static var microphoneDenial: String { L("Allow Ata to use the microphone in Settings to record.") }
 
     /// Title, date, category and transcript in one lowercased string, for the
     /// search field. Transcripts are read once and again only when they change;
@@ -707,8 +743,8 @@ final class PhoneStore: ObservableObject {
         bootstrapped = true
         meetings = Library.loadAll()
         phase = recording ? .recording : .idle
-        self.elapsed = elapsed
-        self.level = level
+        PhoneLive.shared.elapsed = elapsed
+        PhoneLive.shared.level = level
         self.bookmarks = bookmarks
         self.transcribingID = transcribingID
         transcribeProgress = progress
@@ -733,6 +769,16 @@ final class PhoneStore: ObservableObject {
         queuePaused = decision.queuePaused
         if decision.cancelJob { job?.cancel() }
     }
+}
+
+/// The recording clock and the level meter. Only the Record tab observes this,
+/// so a tick does not redraw Meetings, People, Insights and Settings.
+@MainActor
+final class PhoneLive: ObservableObject {
+    static let shared = PhoneLive()
+    @Published var elapsed: Double = 0
+    @Published var level: Float = 0
+    private init() {}
 }
 
 extension FreeQuotaError: LocalizedError {

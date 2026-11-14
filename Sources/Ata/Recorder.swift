@@ -246,8 +246,26 @@ final class Recorder: NSObject {
         elapsed > 30 && micPeak < 0.01 && systemPeak >= 0.05
     }
 
+    /// The mirror of the system-audio warning coming down: the microphone is audible again.
+    nonisolated static func clearMicWarning(micPeak: Float, warned: Bool) -> Bool {
+        warned && micPeak >= 0.01
+    }
+
+    /// A spinner means Ata is retrying. A full disk or a silent side is not that.
+    nonisolated static func warningIsRetry(_ text: String) -> Bool {
+        text == L("No microphone — retrying…") || text == L("Reconnecting system audio…")
+    }
+
     private func checkForASilentMicrophone() {
-        guard let mic, let sys, !silentMicWarned, !micRestartPending else { return }
+        guard let mic, let sys else { return }
+        if mic.peakLevel >= 0.01 {
+            if Self.clearMicWarning(micPeak: mic.peakLevel, warned: silentMicWarned) {
+                silentMicWarned = false
+                onWarning?(nil)
+            }
+            return
+        }
+        guard !silentMicWarned, !micRestartPending else { return }
         guard Self.micIsSilent(micPeak: mic.peakLevel, systemPeak: sys.peakLevel,
                                elapsed: Date().timeIntervalSince(startedAt)) else { return }
         silentMicWarned = true

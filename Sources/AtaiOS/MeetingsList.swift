@@ -8,13 +8,18 @@ struct MeetingsList: View {
     @State private var query = ""
     @State private var pendingDelete: Meeting?
     @State private var choosingAudio = false
-    @AppStorage(Pref.categoryFilter) private var categoryFilter = ""
+    /// Not Insights' filter: choosing Work there used to hide meetings here, with
+    /// no control on this screen unless a search was open.
+    @AppStorage(Pref.meetingsCategoryFilter) private var categoryFilter = ""
+    /// Search hits, recomputed when the query or the library changes — not on
+    /// every transcription tick, which would stat every transcript again.
+    @State private var searched: [Meeting] = []
 
     private var shown: [Meeting] {
         let inCategory = store.meetings.filter { MeetingCategory.matches($0, filter: categoryFilter) }
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         guard !q.isEmpty else { return inCategory }
-        return inCategory.filter { store.searchText(for: $0).contains(q) }
+        return searched
     }
 
     var body: some View {
@@ -46,12 +51,13 @@ struct MeetingsList: View {
                         Button(role: .destructive) { pendingDelete = meeting } label: {
                             Label("Delete", systemImage: "trash")
                         }
-                        .disabled(meeting.id == store.transcribingID || meeting.status == .recording)
+                        .disabled(!store.canDelete(meeting))
                     }
                 }
             }
             .overlay {
-                if store.meetings.isEmpty {
+                if MeetingsPlaceholder.shown(meetings: store.meetings.count, importing: store.importing,
+                                             waitingForEngine: store.waitingForEngine) {
                     ContentUnavailableView("No meetings yet", systemImage: "waveform",
                                            description: Text("Record one and your history shows up here."))
                 } else if shown.isEmpty, !query.isEmpty {
@@ -59,6 +65,23 @@ struct MeetingsList: View {
                 } else if shown.isEmpty {
                     ContentUnavailableView("No meetings here yet", systemImage: "tag",
                                            description: Text("Pick Work or Personal in a meeting to file it here."))
+                }
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                // Above the list, and above the empty state, so a filter that
+                // matches nothing can still be cleared.
+                if query.trimmingCharacters(in: .whitespaces).isEmpty,
+                   !categoryFilter.isEmpty, let name = MeetingCategory(rawValue: categoryFilter)?.name {
+                    HStack(spacing: 8) {
+                        Text(verbatim: name).font(.subheadline.weight(.semibold))
+                        Spacer()
+                        Button(L("All")) { categoryFilter = "" }
+                            .font(.subheadline)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .background(.bar)
                 }
             }
             .searchable(text: $query, prompt: Text("Search meetings"))
@@ -88,11 +111,17 @@ struct MeetingsList: View {
                 case .failure(let error): store.importError = error.localizedDescription
                 }
             }
-            .alert(store.importError ?? "", isPresented: importFailed) {
-                Button(L("Close"), role: .cancel) {}
-            }
+            .onChange(of: query, initial: true) { _, _ in refreshSearch() }
+            .onChange(of: store.meetings) { _, _ in refreshSearch() }
+            .onChange(of: categoryFilter) { _, _ in refreshSearch() }
             .navigationDestination(for: String.self) { id in
                 MeetingScreen(id: id)
+            }
+            .alert(store.deleteError ?? "", isPresented: Binding(
+                get: { store.deleteError != nil },
+                set: { if !$0 { store.deleteError = nil } }
+            )) {
+                Button(L("Close"), role: .cancel) {}
             }
             .confirmationDialog(L("Delete this meeting?"), isPresented: deleting, titleVisibility: .visible,
                                 presenting: pendingDelete) { meeting in
@@ -105,8 +134,11 @@ struct MeetingsList: View {
         }
     }
 
-    private var importFailed: Binding<Bool> {
-        Binding(get: { store.importError != nil }, set: { if !$0 { store.importError = nil } })
+    private func refreshSearch() {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        let inCategory = store.meetings.filter { MeetingCategory.matches($0, filter: categoryFilter) }
+        guard !q.isEmpty else { searched = inCategory; return }
+        searched = inCategory.filter { store.searchText(for: $0).contains(q) }
     }
 
     private var deleting: Binding<Bool> {
@@ -184,6 +216,12 @@ private struct MeetingScreen: View {
     var body: some View {
         MeetingView(model: model)
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                // Switching tabs closes the player. Coming back has to be able to play.
+                if let meeting = model.meeting, !model.player.loaded {
+                    model.player.load(meeting)
+                }
+            }
             .onDisappear { model.close() }
     }
 }
