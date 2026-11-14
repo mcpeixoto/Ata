@@ -8,6 +8,20 @@ import Foundation
 /// `codesign` and `spctl`, and its Team ID is compared to the running app's —
 /// so a tampered or re-signed download is refused even if the download itself
 /// was intercepted.
+/// Installing replaces the running app and relaunches it. Not while a recording
+/// or a transcription is under way, and not while a meeting just stopped is still
+/// being filed: that quit is answered later, and the installer calls it from a task.
+enum UpdateInstall {
+    static func allowed(recording: Bool, transcribing: Bool, finishing: Bool) -> Bool {
+        !recording && !transcribing && !finishing
+    }
+
+    /// A refusal puts the offer back, rather than reporting a failed install.
+    static func refused(version: String, notes: String) -> Updater.State {
+        .available(version: version, notes: notes)
+    }
+}
+
 @MainActor
 final class Updater: ObservableObject {
     static let shared = Updater()
@@ -46,6 +60,8 @@ final class Updater: ObservableObject {
 
     private var downloader: Downloader?
     private var pendingAsset: URL?
+    /// Kept while a download is in progress, so a refusal can put the offer back.
+    private var offer: (version: String, notes: String)?
 
     // MARK: - Checking
 
@@ -70,10 +86,12 @@ final class Updater: ObservableObject {
                 }
                 if Self.isNewer(release.version, than: Self.currentVersion), release.asset != nil {
                     pendingAsset = release.asset
+                    offer = (release.version, release.notes)
                     state = .available(version: release.version, notes: release.notes)
                     if silent { Notifier.shared.updateAvailable(version: release.version) }
                 } else {
                     pendingAsset = nil
+                    offer = nil
                     state = silent ? .idle : .upToDate
                 }
             } catch {
@@ -165,9 +183,10 @@ final class Updater: ObservableObject {
 
     func installUpdate() {
         guard let asset = pendingAsset, !isDownloading else { return }
-        // Installing restarts the app; never in the middle of a meeting.
-        guard AppStore.shared.phase == .idle else {
-            state = .failed(L("Finish the recording first, then install the update."))
+        // Installing restarts the app. A recording or a transcription would be
+        // cut off; a meeting still being filed deadlocks the quit this asks for.
+        guard Self.installAllowed(on: AppStore.shared) else {
+            keepOffer()
             return
         }
         state = .downloading(0)
@@ -219,8 +238,8 @@ final class Updater: ObservableObject {
             try checkMinimumSystem(of: app)
 
             // A meeting may have started while this downloaded; never restart under it.
-            guard AppStore.shared.phase == .idle else {
-                state = .failed(L("Finish the recording first, then install the update."))
+            guard Self.installAllowed(on: AppStore.shared) else {
+                keepOffer()
                 return
             }
 
@@ -379,6 +398,18 @@ final class Updater: ObservableObject {
 
     func dismiss() {
         state = .idle
+    }
+
+    /// The offer stays on screen: the download can wait until Ata is idle.
+    private func keepOffer() {
+        guard let offer else { return }
+        state = UpdateInstall.refused(version: offer.version, notes: offer.notes)
+    }
+
+    private static func installAllowed(on store: AppStore) -> Bool {
+        UpdateInstall.allowed(recording: store.phase != .idle,
+                              transcribing: store.transcribingID != nil,
+                              finishing: store.isFinishing)
     }
 
     // MARK: - Command line

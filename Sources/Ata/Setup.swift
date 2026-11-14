@@ -170,11 +170,27 @@ final class SetupModel: ObservableObject {
         systemAudioAtLaunch != .authorized && systemAudioStatus == .authorized
     }
 
+    /// Idle, and nothing is being transcribed. A restart otherwise kills the run;
+    /// `deferred` means try again once the queue has finished.
+    static func mayRestart(idle: Bool, transcribing: Bool) -> Bool {
+        idle && !transcribing
+    }
+
+    /// Set when system audio was granted during a recording or a transcription.
+    private var restartDeferred = false
+
     /// Restarts Ata once, by itself, right after system audio was granted —
-    /// never during a recording. Called from `refresh`.
+    /// never during a recording or a transcription. Called from `refresh`, and
+    /// again when the queue goes idle if it had to wait.
     private func restartIfAudioWasJustGranted() {
         guard systemAudioAtLaunch != .authorized, systemAudioStatus == .authorized,
-              !Self.restarting, AppStore.shared.phase == .idle else { return }
+              !Self.restarting else { return }
+        let store = AppStore.shared
+        guard Self.mayRestart(idle: store.phase == .idle, transcribing: store.transcribingID != nil) else {
+            restartDeferred = true
+            return
+        }
+        restartDeferred = false
         Self.restarting = true
         NSLog("Ata: system audio was just allowed; restarting so capture can use it")
         let path = Bundle.main.bundlePath
@@ -183,6 +199,12 @@ final class SetupModel: ObservableObject {
         p.arguments = ["-c", "sleep 1; /usr/bin/open \"\(path)\" --args \(LaunchWindow.quietArgument)"]
         try? p.run()
         NSApp.terminate(nil)
+    }
+
+    /// The queue found nothing to transcribe. A restart that had to wait runs now.
+    func retryDeferredRestart() {
+        guard restartDeferred else { return }
+        restartIfAudioWasJustGranted()
     }
 
     private static var restarting = false

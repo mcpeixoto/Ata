@@ -220,7 +220,11 @@ final class VoiceEnrolment: ObservableObject {
         }
         engine = nil
         #if os(iOS)
-        try? AVAudioSession.sharedInstance().setActive(false)
+        // Back to the category meetings play with, as the recorder does when it
+        // stops. Leaving the session on `.record` makes the next Play silent.
+        let session = AVAudioSession.sharedInstance()
+        try? session.setActive(false, options: .notifyOthersOnDeactivation)
+        try? session.setCategory(.playback, mode: .spokenAudio)
         #endif
     }
 

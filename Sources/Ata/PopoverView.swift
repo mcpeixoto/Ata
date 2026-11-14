@@ -356,7 +356,9 @@ struct PopoverView: View {
     }
 
     private var footer: some View {
-        HStack(spacing: 2) {
+        // One line at the menu's width. "Importar áudio…" wraps if a button is
+        // allowed to shrink, and the meeting window is simply wider.
+        HStack(spacing: 0) {
             GhostButton(title: L("Folder"), systemImage: "folder") {
                 NSWorkspace.shared.open(Paths.meetingsDir)
             }
@@ -370,7 +372,7 @@ struct PopoverView: View {
             .foregroundStyle(.secondary)
             .help(L("Buy me a coffee"))
             .accessibilityLabel(L("Buy me a coffee"))
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 4)
             GhostButton(title: L("Quit Ata"), systemImage: "power") { quit() }
             .help(L("Stops Ata, including the menu bar icon. Closing a window leaves Ata running there."))
         }
@@ -406,8 +408,12 @@ private struct RecordingContent: View {
 
             if let w = store.warning {
                 HStack(spacing: 6) {
-                    ProgressView().controlSize(.mini)
-                    Text(w).font(.system(size: 11)).foregroundStyle(.orange)
+                    // Only while Ata is trying again. A full disk or a silent side
+                    // is not something a spinner can fix.
+                    if Recorder.warningIsRetry(w) {
+                        ProgressView().controlSize(.mini)
+                    }
+                    Text(w).font(.system(size: 11)).foregroundStyle(.orange).lineLimit(2)
                     Spacer()
                 }
             }
@@ -555,6 +561,8 @@ struct MeetingRow: View {
         } else if meeting.status == .failed && meeting.hasAudio {
             Button("Try again") { store.retry(meeting) }
                 .controlSize(.small)
+                .disabled(!store.canRetry(meeting))
+                .savingAudioHelp(store.isSavingAudio(meeting.id))
         } else if meeting.status != .recording && hover {
             Image(systemName: "arrow.up.forward.square").foregroundStyle(.secondary)
         }
@@ -581,7 +589,8 @@ struct MeetingRow: View {
         }
         Divider()
         Button("Delete", role: .destructive) { store.delete(meeting) }
-            .disabled(meeting.status == .recording || isTranscribing)
+            .disabled(!store.canDelete(meeting))
+            .savingAudioHelp(store.isSavingAudio(meeting.id))
     }
 
     private func open() {

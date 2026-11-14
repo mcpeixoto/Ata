@@ -72,8 +72,14 @@ struct RootView: View {
                 .id(navigation.onboardingStep)
                 .interactiveDismissDisabled()
         }
-        .sheet(isPresented: $navigation.showingPaywall) {
+        .sheet(isPresented: $navigation.showingPaywall, onDismiss: { ProStore.shared.message = nil }) {
             Paywall()
+        }
+        .alert(store.importError ?? "", isPresented: Binding(
+            get: { store.importError != nil },
+            set: { if !$0 { store.importError = nil } }
+        )) {
+            Button(L("Close"), role: .cancel) {}
         }
     }
 }

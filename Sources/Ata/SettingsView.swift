@@ -22,6 +22,7 @@ struct SettingsView: View {
     @AppStorage(Pref.autoUpdate) private var autoUpdate = true
     @AppStorage(Pref.shareUsage) private var shareUsage = true
     @AppStorage(Pref.audioRetentionDays) private var audioRetentionDays = 0
+    @State private var pendingRetention: Int?
     @AppStorage(Pref.calendarPrompt) private var calendarPrompt = false
     @AppStorage(Pref.calendarLeadMinutes) private var calendarLeadMinutes = 1
     @AppStorage(Pref.calendarPeopleOnly) private var calendarPeopleOnly = true
@@ -328,17 +329,52 @@ struct SettingsView: View {
                 .fixedSize(horizontal: false, vertical: true)
             Picker("Delete saved audio after", selection: Binding(
                 get: { audioRetentionDays },
-                set: { audioRetentionDays = $0; store.pruneOldAudio() })) {
+                set: { proposeRetention($0) })) {
                 Text("Never").tag(0)
                 Text("7 days").tag(7)
                 Text("30 days").tag(30)
                 Text("90 days").tag(90)
             }
             .disabled(!keepAudio)
+            .confirmationDialog(
+                L("Delete audio older than %@ now? Transcripts and notes stay.",
+                  AudioRetention.name(for: pendingRetention ?? 7)),
+                isPresented: Binding(get: { pendingRetention != nil },
+                                     set: { if !$0 { pendingRetention = nil } }),
+                titleVisibility: .visible) {
+                Button(L("Delete audio"), role: .destructive) {
+                    if let days = pendingRetention { applyRetention(days) }
+                    pendingRetention = nil
+                }
+                Button(L("Cancel"), role: .cancel) { pendingRetention = nil }
+            }
             LabeledContent("Kept on disk") {
                 Text(store.storageText)
             }
         }
+    }
+
+    /// A shorter window deletes audio that is already on disk. Ask first; a longer
+    /// one, or a shorter one with nothing old enough, just takes effect.
+    private func proposeRetention(_ days: Int) {
+        let previous = audioRetentionDays
+        guard AudioRetention.isShorter(days, than: previous) else {
+            applyRetention(days)
+            return
+        }
+        Task { @MainActor in
+            let deletes = await store.retentionDeletesExistingAudio(days: days)
+            if deletes {
+                pendingRetention = days
+            } else {
+                applyRetention(days)
+            }
+        }
+    }
+
+    private func applyRetention(_ days: Int) {
+        audioRetentionDays = days
+        store.pruneOldAudio()
     }
 
     private var iCloudSection: some View {

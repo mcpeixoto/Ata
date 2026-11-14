@@ -35,7 +35,14 @@ final class PeopleModel: ObservableObject {
     /// When a change reaches the transcripts it affects. A meeting's own window
     /// reads its transcript straight after, so that is the default; the People tab
     /// has a list to keep moving, and a voice can be in a hundred meetings.
-    enum Redraw { case now, background }
+    /// `.focused` redraws that one meeting before returning and the rest later,
+    /// so naming someone in one window does not re-render every meeting on the main thread.
+    enum Redraw { case now, background, focused(String) }
+
+    /// Bumps when a redraw has reached the transcripts, including one that ran
+    /// in the background. Open meeting windows reload on it: `$voices` fires
+    /// before the new value is visible, and a merge's repoint finishes later.
+    @Published private(set) var redrawsDone = 0
 
     private var library = VoiceLibrary()
     private var player: AVAudioPlayer?
@@ -57,7 +64,9 @@ final class PeopleModel: ObservableObject {
 
     func reload() {
         library = VoiceLibrary()
-        voices = library.voices
+        // Every open meeting reparses its transcript when this publishes, so an
+        // unchanged library must not. Same family as the 3.5.2 freeze.
+        if voices != library.voices { voices = library.voices }
         // Every meeting's file: never on the main thread, and only a hint until it lands.
         eventsLoad?.cancel()
         eventsLoad = Task.detached(priority: .utility) { [weak self] in
@@ -230,18 +239,23 @@ final class PeopleModel: ObservableObject {
     }
 
     /// Deletes every fingerprint and sample. Transcripts fall back to "Speaker 1, 2…".
+    /// The library itself is dropped here; walking every meeting and redrawing it
+    /// is the slow part, so that runs off the main thread like `apply(.background)`.
     func forgetAll() {
         let meetings = voices.flatMap(\.meetingIDs)
-        try? FileManager.default.removeItem(at: Paths.voicesDir)
-        for m in Library.loadAll() where FileManager.default.fileExists(atPath: m.speakersURL.path) {
-            if var map = MeetingVoices.load(for: m) {
-                for i in map.speakers.indices { map.speakers[i].voiceID = nil }
-                try? map.save(for: m)
-            }
-        }
+        let dir = Paths.voicesDir
+        let myName = Pref.myNameOrDefault
+        try? FileManager.default.removeItem(at: dir)
         library = VoiceLibrary()
         voices = []
-        rerender(meetings: meetings)
+        enqueue(meetings: meetings, myName: myName) {
+            for m in Library.loadAll() where FileManager.default.fileExists(atPath: m.speakersURL.path) {
+                if var map = MeetingVoices.load(for: m) {
+                    for i in map.speakers.indices { map.speakers[i].voiceID = nil }
+                    try? map.save(for: m)
+                }
+            }
+        }
     }
 
     // MARK: Samples
@@ -270,7 +284,7 @@ final class PeopleModel: ObservableObject {
 
     private func persist() {
         do { try library.save() } catch { NSLog("Ata: could not save voices: \(error.localizedDescription)") }
-        voices = library.voices
+        if voices != library.voices { voices = library.voices }
     }
 
     /// A meeting whose speakers pointed at one voice and now point at another, or none.
@@ -283,18 +297,47 @@ final class PeopleModel: ObservableObject {
     /// Brings the meetings a change touched into line with the library, which is
     /// already saved. In the background, each change waits for the one before: two
     /// quick renames must not finish in the wrong order.
+    /// This meeting now, every other meeting afterwards.
+    static func split(_ meetings: [String], focus: String) -> (now: [String], later: [String]) {
+        (meetings.filter { $0 == focus }, meetings.filter { $0 != focus })
+    }
+
     private func apply(_ redraw: Redraw, meetings: [String], repoint: [Repoint] = []) {
         let myName = Pref.myNameOrDefault
         switch redraw {
         case .now:
             Self.write(repoint, meetings: meetings, myName: myName)
+            noteRedrawFinished()
         case .background:
-            let previous = redraws
-            redraws = Task.detached(priority: .userInitiated) {
-                await previous?.value
-                Self.write(repoint, meetings: meetings, myName: myName)
+            enqueue(repoint, meetings: meetings, myName: myName)
+        case .focused(let id):
+            let parts = Self.split(meetings, focus: id)
+            Self.write(repoint.filter { $0.meetingID == id }, meetings: parts.now, myName: myName)
+            let laterRepoint = repoint.filter { $0.meetingID != id }
+            if parts.later.isEmpty, laterRepoint.isEmpty {
+                noteRedrawFinished()
+            } else {
+                enqueue(laterRepoint, meetings: parts.later, myName: myName)
             }
         }
+    }
+
+    /// Each change waits for the one before: two quick renames must not finish
+    /// in the wrong order. `prepare` runs on the background thread first, for
+    /// Forget all's rewrite of every speakers file.
+    private func enqueue(_ repoint: [Repoint] = [], meetings: [String], myName: String,
+                         prepare: @escaping @Sendable () -> Void = {}) {
+        let previous = redraws
+        redraws = Task.detached(priority: .userInitiated) { [weak self] in
+            await previous?.value
+            prepare()
+            Self.write(repoint, meetings: meetings, myName: myName)
+            await self?.noteRedrawFinished()
+        }
+    }
+
+    private func noteRedrawFinished() {
+        redrawsDone &+= 1
     }
 
     private nonisolated static func write(_ repoint: [Repoint], meetings: [String], myName: String) {

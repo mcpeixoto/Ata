@@ -195,7 +195,10 @@
 "Transcribed locally by Ata (%@)." = "Transcrito localmente pela Ata (%@).";
 "Transcribed by Ata with OpenAI (%@)." = "Transcrito pela Ata com a OpenAI (%@).";
 "Could not reach the update server (HTTP %d)." = "Não consegui falar com o servidor de atualizações (HTTP %d).";
-"Finish the recording first, then install the update." = "Termina a gravação primeiro e depois instala a atualização.";
+"Ata is still saving this meeting's audio." = "A Ata ainda está a guardar o áudio desta reunião.";
+"Delete audio older than %@ now? Transcripts and notes stay." = "Apagar já o áudio com mais de %@? As transcrições e as notas ficam.";
+"Delete audio" = "Apagar áudio";
+"Cancel" = "Cancelar";
 "The download did not contain an app." = "O download não trazia nenhuma app.";
 "The downloaded update is not notarized by Apple. Nothing was installed." = "A atualização descarregada não está notarizada pela Apple. Não foi instalado nada.";
 "The downloaded update is signed by a different developer. Nothing was installed." = "A atualização descarregada está assinada por outro developer. Não foi instalado nada.";

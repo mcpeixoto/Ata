@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 /// The welcome window: three short steps, with Whisper Large downloading below
@@ -19,7 +20,8 @@ struct OnboardingView: View {
     var height: CGFloat = 520
     var previewStep: SetupStep?
 
-    private let poll = Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()
+    private let poll = Timer.publish(every: 1.5, on: .main, in: .common)
+    @State private var pollConnection: AnyCancellable?
 
     private var step: SetupStep {
         previewStep ?? SetupStep.current(mic: setup.mic, systemAudioMissing: setup.systemAudioMissing,
@@ -53,6 +55,15 @@ struct OnboardingView: View {
                 loginItemOffered = true
                 if !setup.launchAtLogin { setup.setLaunchAtLogin(true) }
             }
+            guard pollConnection == nil, !Snapshots.rendering else { return }
+            // Held so disappearing can stop it. Not autoconnected: a closed window
+            // must not keep asking.
+            let connection = poll.connect()
+            pollConnection = AnyCancellable { connection.cancel() }
+        }
+        .onDisappear {
+            pollConnection?.cancel()
+            pollConnection = nil
         }
         .onReceive(poll) { _ in
             setup.refresh()

@@ -42,6 +42,19 @@ final class PhoneDecisionsTests: XCTestCase {
         XCTAssertFalse(stopped.cancelJob)
         XCTAssertFalse(stopped.savesMeetingAsPending)
     }
+
+    func testTheMicrophoneMessageClearsOnlyOncePermissionIsGranted() {
+        XCTAssertTrue(MicDenial.shouldClear(granted: true, showingDenial: true))
+        XCTAssertFalse(MicDenial.shouldClear(granted: false, showingDenial: true))
+        XCTAssertFalse(MicDenial.shouldClear(granted: true, showingDenial: false), "a full disk stays put")
+    }
+
+    func testTheEmptyMeetingsStateHidesWhileAudioIsComingIn() {
+        XCTAssertTrue(MeetingsPlaceholder.shown(meetings: 0, importing: 0, waitingForEngine: false))
+        XCTAssertFalse(MeetingsPlaceholder.shown(meetings: 0, importing: 1, waitingForEngine: false))
+        XCTAssertFalse(MeetingsPlaceholder.shown(meetings: 0, importing: 0, waitingForEngine: true))
+        XCTAssertFalse(MeetingsPlaceholder.shown(meetings: 2, importing: 0, waitingForEngine: false))
+    }
 }
 
 final class WidgetRecordingFaceTests: XCTestCase {

@@ -10,6 +10,9 @@ struct MeetingView: View {
     enum Tab: Hashable { case notes, transcript, people }
     @State private var tab: Tab
     @State private var confirmDelete = false
+    #if os(iOS)
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    #endif
 
     /// The window's height. Only the snapshot renderer asks for a fixed one.
     var height: CGFloat? = nil
@@ -47,7 +50,10 @@ struct MeetingView: View {
         // reload would change the model, and `body` would run again without end.
         // On iPhone that happened inside one layout pass and froze the app.
         .onReceive(store.$meetings) { all in model.libraryChanged(all.first { $0.id == model.id }) }
-        .onReceive(people.$voices.dropFirst()) { _ in model.reload() }
+        // After the value is stored. `$voices` fires in willSet, so a reload there
+        // still read the names from before the change.
+        .onChange(of: people.voices) { _, _ in model.reload() }
+        .onChange(of: people.redrawsDone) { _, _ in model.reload() }
     }
 
     private func content(_ meeting: Meeting) -> some View {
@@ -122,8 +128,9 @@ struct MeetingView: View {
         .animation(.easeInOut(duration: 0.2), value: model.notice)
         .confirmationDialog(L("Delete this meeting?"), isPresented: $confirmDelete) {
             Button(Self.deleteButton, role: .destructive) {
-                store.delete(meeting)
-                WindowManager.shared.closeMeeting(meeting.id)
+                if store.delete(meeting) {
+                    WindowManager.shared.closeMeeting(meeting.id)
+                }
             }
         } message: {
             Text(Self.deleteMessage)
@@ -139,6 +146,16 @@ struct MeetingView: View {
         return L("Delete")
         #else
         return L("Move to Trash")
+        #endif
+    }
+
+    /// Two lines once the iPhone's text is large enough that one line is crushed
+    /// by the buttons beside it. The Mac has no text-size setting.
+    private var titleLines: Int {
+        #if os(iOS)
+        dynamicTypeSize.isAccessibilitySize ? 2 : 1
+        #else
+        1
         #endif
     }
 
@@ -172,7 +189,7 @@ struct MeetingView: View {
     private func header(_ meeting: Meeting) -> some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(meeting.title).ataFont(20, weight: .bold, design: .rounded).lineLimit(1)
+                Text(meeting.title).ataFont(20, weight: .bold, design: .rounded).lineLimit(titleLines)
                 Text(meeting.subtitle).ataFont(11).foregroundStyle(.secondary)
                 if model.participants.count > 1 {
                     Text(model.participants.joined(separator: ", "))
@@ -240,7 +257,8 @@ struct MeetingView: View {
                     }
                     Divider()
                     Button("Delete…", role: .destructive) { confirmDelete = true }
-                        .disabled(store.transcribingID == meeting.id)
+                        .disabled(!store.canDelete(meeting))
+                        .savingAudioHelp(store.isSavingAudio(meeting.id))
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
@@ -953,6 +971,12 @@ private struct SpeakerRow: View {
     @State private var name = ""
     @State private var editing = false
     @FocusState private var focused: Bool
+    #if os(iOS)
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    private var wrapsActions: Bool { dynamicTypeSize.isAccessibilitySize }
+    #else
+    private var wrapsActions: Bool { false }
+    #endif
 
     private var named: Bool { speaker.voice?.name != nil }
 
@@ -968,36 +992,85 @@ private struct SpeakerRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
-            Button { model.play(speaker) } label: {
-                Image(systemName: "play.fill")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 26, height: 26)
-                    .background(Circle().fill(speaker.sampleStart == nil ? AnyShapeStyle(Color.gray.opacity(0.4))
-                                                                         : AnyShapeStyle(Theme.brand)))
+        Group {
+            if wrapsActions {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        playButton
+                        labels
+                    }
+                    actions
+                }
+            } else {
+                HStack(spacing: 8) {
+                    playButton
+                    labels
+                    Spacer(minLength: 4)
+                    actions
+                }
             }
-            .buttonStyle(.plain)
-            .disabled(speaker.sampleStart == nil)
-            .help(L("Play where they speak longest"))
-            .accessibilityLabel(L("Play where they speak longest"))
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 3)
+        .opacity(speaker.voice?.isExcluded == true ? 0.55 : 1)
+    }
 
-            VStack(alignment: .leading, spacing: 3) {
-                if !editing {
-                    Text(speaker.name).ataFont(12, weight: .semibold).lineLimit(1)
-                }
-                if speaker.voice != nil, speaker.label != Speakers.me, !named || editing {
-                    TextField(L("Name"), text: $name, prompt: Text(L("Type their name…")))
-                        .textFieldStyle(.roundedBorder)
-                        .controlSize(.small)
-                        .ataFont(11)
-                        .focused($focused)
-                        .onSubmit { save() }
-                        .onExitCommand { editing = false; name = "" }
-                }
-                Text(detail).ataFont(10).foregroundStyle(.secondary).lineLimit(1)
+    private var playButton: some View {
+        Button { model.play(speaker) } label: {
+            Image(systemName: "play.fill")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(speaker.sampleStart == nil ? AnyShapeStyle(Color.gray.opacity(0.4))
+                                                                     : AnyShapeStyle(Theme.brand)))
+        }
+        .buttonStyle(.plain)
+        .disabled(speaker.sampleStart == nil)
+        .help(L("Play where they speak longest"))
+        .accessibilityLabel(L("Play where they speak longest"))
+    }
+
+    private var labels: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if !editing {
+                Text(speaker.name).ataFont(12, weight: .semibold).lineLimit(1)
             }
-            Spacer(minLength: 4)
+            if speaker.voice != nil, speaker.label != Speakers.me, !named || editing {
+                TextField(L("Name"), text: $name, prompt: Text(L("Type their name…")))
+                    .textFieldStyle(.roundedBorder)
+                    .controlSize(.small)
+                    .ataFont(11)
+                    .focused($focused)
+                    .onSubmit { save() }
+                    .onExitCommand { editing = false; name = "" }
+                    .onChange(of: focused) { _, isFocused in
+                        // Escape is a no-op on iPhone. Leaving the field blank ends the edit.
+                        guard !isFocused else { return }
+                        #if os(iOS)
+                        if editing, name.trimmingCharacters(in: .whitespaces).isEmpty {
+                            editing = false
+                            name = ""
+                        }
+                        #endif
+                    }
+            }
+            Text(detail).ataFont(10).foregroundStyle(.secondary).lineLimit(wrapsActions ? 2 : 1)
+        }
+    }
+
+    @ViewBuilder
+    private var actions: some View {
+        HStack(spacing: 8) {
+            #if os(iOS)
+            if editing {
+                Button(L("Cancel")) {
+                    name = ""
+                    editing = false
+                    focused = false
+                }
+                .controlSize(.small)
+            }
+            #endif
             if !name.trimmingCharacters(in: .whitespaces).isEmpty {
                 Button(L("Save")) { save() }.controlSize(.small)
             } else if named, !editing, speaker.label != Speakers.me {
@@ -1044,9 +1117,6 @@ private struct SpeakerRow: View {
                 .accessibilityLabel(L("More"))
             }
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 3)
-        .opacity(speaker.voice?.isExcluded == true ? 0.55 : 1)
     }
 
     private var detail: String {
@@ -1083,6 +1153,8 @@ struct TranscribeAgainMenu: View {
     var body: some View {
         if meeting.hasAudio && meeting.status != .transcribing && meeting.status != .recording {
             Button("Transcribe again") { store.retry(meeting) }
+                .disabled(!store.canRetry(meeting))
+                .savingAudioHelp(store.isSavingAudio(meeting.id))
             #if os(iOS)
             // The phone has one engine, Apple's, on the device, so there is no
             // engine to choose — but a transcript in the wrong language is the
@@ -1096,7 +1168,20 @@ struct TranscribeAgainMenu: View {
                     }
                 }
             }
+            .disabled(!store.canRetry(meeting))
             #endif
+        }
+    }
+}
+
+extension View {
+    /// Why Delete and Transcribe again are greyed out: the audio is still being saved.
+    @ViewBuilder
+    func savingAudioHelp(_ on: Bool) -> some View {
+        if on {
+            help(L("Ata is still saving this meeting's audio."))
+        } else {
+            self
         }
     }
 }

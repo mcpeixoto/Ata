@@ -24,6 +24,10 @@ final class RecordingHealthTests: XCTestCase {
                                                            secondsSinceRestart: RecordingHealth.stallRetryAfter))
     }
 
+    func testAStallWarnsBeforeItRestarts() {
+        XCTAssertEqual(RecordingHealth.stallRecoveryOrder, [.warn, .restart])
+    }
+
     func testTheLiveActivityIsRefreshedInsideItsStaleWindow() {
         XCTAssertFalse(RecordingHealth.shouldRefreshActivity(secondsSinceRefresh: 59))
         XCTAssertTrue(RecordingHealth.shouldRefreshActivity(secondsSinceRefresh: 60))

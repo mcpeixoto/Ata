@@ -52,8 +52,9 @@ final class AppStore: ObservableObject {
     /// until it has.
     private var repairingIDs: Set<String> = []
     /// Meetings whose audio is being compressed or removed after their
-    /// transcript: not retried or deleted until that is over.
-    private var audioJobs: Set<String> = []
+    /// transcript: not retried or deleted until that is over. Published so the
+    /// menus that offer those actions can disable themselves while it lasts.
+    @Published private var audioJobs: Set<String> = []
     /// Stopped recordings still closing their files and moving into the
     /// library. The next recording waits for them before it opens the
     /// microphone; nothing else does.
@@ -209,19 +210,36 @@ final class AppStore: ObservableObject {
     /// Deletes audio from meetings older than the retention window, keeping the
     /// transcripts. Runs at launch; 0 means keep audio forever. Only this
     /// device's meetings: another device's audio follows that device's setting.
+    /// Whether shortening retention to `days` would remove audio that is on disk now.
+    func retentionDeletesExistingAudio(days: Int) async -> Bool {
+        let repairing = repairingIDs
+        let now = Date()
+        return await Task.detached(priority: .utility) {
+            let items = Library.loadAll().map {
+                AudioRetention.Item(startedAt: $0.startedAt, isMine: $0.isMine, isDone: $0.status == .done,
+                                    hasKeptAudio: !$0.keptAudioFiles.isEmpty, repairing: repairing.contains($0.id))
+            }
+            return AudioRetention.wouldDelete(days: days, items: items, now: now)
+        }.value
+    }
+
     func pruneOldAudio() {
         let days = Pref.d.integer(forKey: Pref.audioRetentionDays)
         guard days > 0 else { return }
         let cutoff = Date().addingTimeInterval(-Double(days) * 86_400)
         let repairing = repairingIDs
         // Every meeting folder is read and every audio file stat'ed: not on the main thread.
-        Task.detached(priority: .utility) {
-            for m in Library.loadAll() where m.isMine && m.status == .done && m.startedAt < cutoff
-                && !repairing.contains(m.id) {
-                for url in m.keptAudioFiles {
-                    try? Coordinated.remove(url)
+        Task {
+            await Task.detached(priority: .utility) {
+                for m in Library.loadAll() where m.isMine && m.status == .done && m.startedAt < cutoff
+                    && !repairing.contains(m.id) {
+                    for url in m.keptAudioFiles {
+                        try? Coordinated.remove(url)
+                    }
                 }
-            }
+            }.value
+            reload()
+            WindowManager.shared.reloadOpenMeetings()
         }
     }
 
@@ -534,6 +552,23 @@ final class AppStore: ObservableObject {
 
     // MARK: - Transcription queue
 
+    func canDelete(_ m: Meeting) -> Bool {
+        MeetingCommands.canDelete(id: m.id, status: m.status, currentID: current?.id,
+                                  transcribingID: transcribingID, savingAudio: audioJobs.contains(m.id))
+    }
+
+    func canRetry(_ m: Meeting) -> Bool {
+        MeetingCommands.canRetry(hasAudio: m.hasAudio, isPlaceholder: m.isPlaceholder, id: m.id,
+                                 currentID: current?.id, transcribingID: transcribingID,
+                                 summarizingID: summarizingID, savingAudio: audioJobs.contains(m.id),
+                                 canClaim: m.canClaim())
+    }
+
+    func isSavingAudio(_ id: String) -> Bool { audioJobs.contains(id) }
+
+    /// A meeting stopped a moment ago is still closing its files.
+    var isFinishing: Bool { finishing.pending > 0 }
+
     func retry(_ m: Meeting) {
         retry(m, with: nil)
     }
@@ -543,8 +578,7 @@ final class AppStore: ObservableObject {
     func retry(_ m: Meeting, with override: TranscribeOverride?) {
         var m = m
         // Not while another device is transcribing it: its run would overwrite this one.
-        guard m.hasAudio, !m.isPlaceholder, m.id != transcribingID, m.id != current?.id,
-              !audioJobs.contains(m.id), m.id != summarizingID, m.canClaim() else { return }
+        guard canRetry(m) else { return }
         m.status = .pending
         m.error = nil
         m.override = override
@@ -553,15 +587,19 @@ final class AppStore: ObservableObject {
         pump()
     }
 
-    func delete(_ m: Meeting) {
-        guard m.id != current?.id, m.id != transcribingID, !audioJobs.contains(m.id) else { return }
+    @discardableResult
+    func delete(_ m: Meeting) -> Bool {
+        guard canDelete(m) else { return false }
         // Its voices go only with it: a meeting still there keeps them.
         if Library.trash(m) {
             PeopleModel.shared.removeMeeting(m.id)
         } else {
             lastError = L("Could not delete this meeting.")
+            reload()
+            return false
         }
         reload()
+        return true
     }
 
     /// Transcribes the next pending meeting (oldest first), one at a time.
@@ -581,7 +619,12 @@ final class AppStore: ObservableObject {
                 Self.nextInQueue(Library.loadAll(), repairing: repairing, now: Date())
             }.value
             pumping = false
-            if let next { startTranscribing(next) }
+            if let next {
+                startTranscribing(next)
+            } else if !pumpAgain {
+                // A system-audio grant that arrived mid-transcription waits here.
+                setup.retryDeferredRestart()
+            }
             if pumpAgain {
                 pumpAgain = false
                 pump()
@@ -863,6 +906,44 @@ extension AppStore {
         warning = nil
         lastError = nil
         meetings = Library.loadAll()
+    }
+}
+
+/// "Delete saved audio after". 0 keeps audio forever, so it is never a shorter window.
+enum AudioRetention {
+    struct Item {
+        var startedAt: Date
+        var isMine: Bool
+        var isDone: Bool
+        var hasKeptAudio: Bool
+        var repairing: Bool
+    }
+
+    static func isShorter(_ new: Int, than old: Int) -> Bool {
+        guard new != old, new > 0 else { return false }
+        return old == 0 || new < old
+    }
+
+    static func wouldDelete(days: Int, items: [Item], now: Date) -> Bool {
+        guard days > 0 else { return false }
+        let cutoff = now.addingTimeInterval(-Double(days) * 86_400)
+        return items.contains {
+            $0.isMine && $0.isDone && $0.hasKeptAudio && !$0.repairing && $0.startedAt < cutoff
+        }
+    }
+
+    static func needsConfirmation(from old: Int, to new: Int, items: [Item], now: Date) -> Bool {
+        isShorter(new, than: old) && wouldDelete(days: new, items: items, now: now)
+    }
+
+    /// The picker's own words, so the confirmation names the window the user just chose.
+    static func name(for days: Int) -> String {
+        switch days {
+        case 7: return L("7 days")
+        case 30: return L("30 days")
+        case 90: return L("90 days")
+        default: return L("7 days")
+        }
     }
 }
 
