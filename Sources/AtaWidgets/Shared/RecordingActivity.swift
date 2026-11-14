@@ -22,7 +22,7 @@ enum RecordingMode: String, Codable, CaseIterable, Hashable, Sendable {
 
     var symbol: String {
         switch self {
-        case .inPerson: return "person.2.fill"
+        case .inPerson: return "person.wave.2.fill"
         case .callOnSpeaker: return "speaker.wave.2.fill"
         }
     }

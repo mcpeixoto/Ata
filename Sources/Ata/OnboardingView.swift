@@ -209,21 +209,11 @@ struct OnboardingView: View {
     }
 
     private var moveNotice: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .top, spacing: 6) {
-                if moveError != nil {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                }
-                Text(moveError ?? L("Ata needs to be in Applications to open at login and to update itself."))
-                    .font(.system(size: 12))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .foregroundStyle(moveError == nil ? Theme.warning : Theme.danger)
+        Banner(kind: moveError == nil ? .warning : .danger,
+               mark: .symbol("exclamationmark.triangle.fill"),
+               title: Text(verbatim: moveError ?? L("Ata needs to be in Applications to open at login and to update itself."))) {
             Button("Move to Applications") { moveToApplications() }
         }
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill((moveError == nil ? Theme.warning : Theme.danger).opacity(0.1)))
     }
 
     private func moveToApplications() {
