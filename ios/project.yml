@@ -103,6 +103,10 @@ targets:
           - Share/**
           - Widgets
           - Widgets/**
+      # LAME is LGPL and is linked into this app, so the notice ships in the bundle.
+      - path: ../NOTICE
+        type: file
+        buildPhase: resources
     dependencies:
       - target: CLame
       - package: AtaDependencies
@@ -163,6 +167,8 @@ targets:
       # FolderNames names a meeting after its calendar event, so it needs the type.
       - path: ../Sources/Ata/MeetingEvent.swift
       - path: ../Sources/AtaShare/Shared/ShareInbox.swift
+      - path: ../Sources/AtaiOS/PhoneDecisions.swift
+      - path: ../Sources/AtaWidgets/Shared/WidgetRecordingFace.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.interactive.ata.tests

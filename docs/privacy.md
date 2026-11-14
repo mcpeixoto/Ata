@@ -5,7 +5,7 @@ permalink: /privacy/
 
 # Privacy Policy
 
-_Last updated: 6 November 2026_
+_Last updated: 14 November 2026_
 
 Ata records meetings and turns them into transcripts. It is built so that
 your recordings belong to you and nobody else, including us.
@@ -40,8 +40,17 @@ titles or the names of the people in them.
   files in your iCloud Drive so your devices can share them. They are stored by
   Apple under your Apple Account; we cannot read them.
 
-You can delete any meeting from the app, and deleting the app removes what it
-stored on that device.
+You can delete any meeting from the app. On iPhone, deleting the app removes
+what it stored on the device. On the Mac, deleting the app leaves
+the meetings in `~/Documents/Meetings` (and in iCloud Drive if sync is on)
+until you delete that folder.
+
+## Agents
+
+Agent access is off by default. When you turn it on, an agent app on the same
+Mac can read your meetings through Ata. Ata opens no network port and sends
+nothing. The agent app may send what it reads to its own AI provider, under
+that provider's policy. You can turn it off in Settings at any time.
 
 ## What leaves your device
 
@@ -69,8 +78,7 @@ Ata is not directed at children and collects no personal data from anyone.
 
 ## Contact
 
-Questions about this policy: open an issue at
-<https://github.com/mcpeixoto/Ata/issues>.
+Questions about this policy: ata@peixotolabs.com. The controller is Peixoto Labs.
 
 If this policy changes, the new version will be published here with a new
 date.

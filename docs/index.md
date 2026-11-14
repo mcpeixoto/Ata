@@ -10,7 +10,8 @@ transcripts you can search. Transcription runs on your device.
 
 ## Help
 
-- **Something isn't working, or you have a question:** open an issue at
+- **Something isn't working, or you have a question:** email
+  ata@peixotolabs.com, or open an issue at
   <https://github.com/mcpeixoto/Ata/issues>. Say which device and version
   (Settings → About on iPhone) you are using.
 - **Subscriptions:** Ata Pro is billed by Apple. Cancel or change it in the

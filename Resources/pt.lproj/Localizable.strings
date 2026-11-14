@@ -338,6 +338,7 @@
 "Help" = "Ajuda";
 "Privacy Policy" = "Política de Privacidade";
 "About" = "Sobre";
+"Acknowledgements" = "Agradecimentos";
 "Your last meeting, and a button to record the next one." = "A tua última reunião e um botão para gravar a próxima.";
 "Last meeting" = "Última reunião";
 "Record with Ata" = "Gravar com a Ata";
@@ -496,7 +497,7 @@
 "You have Ata Pro. Thank you!" = "Tens a Ata Pro. Obrigado!";
 "%d of %d free meetings left this month" = "Restam %d de %d reuniões gratuitas este mês";
 "Unlimited meetings on iPhone" = "Reuniões ilimitadas no iPhone";
-"Record and import as many as you like. Without Pro, 5 new meetings a month are free." = "Grava e importa quantas quiseres. Sem a Pro, 5 reuniões novas por mês são gratuitas.";
+"Record and import as many as you like. Without Pro, %d new meetings a month are free." = "Grava e importa quantas quiseres. Sem a Pro, %d reuniões novas por mês são gratuitas.";
 "Transcribed on your iPhone" = "Transcrito no teu iPhone";
 "Transcripts and voices are made on the device, with or without Pro." = "As transcrições e as vozes são feitas no dispositivo, com ou sem a Pro.";
 "Ata for Mac stays free" = "A Ata para Mac continua gratuita";
@@ -648,7 +649,8 @@
 /* Connect your agent */
 "Connect your agent" = "Liga o teu agente";
 "Let AI agents on this Mac read your meetings" = "Deixar os agentes de IA neste Mac ler as tuas reuniões";
-"Claude, Cursor and other agents that speak MCP can list, search and read your meetings. Ata answers them on this Mac only: nothing is sent anywhere, and agents cannot change or delete anything." = "O Claude, o Cursor e outros agentes que falam MCP podem listar, pesquisar e ler as tuas reuniões. A Ata responde-lhes só neste Mac: nada é enviado para lado nenhum, e os agentes não podem alterar nem apagar nada.";
+"Claude, Cursor and other agents that speak MCP can list, search and read your meetings. Ata itself sends nothing. What an agent reads, it may send to its own AI provider. Agents cannot change or delete anything." = "O Claude, o Cursor e outros agentes que falam MCP podem listar, pesquisar e ler as tuas reuniões. A Ata não envia nada. O que um agente lê, pode enviá-lo ao seu fornecedor de IA. Os agentes não podem alterar nem apagar nada.";
+"Move Ata to the Applications folder first. This path stops working if the app moves." = "Move primeiro a Ata para a pasta Aplicações. Este caminho deixa de funcionar se a app mudar de sítio.";
 "Copy configuration" = "Copiar configuração";
 "Paste it into your agent's MCP settings. For Claude Code: %@" = "Cola-a nas definições MCP do teu agente. No Claude Code: %@";
 "Copied." = "Copiado.";

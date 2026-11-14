@@ -179,26 +179,61 @@ final class PhoneStore: ObservableObject {
     }
 
     func startFromIntent() async throws {
-        try await start()
+        try await start(fromIntent: true)
     }
 
-    private func start() async throws {
+    /// The free limit and a denied microphone are worth opening Ata for. Anything
+    /// else (no room, already recording) stays where the intent left it.
+    nonisolated static func shouldOpenForBlockedStart(_ error: Error) -> Bool {
+        if error is FreeQuotaError { return true }
+        if let recorderError = error as? PhoneRecorderError, case .micDenied = recorderError { return true }
+        return false
+    }
+
+    var isApplicationActive: Bool { UIApplication.shared.applicationState == .active }
+
+    /// Shows the paywall or the microphone message only when Ata is in front, or
+    /// this request is bringing it there. Otherwise the sheet would wait until
+    /// the next time the app opened, with nothing to explain it.
+    func presentBlockedStart(_ error: Error, appIsActive: Bool, becomingForeground: Bool) {
+        guard BlockedStart.presentation(appIsActive: appIsActive, becomingForeground: becomingForeground) == .showNow else { return }
+        if error is FreeQuotaError {
+            PhoneNavigation.shared.showPaywall()
+            return
+        }
+        if let recorderError = error as? PhoneRecorderError, case .micDenied = recorderError {
+            lastError = L("Allow Ata to use the microphone in Settings to record.")
+            PhoneNavigation.shared.showOnboarding(at: .permissions)
+        }
+    }
+
+    private func start(fromIntent: Bool = false) async throws {
         guard phase == .idle else { return }
         // Siri and the Control come through here too. A recording
         // already running is never stopped by this; it only gates a new one.
         updateQuota()
-        if needsPro {
-            PhoneNavigation.shared.showPaywall()
-            throw FreeQuotaError.limitReached
+        // At the limit, record nothing. From an intent the sheet is armed only
+        // after Ata is in front; see `presentBlockedStart`.
+        do {
+            try RecordingStart.begin(needsPro: needsPro, record: {})
+        } catch {
+            if !fromIntent { PhoneNavigation.shared.showPaywall() }
+            throw error
         }
         phase = .starting
         lastError = nil
         guard await PhoneRecorder.requestPermission() else {
             phase = .idle
-            lastError = L("Allow Ata to use the microphone in Settings to record.")
-            PhoneNavigation.shared.showOnboarding(at: .permissions)
+            if !fromIntent {
+                lastError = L("Allow Ata to use the microphone in Settings to record.")
+                PhoneNavigation.shared.showOnboarding(at: .permissions)
+            }
             throw PhoneRecorderError.micDenied
         }
+        // The microphone and a transcription would compete. Same pause as when
+        // iOS ends the background task: the job is cancelled and the meeting
+        // goes back to pending, audio untouched.
+        applyQueue(.recordingWillStart)
         do {
             guard RecordingHealth.hasRoom(available: Self.freeBytes()) else {
                 throw PhoneRecorderError.notEnoughSpace
@@ -212,8 +247,10 @@ final class PhoneStore: ObservableObject {
             startTicker()
             reload()
         } catch {
+            applyQueue(.recordingStopped)
             phase = .idle
             lastError = Self.message(forStartFailure: error)
+            pump()
             throw error
         }
     }
@@ -252,6 +289,8 @@ final class PhoneStore: ObservableObject {
         }
         bookmarks = []
         phase = .idle
+        // The queue was paused for the recording. It can take the next meeting.
+        applyQueue(.recordingStopped)
         reload()
         // Wherever the folder is now: one left in staging moves with its meeting.mp3.
         if let m = finished?.meeting, m.status == .pending {
@@ -297,6 +336,9 @@ final class PhoneStore: ObservableObject {
         case .idle, .stopped: break // stopRecording sets the phase itself
         }
         updateActivity()
+        // Pause and resume have to reach the widget. The live timer is a date,
+        // and reload() is not called when the phase changes on its own.
+        updateWidgets()
     }
 
     private func updateActivity(force: Bool = false) {
@@ -475,9 +517,9 @@ final class PhoneStore: ObservableObject {
     /// The phone's engine needs nothing installed first.
     var queueReason: String? { nil }
 
-    /// Whether this iPhone can run the engine a job asks for. The phone transcribes
-    /// on the device only, and whisper-cli is a Mac program, so until an on-device
-    /// engine is added the queue waits, with the audio kept.
+    /// Whether this iPhone can run the engine a job asks for. Apple speech runs
+    /// on the device. whisper-cli is a Mac program, so a meeting that asks for
+    /// it waits here, with the audio kept, for a Mac that has it.
     static func canRun(_ options: TranscribeOptions) -> Bool {
         if options.engine == .local { return Paths.whisperCLI() != nil }
         return true
@@ -514,8 +556,7 @@ final class PhoneStore: ObservableObject {
         let queued = m
 
         background = ContinuedWork(title: L("Transcribing"), subtitle: m.title) { [weak self] in
-            self?.queuePaused = true
-            self?.job?.cancel()
+            self?.applyQueue(.backgroundExpired)
         }
         job = Task {
             let heartbeat = renewClaim(of: queued.id)
@@ -677,16 +718,24 @@ final class PhoneStore: ObservableObject {
 
     private func updateWidgets() {
         let last = meetings.first { $0.status != .recording }
+        let face = WidgetRecordingFace.face(isRecording: isRecording, isPaused: phase == .interrupted,
+                                            recordedSeconds: recorder.recordedSeconds, now: Date())
         let snapshot = WidgetSnapshot(lastTitle: last?.title, lastStartedAt: last?.startedAt,
-                                      recordingSince: isRecording ? Date().addingTimeInterval(-recorder.recordedSeconds) : nil)
+                                      recordingSince: face.recordingSince, pausedSeconds: face.pausedSeconds)
         if snapshot.save() { WidgetCenter.shared.reloadAllTimelines() }
+    }
+
+    /// Pause or resume the transcription queue. Cancelling the running job is
+    /// what saves the meeting back as pending: the job's catch treats
+    /// cancellation as "try again", and no audio is deleted.
+    private func applyQueue(_ event: RecordingQueue.Event) {
+        let decision = RecordingQueue.decide(event, jobRunning: job != nil)
+        queuePaused = decision.queuePaused
+        if decision.cancelJob { job?.cancel() }
     }
 }
 
-/// Why a new recording did not start: this month's free meetings are used.
-enum FreeQuotaError: LocalizedError {
-    case limitReached
-
+extension FreeQuotaError: LocalizedError {
     var errorDescription: String? {
         L("You have used this month's %d free meetings on iPhone. Ata Pro records without a limit.", FreeQuota.limit)
     }

@@ -37,9 +37,9 @@ All of it on your Mac: Whisper for the words, Apple Intelligence for the summary
 <td width="50%" align="center">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/menu-insights-dark.png">
-  <img src="docs/images/menu-insights-light.png" alt="Ata's Insights tab: hours recorded, meetings per week, who talks, cost per transcription" width="100%">
+  <img src="docs/images/menu-insights-light.png" alt="Ata's Insights tab: hours recorded, meetings per week, who talks" width="100%">
 </picture>
-<br><sub><b>Insights.</b> What you've recorded, who did the talking, and what each transcript cost.</sub>
+<br><sub><b>Insights.</b> What you've recorded, and who did the talking.</sub>
 </td>
 </tr>
 </table>
@@ -57,8 +57,8 @@ All of it on your Mac: Whisper for the words, Apple Intelligence for the summary
 - **Summaries, if you want them.** An overview and the key points, above the transcript.
 - **Knows who said what.** Ata learns the voices in your meetings, on your Mac. Name a voice once
   and every transcript uses the name.
-- **See your history.** An Insights tab charts hours recorded, who talks how much, where your
-  meetings happen and what every transcript cost.
+- **See your history.** An Insights tab charts hours recorded, who talks how much, and where your
+  meetings happen.
 - **Change your mind later.** Re-transcribe any meeting with a different model; the old
   transcript is kept next to the new one.
 - **Hard to lose a recording.** Survives switching microphones, sleep, crashes and power loss.
@@ -239,14 +239,27 @@ is in [`metrics/`](metrics/).
 > **Always tell people you're recording.** The law differs by country — and it's the decent thing
 > to do either way.
 
-## Ata for iPhone (in development)
+## Connect your agent
 
-An iPhone version is being built in this repository, on the same code as the Mac app. It records
+Claude, Cursor and other agents that speak MCP can list, search and read your meetings: the summary,
+your notes and the transcript. It is off until you turn it on in Settings, under Connect your agent.
+An agent can only read. It cannot change or delete a meeting.
+
+Ata itself sends nothing; what an agent reads, the agent may send to its own AI provider.
+
+For Claude Code, with Ata in Applications:
+
+```
+claude mcp add ata -- "/Applications/Ata.app/Contents/MacOS/Ata" --mcp
+```
+
+## Ata for iPhone
+
+The iPhone app is in TestFlight and waiting for App Store review. It records
 conversations in person or a call on a speaker, with the screen locked, for hours; starts from the
 Action button, Control Center, Siri or a widget; and shows the recording on the lock screen with
 Stop and Bookmark buttons. The meeting screen, People and Insights are the Mac's own. Transcription
-will run on the iPhone itself, and meetings will sync with the Mac through iCloud Drive. It goes to
-TestFlight first; it isn't on the App Store.
+runs on the iPhone, and meetings sync with the Mac through iCloud Drive.
 
 To build it you need Xcode 26 and [XcodeGen](https://github.com/yonaskolb/XcodeGen):
 `./ios/generate.sh`, then open `ios/Ata.xcodeproj`. To run it on your own iPhone, copy

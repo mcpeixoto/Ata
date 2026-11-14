@@ -32,7 +32,7 @@ struct Paywall: View {
 
                     VStack(alignment: .leading, spacing: 16) {
                         Feature(symbol: "infinity", title: L("Unlimited meetings on iPhone"),
-                                detail: L("Record and import as many as you like. Without Pro, 5 new meetings a month are free."))
+                                detail: L("Record and import as many as you like. Without Pro, %d new meetings a month are free.", FreeQuota.limit))
                         Feature(symbol: "iphone", title: L("Transcribed on your iPhone"),
                                 detail: L("Transcripts and voices are made on the device, with or without Pro."))
                         Feature(symbol: "laptopcomputer", title: L("Ata for Mac stays free"),
