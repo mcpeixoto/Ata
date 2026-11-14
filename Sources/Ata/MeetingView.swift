@@ -29,11 +29,8 @@ struct MeetingView: View {
             if let meeting = model.meeting {
                 content(meeting)
             } else {
-                VStack(spacing: 8) {
-                    Image(systemName: "trash").ataFont(26).foregroundStyle(.secondary)
-                    Text("This meeting was deleted.").ataFont(13, weight: .semibold)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyState(icon: "trash", title: L("This meeting was deleted."), message: "")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         #if os(macOS)
@@ -68,38 +65,21 @@ struct MeetingView: View {
                       waveform: model.waveform,
                       marks: model.moments.map(\.bookmark.ms))
             if let message = model.message {
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.danger)
-                    Text(message).ataFont(11).fixedSize(horizontal: false, vertical: true)
-                    Spacer()
-                    Button { model.message = nil } label: { Image(systemName: "xmark").ataFont(10, weight: .bold) }
-                        .buttonStyle(.plain).foregroundStyle(.secondary)
-                        .help(L("Dismiss"))
-                        .accessibilityLabel(L("Dismiss"))
-                }
-                .padding(10)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.danger.opacity(0.10)))
+                Banner(kind: .danger, mark: .symbol("exclamationmark.triangle.fill"),
+                       title: Text(verbatim: message),
+                       dismiss: { model.message = nil },
+                       dismissLabel: L("Dismiss"))
             }
             if let notice = model.notice {
-                Label(notice, systemImage: "checkmark.circle.fill")
-                    .ataFont(11)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.05)))
+                Banner(kind: .success, mark: .symbol("checkmark.circle.fill"),
+                       title: Text(verbatim: notice))
                     .transition(.opacity)
             }
             if let healthWarning = model.healthWarning {
                 // Not dismissable: it is a fact about this recording, and it is
                 // at the top of its transcript.md too.
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "waveform.slash").foregroundStyle(Theme.warning)
-                    Text(healthWarning).ataFont(11).fixedSize(horizontal: false, vertical: true)
-                    Spacer()
-                }
-                .padding(10)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.warning.opacity(0.10)))
+                Banner(kind: .warning, mark: .symbol("waveform.slash"),
+                       title: Text(verbatim: healthWarning))
             }
             Picker("", selection: $tab) {
                 Text("Notes").tag(Tab.notes)
@@ -228,7 +208,7 @@ struct MeetingView: View {
                 .help(L("Copy"))
                 .accessibilityLabel(L("Copy"))
 
-                toolbarButton("square.and.arrow.down", help: L("Save as MP3…")) { model.exportMP3() }
+                toolbarButton("arrow.down.doc", help: L("Save as MP3…")) { model.exportMP3() }
                     .disabled(!(meeting.hasAudio || meeting.hasMergedAudio) || model.exporting)
                 toolbarButton("folder", help: Self.revealTitle) {
                     Platform.actions.reveal(meeting.dir)
@@ -243,7 +223,7 @@ struct MeetingView: View {
                         .disabled(meeting.existingTranscriptURL == nil)
                     Button("Copy notes", systemImage: "note.text") { model.copyNotes() }
                         .disabled(model.summary == nil && model.notes.isEmpty)
-                    Button(L("Save as MP3…"), systemImage: "square.and.arrow.down") { model.exportMP3() }
+                    Button(L("Save as MP3…"), systemImage: "arrow.down.doc") { model.exportMP3() }
                         .disabled(!(meeting.hasAudio || meeting.hasMergedAudio) || model.exporting)
                     Button(Self.revealTitle, systemImage: "folder") { Platform.actions.reveal(meeting.dir) }
                     Divider()
@@ -480,17 +460,10 @@ private struct PlayerBar: View {
             if hasAudio {
                 HStack(spacing: 12) {
                     skipButton("gobackward.15", by: -15)
-                    Button { player.toggle() } label: {
-                        Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 38, height: 38)
-                            .background(Circle().fill(Theme.brand))
-                            .contentShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .help(player.isPlaying ? L("Pause") : L("Play the meeting"))
-                    .accessibilityLabel(player.isPlaying ? L("Pause") : L("Play the meeting"))
+                    PlayButton(size: .large, tint: AnyShapeStyle(Theme.brand),
+                               playing: player.isPlaying, action: { player.toggle() })
+                        .help(player.isPlaying ? L("Pause") : L("Play the meeting"))
+                        .accessibilityLabel(player.isPlaying ? L("Pause") : L("Play the meeting"))
                     skipButton("goforward.15", by: 15)
 
                     VStack(spacing: 2) {
@@ -572,12 +545,12 @@ private struct NotesTab: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
-                heading(L("Summary"))
+                SectionLabel(L("Summary"))
                 summary
             }
             if !model.moments.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
-                    heading(L("Moments you marked"))
+                    SectionLabel(L("Moments you marked"))
                     ForEach(model.moments) { moment in
                         MomentRow(moment: moment, playable: meeting.hasAudio || meeting.hasMergedAudio) {
                             model.play(moment)
@@ -586,17 +559,16 @@ private struct NotesTab: View {
                 }
             }
             VStack(alignment: .leading, spacing: 8) {
-                heading(L("Your notes"))
-                TextEditor(text: $model.notes)
-                    .ataFont(13)
-                    .scrollContentBackground(.hidden)
-                    .frame(minHeight: 160)
-                    .padding(8)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.045)))
-                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
-                    .onChange(of: model.notes) { model.notesChanged() }
-                    // Typing over notes that haven't arrived would hide the other device's.
-                    .disabled(model.notesDownloading)
+                SectionLabel(L("Your notes"))
+                Card(padding: Theme.Space.s) {
+                    TextEditor(text: $model.notes)
+                        .ataFont(13)
+                        .scrollContentBackground(.hidden)
+                        .frame(minHeight: 160)
+                        .onChange(of: model.notes) { model.notesChanged() }
+                        // Typing over notes that haven't arrived would hide the other device's.
+                        .disabled(model.notesDownloading)
+                }
                 if model.notesDownloading {
                     Label("Downloading from iCloud…", systemImage: "icloud.and.arrow.down")
                         .ataFont(10).foregroundStyle(.secondary)
@@ -739,10 +711,6 @@ private struct MomentRow: View {
         name.inlinePresentationIntent = .stronglyEmphasized
         return name + AttributedString(line.text)
     }
-}
-
-private func heading(_ title: String) -> some View {
-    Text(title.uppercased()).ataFont(10, weight: .semibold).foregroundStyle(.secondary)
 }
 
 // MARK: - Transcript
@@ -933,13 +901,8 @@ private struct PeopleTab: View {
 
     private var empty: some View {
         VStack(spacing: 10) {
-            Image(systemName: "person.wave.2.fill").ataFont(26).foregroundStyle(Theme.brand)
             if !recognise {
-                Text("Know who said what").ataFont(13, weight: .semibold)
-                Text(Self.voicesPitch)
-                    .ataFont(11).foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
+                EmptyState(icon: "person.wave.2.fill", title: L("Know who said what"), message: Self.voicesPitch)
                 if Diarization.isSupported {
                     Button(L("Turn on voice recognition")) { recognise = true }
                         .buttonStyle(.borderedProminent)
@@ -948,11 +911,9 @@ private struct PeopleTab: View {
                         .ataFont(11, weight: .semibold).foregroundStyle(Theme.warning)
                 }
             } else {
-                Text("No voices for this meeting yet").ataFont(13, weight: .semibold)
-                Text("Voices are found while a meeting is transcribed. This one was transcribed before voice recognition was on, or there was no speech to tell apart.")
-                    .ataFont(11).foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
+                EmptyState(icon: "person.wave.2.fill",
+                           title: L("No voices for this meeting yet"),
+                           message: L("Voices are found while a meeting is transcribed. This one was transcribed before voice recognition was on, or there was no speech to tell apart."))
             }
             if recognise, meeting.hasAudio, meeting.status == .done || meeting.status == .failed {
                 Button("Transcribe again to find the voices") { store.retry(meeting) }
@@ -1022,18 +983,12 @@ private struct SpeakerRow: View {
     }
 
     private var playButton: some View {
-        Button { model.play(speaker) } label: {
-            Image(systemName: "play.fill")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 26, height: 26)
-                .background(Circle().fill(speaker.sampleStart == nil ? AnyShapeStyle(Color.gray.opacity(0.4))
-                                                                     : (isYou ? AnyShapeStyle(Theme.me) : AnyShapeStyle(Theme.brand))))
-        }
-        .buttonStyle(.plain)
-        .disabled(speaker.sampleStart == nil)
-        .help(L("Play where they speak longest"))
-        .accessibilityLabel(L("Play where they speak longest"))
+        PlayButton(size: .regular,
+                   tint: isYou ? AnyShapeStyle(Theme.me) : AnyShapeStyle(Theme.brand),
+                   playing: false,
+                   enabled: speaker.sampleStart != nil) { model.play(speaker) }
+            .help(L("Play where they speak longest"))
+            .accessibilityLabel(L("Play where they speak longest"))
     }
 
     private var labels: some View {

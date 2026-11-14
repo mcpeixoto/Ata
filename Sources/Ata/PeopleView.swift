@@ -195,14 +195,9 @@ struct PeopleView: View {
 
     private var off: some View {
         VStack(spacing: 10) {
-            Image(systemName: "person.wave.2.fill")
-                .ataFont(30)
-                .foregroundStyle(Theme.brand)
-            Text("Know who said what").ataFont(14, weight: .semibold)
-            Text("Ata can tell the other participants apart and learn their voices across meetings. You name a voice once; every transcript uses the name from then on.")
-                .ataFont(11).foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+            EmptyState(icon: "person.wave.2.fill",
+                       title: L("Know who said what"),
+                       message: L("Ata can tell the other participants apart and learn their voices across meetings. You name a voice once; every transcript uses the name from then on."))
             Text(Self.privacyLine)
                 .ataFont(10).ataFaint()
                 .multilineTextAlignment(.center)
@@ -232,29 +227,22 @@ struct PeopleView: View {
     }
 
     private var waiting: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "waveform.badge.magnifyingglass")
-                .ataFont(26).foregroundStyle(Theme.brand)
-            Text("Listening for voices").ataFont(13, weight: .semibold)
-            Text(Self.waitingLine)
-                .ataFont(11).foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 22)
+        EmptyState(icon: "waveform.badge.magnifyingglass",
+                   title: L("Listening for voices"),
+                   message: Self.waitingLine)
+            .padding(.vertical, 22)
     }
 
     private func section<C: View>(_ title: String, count: Int?, footnote: String?,
                                   @ViewBuilder content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 4) {
-                Text(title.uppercased()).ataFont(9, weight: .semibold).foregroundStyle(.secondary)
+                SectionLabel(title)
                 if let count { Text("\(count)").ataFont(9, weight: .semibold).foregroundStyle(Theme.brand) }
             }
-            VStack(spacing: 0) { content() }
-                .padding(4)
-                .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color.primary.opacity(0.045)))
+            Card(padding: Theme.Space.xs) {
+                VStack(spacing: 0) { content() }
+            }
             if let footnote {
                 Text(footnote).ataFont(10).foregroundStyle(.secondary)
             }
@@ -350,7 +338,7 @@ struct SamePersonPicker: View {
     @ViewBuilder private func group(_ title: String, _ voices: [Voice]) -> some View {
         if !voices.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
-                Text(title.uppercased()).ataFont(9, weight: .semibold).foregroundStyle(.secondary)
+                SectionLabel(title)
                 VStack(spacing: 2) {
                     ForEach(voices) { row($0) }
                 }
@@ -409,32 +397,6 @@ struct SamePersonPicker: View {
     }
 }
 
-/// The round play button every row starts with.
-private struct PlayButton: View {
-    let hasSample: Bool
-    let playing: Bool
-    /// Your own row. Everyone else's sample stays on the brand gradient.
-    var you: Bool = false
-    let play: () -> Void
-
-    var body: some View {
-        Button(action: play) {
-            Image(systemName: playing ? "stop.fill" : "play.fill")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 22, height: 22)
-                .background(Circle().fill(hasSample ? (you ? AnyShapeStyle(Theme.me) : AnyShapeStyle(Theme.brand)) : AnyShapeStyle(Color.gray.opacity(0.4))))
-                #if os(iOS)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-                #endif
-        }
-        .buttonStyle(.plain)
-        .disabled(!hasSample)
-        .help(L("Play a sample"))
-        .accessibilityLabel(L("Play a sample"))
-    }
-}
 
 /// The part of a row that opens it: a name, one line under it, and which way it goes.
 private struct RowHeading: View {
@@ -488,7 +450,10 @@ private struct VoiceRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                PlayButton(hasSample: voice.sample != nil, playing: playing) { people.togglePlay(voice) }
+                PlayButton(size: .small, tint: AnyShapeStyle(Theme.brand),
+                           playing: playing, enabled: voice.sample != nil) { people.togglePlay(voice) }
+                    .help(L("Play a sample"))
+                    .accessibilityLabel(L("Play a sample"))
                 RowHeading(title: voice.displayName, detail: detail, isOpen: isOpen, toggle: toggle)
             }
             .padding(.horizontal, 4)
@@ -706,9 +671,12 @@ private struct YouRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                PlayButton(hasSample: voice?.sample != nil, playing: playing, you: true) {
+                PlayButton(size: .small, tint: AnyShapeStyle(Theme.me),
+                           playing: playing, enabled: voice?.sample != nil) {
                     if let voice { people.togglePlay(voice) }
                 }
+                .help(L("Play a sample"))
+                .accessibilityLabel(L("Play a sample"))
                 RowHeading(title: myName.isEmpty ? L("Me") : myName,
                            detail: voice.map(heard) ?? L("Your voice isn't recorded yet"),
                            isOpen: isOpen, toggle: toggle)

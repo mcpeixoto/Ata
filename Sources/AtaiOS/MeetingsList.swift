@@ -152,13 +152,11 @@ private struct PhoneMeetingRow: View {
     let stage: TranscribeStage?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(meeting.title).font(.headline).lineLimit(1)
-            HStack(spacing: 6) {
+        MeetingRowContent(meeting: meeting) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(meeting.subtitle).font(.subheadline).foregroundStyle(.secondary)
-                CategoryTagView(category: meeting.categoryValue)
+                status
             }
-            status
         }
         .padding(.vertical, 2)
     }

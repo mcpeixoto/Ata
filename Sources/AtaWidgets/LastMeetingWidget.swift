@@ -47,7 +47,7 @@ private struct LastMeetingView: View {
         switch family {
         case .accessoryCircular:
             Button(intent: StartRecordingIntent()) {
-                Image(systemName: entry.snapshot.showsRecording ? "waveform" : "mic.fill")
+                Image(systemName: entry.snapshot.showsRecording ? "record.circle" : "mic.fill")
                     .font(.title2)
             }
             .buttonStyle(.plain)

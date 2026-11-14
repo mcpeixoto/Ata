@@ -212,60 +212,27 @@ struct PopoverView: View {
     }
 
     private var appleBanner: some View {
-        HStack(spacing: 8) {
-            Button { SetupModel.openAppleIntelligence() } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "sparkles").foregroundStyle(Theme.accent)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Turn on Apple Intelligence").font(.system(size: 12, weight: .semibold))
-                        Text("It writes your summaries, on this Mac.").font(.system(size: 11)).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            Button { appleBannerDismissed = true } label: {
-                Image(systemName: "xmark").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .help(L("Don't show this again"))
-            .accessibilityLabel(L("Don't show this again"))
-        }
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.accent.opacity(0.1)))
+        Banner(kind: .info, mark: .symbol("sparkles"),
+               title: Text("Turn on Apple Intelligence"),
+               detail: Text("It writes your summaries, on this Mac."),
+               action: { SetupModel.openAppleIntelligence() },
+               dismiss: { appleBannerDismissed = true },
+               dismissLabel: L("Don't show this again"))
     }
 
     private func setupBanner(_ text: String) -> some View {
-        Button { WindowManager.shared.showOnboarding() } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "wrench.and.screwdriver.fill").foregroundStyle(Theme.warning)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Finish setting up").font(.system(size: 12, weight: .semibold))
-                    Text(text).font(.system(size: 11)).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-            }
-            .padding(10)
-            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.warning.opacity(0.12)))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
+        Banner(kind: .warning, mark: .symbol("wrench.and.screwdriver.fill"),
+               title: Text("Finish setting up"),
+               detail: Text(verbatim: text),
+               action: { WindowManager.shared.showOnboarding() },
+               showsChevron: true)
     }
 
     private func errorBanner(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.danger)
-            Text(text).font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
-            Spacer()
-            Button { store.lastError = nil } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
-                .buttonStyle(.plain).foregroundStyle(.secondary)
-                .help(L("Dismiss"))
-                .accessibilityLabel(L("Dismiss"))
-        }
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.danger.opacity(0.10)))
+        Banner(kind: .danger, mark: .symbol("exclamationmark.triangle.fill"),
+               title: Text(verbatim: text),
+               dismiss: { store.lastError = nil },
+               dismissLabel: L("Dismiss"))
     }
 
     // MARK: Recording
@@ -316,9 +283,7 @@ struct PopoverView: View {
     private var recent: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text("RECENT")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                SectionLabel(L("RECENT"))
                     .padding(.leading, 4)
                 Spacer()
                 CategoryFilterPicker(selection: $categoryFilter)
@@ -331,9 +296,8 @@ struct PopoverView: View {
                     MeetingRow(meeting: m)
                 }
                 if shown.isEmpty {
-                    Text("No meetings here yet")
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity).padding(.vertical, 10)
+                    EmptyState(icon: "tag", title: L("No meetings here yet"), message: "")
+                        .padding(.vertical, 10)
                 }
             }
         }
@@ -366,14 +330,6 @@ struct PopoverView: View {
             GhostButton(title: L("Import audio…"), systemImage: "square.and.arrow.down") { chooseAudio() }
                 .help(L("Transcribe audio recorded elsewhere. You can also drop files here."))
             Spacer()
-            Link(destination: CoffeeButton.donateURL) {
-                Image(systemName: "cup.and.saucer.fill").font(.system(size: 11))
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help(L("Buy me a coffee"))
-            .accessibilityLabel(L("Buy me a coffee"))
-            .padding(.horizontal, 4)
             GhostButton(title: L("Quit Ata"), systemImage: "power") { quit() }
             .help(L("Stops Ata, including the menu bar icon. Closing a window leaves Ata running there."))
         }
@@ -498,16 +454,11 @@ struct MeetingRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            icon
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 5) {
-                    Text(meeting.title).font(.system(size: 12, weight: .semibold)).lineLimit(1)
-                    CategoryTagView(category: meeting.categoryValue)
-                }
+            MeetingRowContent(meeting: meeting) {
                 if isTranscribing {
-                    TranscribeStatus().font(.system(size: 11))
+                    TranscribeStatus().ataCaption()
                 } else {
-                    Text(detail).font(.system(size: 11)).foregroundStyle(detailColor).lineLimit(1)
+                    Text(verbatim: detail).ataCaption().foregroundStyle(detailColor).lineLimit(1)
                 }
             }
             Spacer(minLength: 4)
@@ -538,22 +489,6 @@ struct MeetingRow: View {
     }
 
     private var detailColor: Color { meeting.status == .failed ? Theme.danger : .secondary }
-
-    private var icon: some View {
-        let (symbol, color): (String, Color) = {
-            if meeting.isPlaceholder { return ("icloud.and.arrow.down", .secondary) }
-            switch meeting.status {
-            case .done: return ("doc.text.fill", Theme.accent)
-            case .failed: return ("exclamationmark.triangle.fill", Theme.danger)
-            case .recording: return ("record.circle.fill", Theme.recordingSolid)
-            case .pending, .transcribing: return ("hourglass", Theme.queued)
-            }
-        }()
-        return RoundedRectangle(cornerRadius: 7, style: .continuous)
-            .fill(color.opacity(0.14))
-            .frame(width: 28, height: 28)
-            .overlay(Image(systemName: symbol).font(.system(size: 12, weight: .semibold)).foregroundStyle(color))
-    }
 
     @ViewBuilder
     private var trailing: some View {
@@ -618,49 +553,24 @@ struct UpdateBanner: View {
     var body: some View {
         switch updater.state {
         case .available(let version, _):
-            row {
-                Image(systemName: "arrow.down.circle.fill").foregroundStyle(Theme.accent)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(L("Ata %@ is available", version)).font(.system(size: 12, weight: .semibold))
-                    Text("Click to download and restart.").font(.system(size: 11)).foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            .onTapGesture { updater.installUpdate() }
+            Banner(kind: .info, mark: .symbol("arrow.down.circle.fill"),
+                   title: Text(verbatim: L("Ata %@ is available", version)),
+                   detail: Text("Click to download and restart."),
+                   action: { updater.installUpdate() })
         case .downloading(let p):
-            row {
-                ProgressView(value: p).frame(width: 90)
-                Text(L("Downloading the update… %d%%", Int(p * 100)))
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
-                Spacer()
-            }
+            Banner(kind: .info, mark: .progress(p),
+                   title: Text(verbatim: L("Downloading the update… %d%%", Int(p * 100))))
         case .installing:
-            row {
-                ProgressView().controlSize(.small)
-                Text("Installing the update…").font(.system(size: 11)).foregroundStyle(.secondary)
-                Spacer()
-            }
+            Banner(kind: .info, mark: .progress(nil),
+                   title: Text("Installing the update…"))
         case .failed(let message):
-            row {
-                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.danger)
-                Text(message).font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
-                Spacer()
-                Button { updater.dismiss() } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
-                    .buttonStyle(.plain).foregroundStyle(.secondary)
-                    .help(L("Dismiss"))
-                    .accessibilityLabel(L("Dismiss"))
-            }
+            Banner(kind: .danger, mark: .symbol("exclamationmark.triangle.fill"),
+                   title: Text(verbatim: message),
+                   dismiss: { updater.dismiss() },
+                   dismissLabel: L("Dismiss"))
         default:
             EmptyView()
         }
-    }
-
-    private func row<C: View>(@ViewBuilder _ content: () -> C) -> some View {
-        HStack(spacing: 8) { content() }
-            .padding(10)
-            .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Theme.accent.opacity(0.12)))
-            .contentShape(Rectangle())
     }
 }
 
@@ -673,24 +583,12 @@ struct NameVoicesBanner: View {
     var body: some View {
         let count = people.enabled ? people.worthAsking.count : 0
         if count > 0 {
-            Button(action: open) {
-                HStack(spacing: 8) {
-                    Image(systemName: "person.crop.circle.badge.questionmark").foregroundStyle(Theme.accent)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(count == 1 ? L("1 voice to name") : L("%d voices to name", count))
-                            .font(.system(size: 12, weight: .semibold))
-                        Text("Name them once; every transcript uses the name.")
-                            .font(.system(size: 11)).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                }
-                .padding(10)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.accent.opacity(0.12)))
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .onAppear { people.reload() }
+            Banner(kind: .info, mark: .symbol("person.crop.circle.badge.questionmark"),
+                   title: Text(verbatim: count == 1 ? L("1 voice to name") : L("%d voices to name", count)),
+                   detail: Text("Name them once; every transcript uses the name."),
+                   action: open,
+                   showsChevron: true)
+                .onAppear { people.reload() }
         }
     }
 }

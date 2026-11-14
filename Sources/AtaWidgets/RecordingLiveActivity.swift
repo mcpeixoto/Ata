@@ -27,13 +27,13 @@ struct RecordingLiveActivity: Widget {
                     RecordingButtons(state: context.state)
                 }
             } compactLeading: {
-                Image(systemName: context.state.isPaused ? "pause.fill" : "waveform")
+                Image(systemName: context.state.isPaused ? "pause.fill" : "record.circle")
                     .foregroundStyle(context.state.isPaused ? Theme.warning : Theme.recordingSolid)
             } compactTrailing: {
                 RecordingTimer(state: context.state)
                     .frame(maxWidth: 52)
             } minimal: {
-                Image(systemName: "mic.fill")
+                Image(systemName: "record.circle")
                     .foregroundStyle(Theme.recordingSolid)
             }
         }
