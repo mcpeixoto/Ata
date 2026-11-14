@@ -247,6 +247,13 @@ Layout:
   `~/Documents/Meetings`.
 - This repo is **public**. Assume every commit message, comment and string is read by
   strangers.
+- **One design system.** Colours come from `Theme` (`Sources/Ata/Theme.swift`), one meaning each:
+  the brand and accent are measured from the app icon, `recording` is never used for a failure,
+  `danger` always comes with an exclamation symbol. Type comes from the `AtaType` modifiers
+  (`ScaledType.swift`), radii and spacing from `Radius`/`Space`. Banners, cards, section labels,
+  empty states, play buttons and meeting rows come from `Components.swift`. A new literal colour,
+  font size or radius needs a reason in a comment; `DesignSystemTests` fails on new ones in the
+  shared views.
 
 ## Verify
 
