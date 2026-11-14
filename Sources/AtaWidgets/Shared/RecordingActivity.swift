@@ -65,8 +65,12 @@ struct RecordingActivityAttributes: ActivityAttributes {
 struct WidgetSnapshot: Codable, Equatable {
     var lastTitle: String?
     var lastStartedAt: Date?
-    /// Set while recording.
+    /// Set while recording and not paused: the live timer's anchor.
     var recordingSince: Date?
+    /// Set while paused: the elapsed audio, standing still. Nil while the live timer runs.
+    var pausedSeconds: Double? = nil
+
+    var showsRecording: Bool { recordingSince != nil || pausedSeconds != nil }
 
     static let appGroup = "group.ai.interactive.ata"
     private static let key = "widgetSnapshot"

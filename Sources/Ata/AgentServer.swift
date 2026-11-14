@@ -6,6 +6,47 @@ private func agentEnglish(_ format: String, _ args: CVarArg...) -> String {
     String(format: format, locale: Locale(identifier: "en_US_POSIX"), arguments: args)
 }
 
+/// Whether an agent answer should say that iCloud sync is on but this process
+/// only sees the meetings stored on this Mac. The decision is a pure function
+/// so a test can inject it without an iCloud account.
+enum AgentCloudNote {
+    static let line = "Note: iCloud sync is on but iCloud is not available to this process, so these are the meetings stored on this Mac only."
+
+    /// Sync is on, nobody pointed this process at a folder, and the container
+    /// did not resolve: launch then reads the local folder, which may be stale.
+    static func applies(syncOn: Bool, overridden: Bool, containerResolved: Bool) -> Bool {
+        syncOn && !overridden && !containerResolved
+    }
+
+    /// The process's own answer. Skips the container lookup when it cannot matter.
+    static func appliesNow() -> Bool {
+        let syncOn = UserDefaults.standard.bool(forKey: Pref.iCloudSync)
+        if !syncOn || Paths.overridden { return false }
+        return applies(syncOn: true, overridden: false, containerResolved: CloudLibrary.knownDocuments() != nil)
+    }
+
+    static func append(to text: String) -> String { text + "\n" + line }
+}
+
+enum AgentFolderAccess {
+    static func message(path: String) -> String {
+        "Ata cannot read the meetings folder at \(path). macOS may be blocking the app that started Ata. In System Settings › Privacy & Security › Files and Folders, let that app use the Documents folder, then try again."
+    }
+
+    /// A missing folder is an empty library. Anything else, including a
+    /// Files-and-Folders denial, is a failure the agent has to hear about.
+    static func isMissing(_ error: Error) -> Bool {
+        let ns = error as NSError
+        if ns.domain == NSCocoaErrorDomain,
+           ns.code == CocoaError.fileReadNoSuchFile.rawValue || ns.code == CocoaError.fileNoSuchFile.rawValue {
+            return true
+        }
+        if ns.domain == NSPOSIXErrorDomain, ns.code == Int(ENOENT) { return true }
+        if let underlying = ns.userInfo[NSUnderlyingErrorKey] as? Error { return isMissing(underlying) }
+        return false
+    }
+}
+
 /// `Ata --mcp`: the meetings on this Mac, for an agent, over MCP on stdin.
 ///
 /// The agent starts this process and talks JSON-RPC on stdin/stdout. Nothing
@@ -76,7 +117,7 @@ enum AgentMCP {
     private static let protocols: Set<String> = ["2025-06-18", "2025-03-26", "2024-11-05"]
     private static let fallbackProtocol = "2025-06-18"
 
-    static func respond(to request: Data) -> Data? {
+    static func respond(to request: Data, cloudNote: Bool? = nil) -> Data? {
         guard let json = try? JSONSerialization.jsonObject(with: request) else {
             return failure(id: NSNull(), code: -32700, message: "Parse error")
         }
@@ -96,7 +137,7 @@ enum AgentMCP {
         case "tools/list":
             return toolsList(id: id, params: obj["params"])
         case "tools/call":
-            return toolsCall(id: id, params: obj["params"])
+            return toolsCall(id: id, params: obj["params"], cloudNote: cloudNote ?? AgentCloudNote.appliesNow())
         default:
             return failure(id: id, code: -32601, message: "Method not found")
         }
@@ -165,7 +206,7 @@ enum AgentMCP {
         return ["name": name, "description": description, "inputSchema": schema]
     }
 
-    private static func toolsCall(id: Any, params: Any?) -> Data? {
+    private static func toolsCall(id: Any, params: Any?, cloudNote: Bool) -> Data? {
         let fields: [String: Any]
         switch arguments(params) {
         case .object(let obj): fields = obj
@@ -188,7 +229,13 @@ enum AgentMCP {
             return toolResult(id: id, text: "Agent access is off. Turn it on in Ata's Settings, under Connect your agent.",
                               isError: true)
         }
-        let read = AgentRead()
+        let read = AgentRead(cloudNote: cloudNote)
+        // A Files-and-Folders denial used to come back as "No meetings yet".
+        // Every tool says it cannot read, instead of answering from nothing.
+        if ["list_meetings", "get_meeting", "search_meetings", "list_people"].contains(name),
+           let denial = read.unreadableMessage() {
+            return toolResult(id: id, text: denial, isError: true)
+        }
         switch name {
         case "list_meetings": return listMeetings(id: id, args: arguments, read: read)
         case "get_meeting": return getMeeting(id: id, args: arguments, read: read)
@@ -202,21 +249,21 @@ enum AgentMCP {
     private static func listMeetings(id: Any, args: [String: Any], read: AgentRead) -> Data? {
         let limit: Int
         switch boundedInt(args["limit"], default: 20, max: 100) {
-        case .bad(let message): return toolResult(id: id, text: message, isError: true)
+        case .bad(let message): return toolResult(id: id, text: message, isError: true, read: read)
         case .ok(let n): limit = n
         }
         let after: AgentRead.When?
         switch read.parseWhen(args["after"]) {
-        case .bad(let message): return toolResult(id: id, text: message, isError: true)
+        case .bad(let message): return toolResult(id: id, text: message, isError: true, read: read)
         case .ok(let when): after = when
         }
         let before: AgentRead.When?
         switch read.parseWhen(args["before"]) {
-        case .bad(let message): return toolResult(id: id, text: message, isError: true)
+        case .bad(let message): return toolResult(id: id, text: message, isError: true, read: read)
         case .ok(let when): before = when
         }
         if args["query"] != nil && !(args["query"] is String) {
-            return toolResult(id: id, text: "Say which words to search for.", isError: true)
+            return toolResult(id: id, text: "Say which words to search for.", isError: true, read: read)
         }
         let query = AgentRead.words(of: args["query"] as? String ?? "")
         var meetings = read.all()
@@ -227,17 +274,17 @@ enum AgentMCP {
         let text = shown.isEmpty
             ? "No meetings yet"
             : shown.map { read.listLine($0) }.joined(separator: "\n")
-        return toolResult(id: id, text: text, isError: false)
+        return toolResult(id: id, text: text, isError: false, read: read)
     }
 
     private static func getMeeting(id: Any, args: [String: Any], read: AgentRead) -> Data? {
         guard let raw = args["id"] as? String, !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return toolResult(id: id, text: "Say which meeting.", isError: true)
+            return toolResult(id: id, text: "Say which meeting.", isError: true, read: read)
         }
         let includeTranscript: Bool
         if let flag = args["transcript"] {
             guard let value = jsonBool(flag) else {
-                return toolResult(id: id, text: "That value has to be true or false.", isError: true)
+                return toolResult(id: id, text: "That value has to be true or false.", isError: true, read: read)
             }
             includeTranscript = value
         } else {
@@ -245,37 +292,37 @@ enum AgentMCP {
         }
         let meetingID = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let meeting = read.meeting(meetingID) else {
-            return toolResult(id: id, text: "No meeting with that id.", isError: true)
+            return toolResult(id: id, text: "No meeting with that id.", isError: true, read: read)
         }
-        return toolResult(id: id, text: read.meetingText(meeting, transcript: includeTranscript), isError: false)
+        return toolResult(id: id, text: read.meetingText(meeting, transcript: includeTranscript), isError: false, read: read)
     }
 
     private static func searchMeetings(id: Any, args: [String: Any], read: AgentRead) -> Data? {
         guard let query = args["query"] as? String else {
-            return toolResult(id: id, text: "Say which words to search for.", isError: true)
+            return toolResult(id: id, text: "Say which words to search for.", isError: true, read: read)
         }
         let words = AgentRead.words(of: query)
         guard !words.isEmpty else {
-            return toolResult(id: id, text: "Say which words to search for.", isError: true)
+            return toolResult(id: id, text: "Say which words to search for.", isError: true, read: read)
         }
         let limit: Int
         switch boundedInt(args["limit"], default: 10, max: 50) {
-        case .bad(let message): return toolResult(id: id, text: message, isError: true)
+        case .bad(let message): return toolResult(id: id, text: message, isError: true, read: read)
         case .ok(let n): limit = n
         }
         let hits = read.all().filter { read.matches(words, $0) }.prefix(limit)
-        if hits.isEmpty { return toolResult(id: id, text: "No meetings match.", isError: false) }
+        if hits.isEmpty { return toolResult(id: id, text: "No meetings match.", isError: false, read: read) }
         let text = hits.map { meeting -> String in
             var lines = ["\(meeting.id) — \(meeting.title) — \(read.stamp(meeting.startedAt))"]
             lines.append(contentsOf: read.excerpts(meeting, words: words).map { "- \($0)" })
             return lines.joined(separator: "\n")
         }.joined(separator: "\n\n")
-        return toolResult(id: id, text: text, isError: false)
+        return toolResult(id: id, text: text, isError: false, read: read)
     }
 
     private static func listPeople(id: Any, read: AgentRead) -> Data? {
         let people = read.namedPeople()
-        if people.isEmpty { return toolResult(id: id, text: "No named people yet.", isError: false) }
+        if people.isEmpty { return toolResult(id: id, text: "No named people yet.", isError: false, read: read) }
         let text = people.map { voice -> String in
             let name = voice.name ?? ""
             let when = read.stamp(voice.lastSeen)
@@ -284,7 +331,7 @@ enum AgentMCP {
             }
             return agentEnglish("%@ — %d meetings, latest %@", name, voice.meetings, when)
         }.joined(separator: "\n")
-        return toolResult(id: id, text: text, isError: false)
+        return toolResult(id: id, text: text, isError: false, read: read)
     }
 
     // MARK: JSON-RPC
@@ -326,8 +373,11 @@ enum AgentMCP {
         return n.boolValue
     }
 
-    private static func toolResult(id: Any, text: String, isError: Bool) -> Data? {
-        success(id: id, result: [
+    /// `read` set means this answer came from the library, so the iCloud note
+    /// is appended when that process is reading the local folder.
+    private static func toolResult(id: Any, text: String, isError: Bool, read: AgentRead? = nil) -> Data? {
+        let text = read?.cloudNote == true ? AgentCloudNote.append(to: text) : text
+        return success(id: id, result: [
             "content": [["type": "text", "text": text]],
             "isError": isError,
         ])
@@ -357,11 +407,14 @@ private struct AgentRead {
 
     let library: VoiceLibrary
     let myName: String
+    /// When set, every answer from the library gains the iCloud note.
+    let cloudNote: Bool
     /// `yyyy-MM-dd HH:mm` in local time. `en_US_POSIX` keeps the hour cycle and
     /// the separators from following the Mac's language.
     let stampFormatter: DateFormatter
 
-    init() {
+    init(cloudNote: Bool = false) {
+        self.cloudNote = cloudNote
         // persist: false so a legacy voices.json or an unnumbered voice is not
         // rewritten just because an agent asked who was in a meeting.
         library = VoiceLibrary(persist: false)
@@ -377,7 +430,37 @@ private struct AgentRead {
     func stamp(_ date: Date) -> String { stampFormatter.string(from: date) }
 
     func all() -> [Meeting] {
-        ids().compactMap { meeting($0) }.sorted { $0.startedAt > $1.startedAt }
+        guard case .ids(let ids) = listing() else { return [] }
+        return ids.compactMap { meeting($0) }.sorted { $0.startedAt > $1.startedAt }
+    }
+
+    /// The sentence an agent gets when the meetings folder cannot be read.
+    /// Nil when the folder is missing (an empty library) or readable.
+    func unreadableMessage() -> String? {
+        guard case .unreadable = listing() else { return nil }
+        return AgentFolderAccess.message(path: Paths.meetingsDir.path)
+    }
+
+    private enum FolderListing {
+        case ids([String])
+        case unreadable
+    }
+
+    private func listing() -> FolderListing {
+        let staged = Library.stagedIDs()
+        do {
+            let dirs = try FileManager.default.contentsOfDirectory(at: Paths.meetingsDir,
+                                                                   includingPropertiesForKeys: [.isDirectoryKey],
+                                                                   options: [.skipsHiddenFiles])
+            let folderIDs = dirs.filter {
+                (try? $0.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+            }.map(\.lastPathComponent)
+            return .ids(staged + folderIDs.filter { !staged.contains($0) })
+        } catch {
+            // Missing is the empty library. A permission error is not.
+            if AgentFolderAccess.isMissing(error) { return .ids(staged) }
+            return .unreadable
+        }
     }
 
     /// The folder name when `meeting.json` is still in iCloud, without asking for it.
@@ -535,18 +618,6 @@ private struct AgentRead {
     }
 
     // MARK: Files
-
-    /// Same folders as `Library.loadAll()`, without creating one or downloading.
-    private func ids() -> [String] {
-        let staged = Library.stagedIDs()
-        let dirs = (try? FileManager.default.contentsOfDirectory(at: Paths.meetingsDir,
-                                                                 includingPropertiesForKeys: [.isDirectoryKey],
-                                                                 options: [.skipsHiddenFiles])) ?? []
-        let folderIDs = dirs.filter {
-            (try? $0.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
-        }.map(\.lastPathComponent)
-        return staged + folderIDs.filter { !staged.contains($0) }
-    }
 
     /// Title, people, notes, summary and transcript. The transcript is the
     /// markdown (or the segment text), never the word timings.

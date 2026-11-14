@@ -60,12 +60,27 @@ jobs:
       - name: Assemble Ata.app
         run: ./scripts/build-app.sh
 
+      - name: MCP server lists its tools
+        run: |
+          meetings=$(mktemp -d)
+          support=$(mktemp -d)
+          output=$(ATA_MEETINGS_DIR="$meetings" ATA_SUPPORT_DIR="$support" build/Ata.app/Contents/MacOS/Ata --mcp <<'EOF'
+          {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}
+          {"jsonrpc":"2.0","id":2,"method":"tools/list"}
+          EOF
+          )
+          echo "$output"
+          echo "$output" | grep -q list_meetings
+          echo "$output" | grep -q list_people
+          rm -rf "$meetings" "$support"
+
       - name: Verify the bundle
         run: |
           /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" build/Ata.app/Contents/Info.plist
           test -d build/Ata.app/Contents/Resources/en.lproj
           test -d build/Ata.app/Contents/Resources/pt.lproj
           test -f build/Ata.app/Contents/Resources/AppIcon.icns
+          test -f build/Ata.app/Contents/Resources/NOTICE
           codesign --verify --deep --strict build/Ata.app
           build/Ata.app/Contents/MacOS/whisper-cli --help >/dev/null
           ! otool -L build/Ata.app/Contents/MacOS/whisper-cli | grep -E 'homebrew|/usr/local'

@@ -47,6 +47,9 @@ for lproj in Resources/*.lproj; do
   cp -R "$lproj" "$APP/Contents/Resources/"
 done
 
+# LAME is LGPL and is linked into the app. The licence text has to ship with it.
+cp NOTICE "$APP/Contents/Resources/NOTICE"
+
 if [ "$SIGN_ID" = "-" ]; then
   codesign --force --deep --sign - "$APP"
 else

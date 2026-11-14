@@ -37,6 +37,8 @@ struct SettingsView: View {
     @AppStorage(Pref.menuIconProgress) private var menuIconProgress = true
     @AppStorage(Pref.agentAccess) private var agentAccess = false
     @State private var agentCopied = false
+    @State private var showingAcknowledgements = false
+    @State private var acknowledgementsText = ""
 
     /// The window's height. Only the snapshot renderer asks for a taller one.
     var height: CGFloat = 660
@@ -61,6 +63,9 @@ struct SettingsView: View {
             .toggleStyle(AppSwitchStyle())
         }
         .frame(width: 540, height: height)
+        .sheet(isPresented: $showingAcknowledgements) {
+            AcknowledgementsView(text: acknowledgementsText)
+        }
         .onAppear {
             setup.refresh()
             cloud.recheck()
@@ -396,7 +401,7 @@ struct SettingsView: View {
     private var agentSection: some View {
         Section("Connect your agent") {
             Toggle("Let AI agents on this Mac read your meetings", isOn: $agentAccess)
-            Text("Claude, Cursor and other agents that speak MCP can list, search and read your meetings. Ata answers them on this Mac only: nothing is sent anywhere, and agents cannot change or delete anything.")
+            Text("Claude, Cursor and other agents that speak MCP can list, search and read your meetings. Ata itself sends nothing. What an agent reads, it may send to its own AI provider. Agents cannot change or delete anything.")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if agentAccess {
@@ -408,6 +413,11 @@ struct SettingsView: View {
                     .padding(8)
                     .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(Color.primary.opacity(0.05)))
+                if !InstallLocation.isSettled(Bundle.main.bundlePath, home: NSHomeDirectory()) {
+                    Text("Move Ata to the Applications folder first. This path stops working if the app moves.")
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Button("Copy configuration") {
                     Platform.actions.copy(AgentConfiguration.json(executable: agentExecutable))
                     agentCopied = true
@@ -471,6 +481,12 @@ struct SettingsView: View {
                 CoffeeButton()
             }
             .font(.system(size: 11))
+            if let text = Acknowledgements.text() {
+                Button("Acknowledgements") {
+                    acknowledgementsText = text
+                    showingAcknowledgements = true
+                }
+            }
         }
     }
 

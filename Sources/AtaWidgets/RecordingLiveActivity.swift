@@ -71,20 +71,13 @@ private struct RecordingTimer: View {
     var body: some View {
         Group {
             if state.isPaused {
-                Text(verbatim: Self.clock(state.pausedSeconds))
+                Text(verbatim: WidgetRecordingFace.clock(state.pausedSeconds))
             } else {
                 Text(state.timerStart, style: .timer)
             }
         }
         .monospacedDigit()
         .multilineTextAlignment(.trailing)
-    }
-
-    static func clock(_ seconds: Double) -> String {
-        let s = Int(seconds)
-        return s >= 3600
-            ? String(format: "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60)
-            : String(format: "%d:%02d", s / 60, s % 60)
     }
 }
 

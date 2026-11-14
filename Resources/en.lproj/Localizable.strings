@@ -338,6 +338,7 @@
 "Help" = "Help";
 "Privacy Policy" = "Privacy Policy";
 "About" = "About";
+"Acknowledgements" = "Acknowledgements";
 "Your last meeting, and a button to record the next one." = "Your last meeting, and a button to record the next one.";
 "Last meeting" = "Last meeting";
 "Record with Ata" = "Record with Ata";
@@ -496,7 +497,7 @@
 "You have Ata Pro. Thank you!" = "You have Ata Pro. Thank you!";
 "%d of %d free meetings left this month" = "%d of %d free meetings left this month";
 "Unlimited meetings on iPhone" = "Unlimited meetings on iPhone";
-"Record and import as many as you like. Without Pro, 5 new meetings a month are free." = "Record and import as many as you like. Without Pro, 5 new meetings a month are free.";
+"Record and import as many as you like. Without Pro, %d new meetings a month are free." = "Record and import as many as you like. Without Pro, %d new meetings a month are free.";
 "Transcribed on your iPhone" = "Transcribed on your iPhone";
 "Transcripts and voices are made on the device, with or without Pro." = "Transcripts and voices are made on the device, with or without Pro.";
 "Ata for Mac stays free" = "Ata for Mac stays free";
@@ -648,7 +649,8 @@
 /* Connect your agent */
 "Connect your agent" = "Connect your agent";
 "Let AI agents on this Mac read your meetings" = "Let AI agents on this Mac read your meetings";
-"Claude, Cursor and other agents that speak MCP can list, search and read your meetings. Ata answers them on this Mac only: nothing is sent anywhere, and agents cannot change or delete anything." = "Claude, Cursor and other agents that speak MCP can list, search and read your meetings. Ata answers them on this Mac only: nothing is sent anywhere, and agents cannot change or delete anything.";
+"Claude, Cursor and other agents that speak MCP can list, search and read your meetings. Ata itself sends nothing. What an agent reads, it may send to its own AI provider. Agents cannot change or delete anything." = "Claude, Cursor and other agents that speak MCP can list, search and read your meetings. Ata itself sends nothing. What an agent reads, it may send to its own AI provider. Agents cannot change or delete anything.";
+"Move Ata to the Applications folder first. This path stops working if the app moves." = "Move Ata to the Applications folder first. This path stops working if the app moves.";
 "Copy configuration" = "Copy configuration";
 "Paste it into your agent's MCP settings. For Claude Code: %@" = "Paste it into your agent's MCP settings. For Claude Code: %@";
 "Copied." = "Copied.";

@@ -15,6 +15,8 @@ struct PhoneSettings: View {
     @EnvironmentObject private var store: PhoneStore
     @State private var managingSubscription = false
     @State private var showingICloudHelp = Snapshots.rendering && Snapshots.screen == .iCloudHelp
+    @State private var showingAcknowledgements = false
+    @State private var acknowledgementsText = ""
 
     /// Why no summary will appear, when none will. Summaries are on by default on
     /// the iPhone (`Pref.platformDefaults`), and before this they could silently
@@ -165,6 +167,12 @@ struct PhoneSettings: View {
                     if let url = URL(string: "https://mcpeixoto.github.io/Ata/privacy/") {
                         Link("Privacy Policy", destination: url)
                     }
+                    if let text = Acknowledgements.text() {
+                        Button("Acknowledgements") {
+                            acknowledgementsText = text
+                            showingAcknowledgements = true
+                        }
+                    }
                 } header: {
                     Text("About")
                 }
@@ -174,6 +182,9 @@ struct PhoneSettings: View {
             .manageSubscriptionsSheet(isPresented: $managingSubscription)
             .sheet(isPresented: $showingICloudHelp) {
                 ICloudHelpSheet(cloud: cloud)
+            }
+            .sheet(isPresented: $showingAcknowledgements) {
+                AcknowledgementsView(text: acknowledgementsText)
             }
         }
     }

@@ -1,11 +1,23 @@
 # Changelog
 
+## 3.7.1
+
+Fixes found while getting Ata ready to launch.
+
+- **An agent is told when macOS blocks it.** If the app that starts Ata is not allowed into the Documents folder, the agent used to hear "no meetings yet". It now gets the reason and where to allow it.
+- **Clearer words about agents.** Ata itself sends nothing, but an agent may send what it reads to its own AI provider. Settings, the README and the privacy policy now say so.
+- **Starting from Siri, Control Center or a widget at the free limit opens Ata** and shows why, instead of doing nothing and showing the paywall the next time you open the app. The same when the microphone is not allowed.
+- **Starting a recording on iPhone pauses a transcription in progress**, and it carries on after you stop.
+- **The home screen widget's timer stops while a recording is paused.**
+- Acknowledgements for the open-source software Ata uses are in Settings.
+- Settings warns when Ata is not in the Applications folder, because the path an agent is given would stop working if the app moved.
+
 ## 3.7.0
 
-Your own AI agent can read your meetings, without them leaving the Mac.
+Your own AI agent can read your meetings. Ata itself sends nothing; what an agent reads, the agent may send to its own AI provider.
 
 - **Connect your agent.** Claude, Cursor and other agents that speak MCP can list, search and read your meetings: the summary, your notes and the transcript with each speaker's name. Turn it on in Settings, under Connect your agent, and paste the configuration shown there into your agent.
-- **On this Mac only.** The agent starts Ata itself and talks to it directly. Nothing listens on the network and nothing is sent anywhere.
+- **On this Mac only.** The agent starts Ata itself and talks to it directly. Nothing listens on the network. Ata itself sends nothing; what an agent reads, the agent may send to its own AI provider.
 - **Read-only.** An agent cannot change or delete a meeting.
 - Off until you switch it on.
 

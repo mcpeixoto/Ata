@@ -15,12 +15,43 @@ struct StartRecordingIntent: AudioRecordingIntent {
     static let title: LocalizedStringResource = "Record a conversation"
     static let description = IntentDescription("Starts recording with Ata. It keeps going with the screen locked until you stop it.")
 
+    /// Background when the recording can start, so a Control or Siri does not
+    /// pull Ata forward for a recording that is already on the lock screen.
+    /// `.foreground(.dynamic)` is what lets `continueInForeground` open Ata
+    /// only when the recording cannot start.
+    static var supportedModes: IntentModes { [.background, .foreground(.dynamic)] }
+
     func perform() async throws -> some IntentResult {
         #if ATA_APP
-        try await PhoneStore.shared.startFromIntent()
+        do {
+            try await PhoneStore.shared.startFromIntent()
+        } catch {
+            await presentBlock(error)
+            throw error
+        }
         #endif
         return .result()
     }
+
+    #if ATA_APP
+    /// Brings Ata forward for the free limit or a denied microphone, then shows
+    /// that reason. The error is rethrown so Siri still speaks it.
+    private func presentBlock(_ error: Error) async {
+        guard PhoneStore.shouldOpenForBlockedStart(error) else { return }
+        let active = await PhoneStore.shared.isApplicationActive
+        var becomingForeground = false
+        if !active {
+            do {
+                try await continueInForeground(alwaysConfirm: false)
+                becomingForeground = true
+            } catch {
+                becomingForeground = false
+            }
+        }
+        await PhoneStore.shared.presentBlockedStart(error, appIsActive: active,
+                                                    becomingForeground: becomingForeground)
+    }
+    #endif
 }
 
 /// Stops the recording; the transcript follows.

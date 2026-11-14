@@ -7,6 +7,8 @@ final class AgentServerTests: XCTestCase {
     private var savedAccess: Any?
     private var savedName: Any?
     private var made: [URL] = []
+    /// Restored in tearDown: a mode-000 folder would otherwise stay unreadable.
+    private var meetingsPermissions: NSNumber?
     private let ritaID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
     private let unnamedID = UUID(uuidString: "BBBBBBBB-CCCC-DDDD-EEEE-FFFFFFFFFFFF")!
 
@@ -21,6 +23,11 @@ final class AgentServerTests: XCTestCase {
     }
 
     override func tearDownWithError() throws {
+        if let meetingsPermissions {
+            try? FileManager.default.setAttributes([.posixPermissions: meetingsPermissions],
+                                                   ofItemAtPath: Paths.meetingsDir.path)
+            self.meetingsPermissions = nil
+        }
         for url in made { try? FileManager.default.removeItem(at: url) }
         made = []
         if let savedAccess {
@@ -142,6 +149,8 @@ final class AgentServerTests: XCTestCase {
             "No named people yet.",
             "That value has to be true or false.",
             "No meeting with that id.",
+            "macOS may be blocking the app that started Ata.",
+            "Note: iCloud sync is on but iCloud is not available to this process, so these are the meetings stored on this Mac only.",
             "The transcript is cut at about 150,000 characters, through %@.",
             "The rest is still in iCloud.",
         ] {
@@ -166,6 +175,94 @@ final class AgentServerTests: XCTestCase {
             XCTAssertEqual(text, sentence, name)
             XCTAssertFalse(String(decoding: raw, as: UTF8.self).contains("\"error\""))
         }
+    }
+
+    func testAnUnreadableMeetingsFolderIsAnErrorOnEveryTool() throws {
+        guard geteuid() != 0 else { throw XCTSkip("root can read a folder with mode 000") }
+        let dir = Paths.meetingsDir
+        let attrs = try FileManager.default.attributesOfItem(atPath: dir.path)
+        meetingsPermissions = (attrs[.posixPermissions] as? NSNumber) ?? NSNumber(value: 0o755)
+        try FileManager.default.setAttributes([.posixPermissions: NSNumber(value: 0)], ofItemAtPath: dir.path)
+
+        let sentence = "Ata cannot read the meetings folder at \(dir.path). macOS may be blocking the app that started Ata. In System Settings › Privacy & Security › Files and Folders, let that app use the Documents folder, then try again."
+        XCTAssertEqual(AgentFolderAccess.message(path: dir.path), sentence)
+        let tools: [(String, [String: Any])] = [
+            ("list_meetings", [:]),
+            ("get_meeting", ["id": "agent-mid"]),
+            ("search_meetings", ["query": "orcamento"]),
+            ("list_people", [:]),
+        ]
+        for (name, args) in tools {
+            // The note must not be glued on: the sentence is the whole answer.
+            let (text, isError, _) = try callTool(name, args, cloudNote: true)
+            XCTAssertTrue(isError, name)
+            XCTAssertEqual(text, sentence, name)
+        }
+    }
+
+    func testAMissingMeetingsFolderIsStillTheEmptyLibrary() throws {
+        let dir = Paths.meetingsDir
+        let aside = dir.deletingLastPathComponent().appendingPathComponent(dir.lastPathComponent + "-missing")
+        try? FileManager.default.removeItem(at: aside)
+        try FileManager.default.moveItem(at: dir, to: aside)
+        defer {
+            if !FileManager.default.fileExists(atPath: dir.path) {
+                try? FileManager.default.moveItem(at: aside, to: dir)
+            }
+        }
+
+        let (text, isError, _) = try callTool("list_meetings")
+        XCTAssertFalse(isError)
+        XCTAssertEqual(text, "No meetings yet")
+        let (missing, missingError, _) = try callTool("get_meeting", ["id": "agent-mid"])
+        XCTAssertTrue(missingError)
+        XCTAssertEqual(missing, "No meeting with that id.")
+    }
+
+    func testOnlyAMissingFolderCountsAsEmpty() {
+        let missing = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileReadNoSuchFile.rawValue)
+        let denied = NSError(domain: NSPOSIXErrorDomain, code: Int(EACCES))
+        XCTAssertTrue(AgentFolderAccess.isMissing(missing))
+        XCTAssertFalse(AgentFolderAccess.isMissing(denied))
+        XCTAssertTrue(AgentCloudNote.applies(syncOn: true, overridden: false, containerResolved: false))
+        XCTAssertFalse(AgentCloudNote.applies(syncOn: false, overridden: false, containerResolved: false))
+        XCTAssertFalse(AgentCloudNote.applies(syncOn: true, overridden: true, containerResolved: false))
+        XCTAssertFalse(AgentCloudNote.applies(syncOn: true, overridden: false, containerResolved: true))
+    }
+
+    func testTheICloudNoteFollowsTheInjectedState() throws {
+        let note = "Note: iCloud sync is on but iCloud is not available to this process, so these are the meetings stored on this Mac only."
+        XCTAssertEqual(AgentCloudNote.line, note)
+
+        let saved = UserDefaults.standard.object(forKey: Pref.iCloudSync)
+        UserDefaults.standard.set(true, forKey: Pref.iCloudSync)
+        defer {
+            if let saved {
+                UserDefaults.standard.set(saved, forKey: Pref.iCloudSync)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Pref.iCloudSync)
+            }
+        }
+        // This process is pointed at a folder, so the real decision stays quiet.
+        let (plain, plainError, _) = try callTool("list_meetings", ["limit": 1])
+        XCTAssertFalse(plainError)
+        XCTAssertFalse(plain.contains(note))
+
+        let tools: [(String, [String: Any])] = [
+            ("list_meetings", [:]),
+            ("get_meeting", ["id": "agent-mid"]),
+            ("search_meetings", ["query": "orcamento"]),
+            ("list_people", [:]),
+        ]
+        for (name, args) in tools {
+            let (text, _, _) = try callTool(name, args, cloudNote: true)
+            XCTAssertTrue(text.hasSuffix("\n" + note), name)
+            let (off, _, _) = try callTool(name, args, cloudNote: false)
+            XCTAssertFalse(off.contains(note), name)
+        }
+        let (missing, missingError, _) = try callTool("get_meeting", ["id": "no-such-meeting"], cloudNote: true)
+        XCTAssertTrue(missingError)
+        XCTAssertEqual(missing, "No meeting with that id.\n" + note)
     }
 
     func testABadArgumentIsAToolError() throws {
@@ -471,9 +568,10 @@ final class AgentServerTests: XCTestCase {
                 try XCTUnwrap(err["message"] as? String, file: file, line: line))
     }
 
-    private func callTool(_ name: String, _ arguments: [String: Any] = [:],
+    private func callTool(_ name: String, _ arguments: [String: Any] = [:], cloudNote: Bool? = nil,
                           file: StaticString = #filePath, line: UInt = #line) throws -> (text: String, isError: Bool, raw: Data) {
-        let raw = try XCTUnwrap(AgentMCP.respond(to: rpc(method: "tools/call", params: ["name": name, "arguments": arguments])),
+        let raw = try XCTUnwrap(AgentMCP.respond(to: rpc(method: "tools/call", params: ["name": name, "arguments": arguments]),
+                                                 cloudNote: cloudNote),
                                 file: file, line: line)
         XCTAssertFalse(raw.contains(0x0A), "response must be one line", file: file, line: line)
         let obj = try XCTUnwrap(JSONSerialization.jsonObject(with: raw) as? [String: Any], file: file, line: line)

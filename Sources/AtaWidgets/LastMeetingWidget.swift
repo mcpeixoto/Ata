@@ -47,7 +47,7 @@ private struct LastMeetingView: View {
         switch family {
         case .accessoryCircular:
             Button(intent: StartRecordingIntent()) {
-                Image(systemName: entry.snapshot.recordingSince == nil ? "mic.fill" : "waveform")
+                Image(systemName: entry.snapshot.showsRecording ? "waveform" : "mic.fill")
                     .font(.title2)
             }
             .buttonStyle(.plain)
@@ -59,7 +59,14 @@ private struct LastMeetingView: View {
 
     private var small: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if let since = entry.snapshot.recordingSince {
+            if let paused = entry.snapshot.pausedSeconds {
+                Label("Recording", systemImage: "record.circle")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.red)
+                Text(verbatim: WidgetRecordingFace.clock(paused))
+                    .font(.title2.weight(.semibold))
+                    .monospacedDigit()
+            } else if let since = entry.snapshot.recordingSince {
                 Label("Recording", systemImage: "record.circle")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.red)
@@ -77,7 +84,7 @@ private struct LastMeetingView: View {
                     .font(.headline)
             }
             Spacer(minLength: 0)
-            if entry.snapshot.recordingSince == nil {
+            if !entry.snapshot.showsRecording {
                 Button(intent: StartRecordingIntent()) {
                     Label("Record", systemImage: "mic.fill")
                         .font(.caption.weight(.semibold))
