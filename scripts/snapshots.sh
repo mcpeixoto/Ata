@@ -2,6 +2,7 @@
 # Regenerates the README screenshots in docs/images from the app's real views.
 #
 #   ./scripts/snapshots.sh
+#   ./scripts/snapshots.sh --site [outdir]    # website shots, default build/site-shots
 #
 # Everything the screenshots show is made up here: a throwaway meetings folder
 # and argument-domain preferences, which override your own settings for this
@@ -9,7 +10,13 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+SITE=0
 OUT="docs/images"
+if [[ "${1:-}" == "--site" ]]; then
+  SITE=1
+  OUT="${2:-build/site-shots}"
+fi
+
 FIXTURES=$(mktemp -d)
 trap 'rm -rf "$FIXTURES"' EXIT
 
@@ -19,6 +26,9 @@ echo "Building…"
 # The binary only finds its .lproj tables inside a bundle, so run it from one.
 ./scripts/build-app.sh >/dev/null
 
+if [[ "$SITE" == 1 ]]; then
+  rm -rf "$OUT"
+fi
 mkdir -p "$OUT"
 # Rendered into a temp folder and copied over afterwards: the app launched by
 # `open` is its own privacy identity, and writing straight into a repo under
@@ -34,11 +44,15 @@ LOG="$FIXTURES/snapshots.log"
 # it after two minutes instead of waiting forever.
 ( sleep 120; pkill -f "Ata.app/Contents/MacOS/Ata --snapshots" ) &
 WATCHDOG=$!
+ARGS=(--snapshots "$RENDER")
+if [[ "$SITE" == 1 ]]; then
+  ARGS+=(--site)
+fi
 open -n -W build/Ata.app \
   --env ATA_MEETINGS_DIR="$FIXTURES" \
   --env ATA_SUPPORT_DIR="$FIXTURES/support" \
   --stdout "$LOG" --stderr "$LOG" \
-  --args --snapshots "$RENDER" \
+  --args "${ARGS[@]}" \
   -AppleLanguages '(en)' -AppleLocale en_US \
   -myName Alex -language auto -engine local -dockIcon NO -menuBarIcon YES \
   -summarize YES -keepAudio YES -compressAudio YES -audioRetentionDays 90 \
@@ -48,9 +62,13 @@ cat "$LOG"
 ls "$RENDER"/*.png >/dev/null 2>&1 || { echo "no screenshots were rendered" >&2; exit 1; }
 cp "$RENDER"/*.png "$OUT"/
 
-echo "Optimising…"
-for png in "$OUT"/*.png; do
-  # sips re-encodes in place; it is on every Mac and keeps the files small enough for git.
-  sips -s format png "$png" --out "$png" >/dev/null
-done
+if [[ "$SITE" == 1 ]]; then
+  python3 scripts/site_images.py "$OUT"
+else
+  echo "Optimising…"
+  for png in "$OUT"/*.png; do
+    # sips re-encodes in place; it is on every Mac and keeps the files small enough for git.
+    sips -s format png "$png" --out "$png" >/dev/null
+  done
+fi
 ls -lh "$OUT"
