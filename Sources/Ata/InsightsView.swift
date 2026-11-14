@@ -98,12 +98,12 @@ struct InsightsView: View {
     }
 
     private var wordsTile: some View {
-        Tile(symbol: "text.word.spacing", tint: .orange, title: L("Words"),
+        Tile(symbol: "text.word.spacing", tint: Theme.accent, title: L("Words"),
              value: (shown ? data.words : 0).formatted(.number.notation(.compactName)))
     }
 
     private var monthTile: some View {
-        Tile(symbol: "calendar", tint: .pink, title: L("This month"),
+        Tile(symbol: "calendar", tint: Theme.me, title: L("This month"),
              value: hours(shown ? data.recordedThisMonth : 0))
     }
 
@@ -300,9 +300,9 @@ private struct TimelineRow: View {
         HStack(spacing: 8) {
             Image(systemName: event.record.isLocal ? "cpu" : "cloud")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(event.record.isLocal ? Theme.meTint : .pink)
+                .foregroundStyle(event.record.isLocal ? Theme.me : Theme.others)
                 .frame(width: 20, height: 20)
-                .background(Circle().fill((event.record.isLocal ? Theme.meTint : .pink).opacity(0.14)))
+                .background(Circle().fill((event.record.isLocal ? Theme.me : Theme.others).opacity(0.14)))
             VStack(alignment: .leading, spacing: 0) {
                 Text(event.meetingTitle).ataFont(11, weight: .semibold).lineLimit(1)
                 Text((LocalModel.find(event.record.model)?.title ?? event.record.model) + (event.isCurrent ? "" : " · " + L("replaced")))

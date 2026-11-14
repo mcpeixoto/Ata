@@ -135,7 +135,7 @@ struct PopoverView: View {
         .overlay {
             if dropping {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                    .strokeBorder(Theme.accent, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
                     .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(.regularMaterial))
                     .overlay {
@@ -146,6 +146,7 @@ struct PopoverView: View {
                     .allowsHitTesting(false)
             }
         }
+        .tint(Theme.accent)
     }
 
     /// Picks audio files to import, from the footer.
@@ -214,7 +215,7 @@ struct PopoverView: View {
         HStack(spacing: 8) {
             Button { SetupModel.openAppleIntelligence() } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: "sparkles").foregroundStyle(.orange)
+                    Image(systemName: "sparkles").foregroundStyle(Theme.accent)
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Turn on Apple Intelligence").font(.system(size: 12, weight: .semibold))
                         Text("It writes your summaries, on this Mac.").font(.system(size: 11)).foregroundStyle(.secondary)
@@ -232,13 +233,13 @@ struct PopoverView: View {
             .accessibilityLabel(L("Don't show this again"))
         }
         .padding(10)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.orange.opacity(0.1)))
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.accent.opacity(0.1)))
     }
 
     private func setupBanner(_ text: String) -> some View {
         Button { WindowManager.shared.showOnboarding() } label: {
             HStack(spacing: 8) {
-                Image(systemName: "wrench.and.screwdriver.fill").foregroundStyle(.orange)
+                Image(systemName: "wrench.and.screwdriver.fill").foregroundStyle(Theme.warning)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Finish setting up").font(.system(size: 12, weight: .semibold))
                     Text(text).font(.system(size: 11)).foregroundStyle(.secondary)
@@ -247,7 +248,7 @@ struct PopoverView: View {
                 Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
             }
             .padding(10)
-            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.orange.opacity(0.12)))
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.warning.opacity(0.12)))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -255,7 +256,7 @@ struct PopoverView: View {
 
     private func errorBanner(_ text: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.danger)
             Text(text).font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
             Spacer()
             Button { store.lastError = nil } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
@@ -264,7 +265,7 @@ struct PopoverView: View {
                 .accessibilityLabel(L("Dismiss"))
         }
         .padding(10)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.red.opacity(0.10)))
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.danger.opacity(0.10)))
     }
 
     // MARK: Recording
@@ -392,7 +393,7 @@ private struct RecordingContent: View {
                     PulsingDot()
                     Text(store.phase == .stopping ? L("WRAPPING UP") : L("RECORDING"))
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Theme.recordingSolid)
                 }
                 Spacer()
                 Text(store.elapsedText)
@@ -413,7 +414,7 @@ private struct RecordingContent: View {
                     if Recorder.warningIsRetry(w) {
                         ProgressView().controlSize(.mini)
                     }
-                    Text(w).font(.system(size: 11)).foregroundStyle(.orange).lineLimit(2)
+                    Text(w).font(.system(size: 11)).foregroundStyle(Theme.warning).lineLimit(2)
                     Spacer()
                 }
             }
@@ -447,7 +448,7 @@ private struct RecordingContent: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
                     .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(0.06)))
-                    .foregroundStyle(store.bookmarkCount > 0 ? Color.orange : Color.secondary)
+                    .foregroundStyle(store.bookmarkCount > 0 ? Theme.moment : Color.secondary)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -536,16 +537,16 @@ struct MeetingRow: View {
         }
     }
 
-    private var detailColor: Color { meeting.status == .failed ? .red : .secondary }
+    private var detailColor: Color { meeting.status == .failed ? Theme.danger : .secondary }
 
     private var icon: some View {
         let (symbol, color): (String, Color) = {
             if meeting.isPlaceholder { return ("icloud.and.arrow.down", .secondary) }
             switch meeting.status {
-            case .done: return ("doc.text.fill", .accentColor)
-            case .failed: return ("exclamationmark.triangle.fill", .red)
-            case .recording: return ("record.circle.fill", .red)
-            case .pending, .transcribing: return ("hourglass", .orange)
+            case .done: return ("doc.text.fill", Theme.accent)
+            case .failed: return ("exclamationmark.triangle.fill", Theme.danger)
+            case .recording: return ("record.circle.fill", Theme.recordingSolid)
+            case .pending, .transcribing: return ("hourglass", Theme.queued)
             }
         }()
         return RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -618,7 +619,7 @@ struct UpdateBanner: View {
         switch updater.state {
         case .available(let version, _):
             row {
-                Image(systemName: "arrow.down.circle.fill").foregroundStyle(Color.accentColor)
+                Image(systemName: "arrow.down.circle.fill").foregroundStyle(Theme.accent)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(L("Ata %@ is available", version)).font(.system(size: 12, weight: .semibold))
                     Text("Click to download and restart.").font(.system(size: 11)).foregroundStyle(.secondary)
@@ -641,7 +642,7 @@ struct UpdateBanner: View {
             }
         case .failed(let message):
             row {
-                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.danger)
                 Text(message).font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 Button { updater.dismiss() } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
@@ -658,7 +659,7 @@ struct UpdateBanner: View {
         HStack(spacing: 8) { content() }
             .padding(10)
             .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.accentColor.opacity(0.12)))
+                .fill(Theme.accent.opacity(0.12)))
             .contentShape(Rectangle())
     }
 }
@@ -674,7 +675,7 @@ struct NameVoicesBanner: View {
         if count > 0 {
             Button(action: open) {
                 HStack(spacing: 8) {
-                    Image(systemName: "person.crop.circle.badge.questionmark").foregroundStyle(Color.accentColor)
+                    Image(systemName: "person.crop.circle.badge.questionmark").foregroundStyle(Theme.accent)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(count == 1 ? L("1 voice to name") : L("%d voices to name", count))
                             .font(.system(size: 12, weight: .semibold))
@@ -685,7 +686,7 @@ struct NameVoicesBanner: View {
                     Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
                 }
                 .padding(10)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.accentColor.opacity(0.12)))
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.accent.opacity(0.12)))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

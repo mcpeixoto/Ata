@@ -1,16 +1,5 @@
 import SwiftUI
 
-enum Theme {
-    static let brand = LinearGradient(colors: [Color(red: 0.40, green: 0.33, blue: 0.98),
-                                               Color(red: 0.70, green: 0.32, blue: 0.95)],
-                                      startPoint: .topLeading, endPoint: .bottomTrailing)
-    static let record = LinearGradient(colors: [Color(red: 1.0, green: 0.36, blue: 0.36),
-                                                Color(red: 0.92, green: 0.18, blue: 0.42)],
-                                       startPoint: .top, endPoint: .bottom)
-    static let meTint = Color(red: 0.40, green: 0.55, blue: 1.0)
-    static let othersTint = Color(red: 0.25, green: 0.82, blue: 0.62)
-}
-
 /// The logo: a rounded gradient square with a waveform.
 struct AppGlyph: View {
     var size: CGFloat = 28
@@ -23,7 +12,7 @@ struct AppGlyph: View {
                     .font(.system(size: size * 0.5, weight: .bold))
                     .foregroundStyle(.white)
             )
-            .shadow(color: Color.purple.opacity(0.35), radius: size * 0.15, y: size * 0.05)
+            .shadow(color: Theme.brandShadow, radius: size * 0.15, y: size * 0.05)
     }
 }
 
@@ -47,7 +36,7 @@ struct LevelMeter: View {
 }
 
 struct PulsingDot: View {
-    var color: Color = .red
+    var color: Color = Theme.recordingSolid
     @State private var on = false
     var body: some View {
         Circle()
@@ -70,7 +59,7 @@ struct RecordButton: View {
                 Circle()
                     .fill(Theme.record)
                     .frame(width: 64, height: 64)
-                    .shadow(color: .red.opacity(hover ? 0.5 : 0.3), radius: hover ? 14 : 8, y: 3)
+                    .shadow(color: Theme.recordingSolid.opacity(hover ? 0.5 : 0.3), radius: hover ? 14 : 8, y: 3)
                 Image(systemName: "mic.fill")
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundStyle(.white)
@@ -142,11 +131,11 @@ struct CheckRow<Trailing: View>: View {
         HStack(alignment: .center, spacing: 12) {
             ZStack {
                 Circle()
-                    .fill(ok ? Color.green.opacity(0.15) : (optional ? Color.secondary.opacity(0.12) : Color.orange.opacity(0.15)))
+                    .fill(ok ? Color.green.opacity(0.15) : (optional ? Color.secondary.opacity(0.12) : Theme.warning.opacity(0.15)))
                     .frame(width: 30, height: 30)
                 Image(systemName: ok ? "checkmark" : (optional ? "bell" : "exclamationmark"))
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(ok ? Color.green : (optional ? Color.secondary : Color.orange))
+                    .foregroundStyle(ok ? Color.green : (optional ? Color.secondary : Theme.warning))
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).ataFont(13, weight: .semibold)
@@ -172,7 +161,7 @@ struct AppSwitchStyle: ToggleStyle {
                 configuration.label
                 Spacer(minLength: 8)
                 Capsule()
-                    .fill(configuration.isOn ? Color.accentColor : Color.primary.opacity(0.12))
+                    .fill(configuration.isOn ? Theme.accent : Color.primary.opacity(0.12))
                     .frame(width: 36, height: 16)
                     .overlay(alignment: configuration.isOn ? .trailing : .leading) {
                         Circle()

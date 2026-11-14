@@ -27,7 +27,7 @@ struct Paywall: View {
                              ? L("You have Ata Pro. Thank you!")
                              : L("%d of %d free meetings left this month", remaining, FreeQuota.limit))
                             .font(.subheadline)
-                            .foregroundStyle(remaining == 0 && !pro.isPro ? Color.orange : Color.secondary)
+                            .foregroundStyle(remaining == 0 && !pro.isPro ? Theme.warning : Color.secondary)
                     }
 
                     VStack(alignment: .leading, spacing: 16) {

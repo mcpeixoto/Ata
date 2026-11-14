@@ -213,7 +213,7 @@ struct PeopleView: View {
                     .controlSize(.regular)
             } else {
                 Text(Self.unsupportedLine)
-                    .ataFont(11, weight: .semibold).foregroundStyle(.orange)
+                    .ataFont(11, weight: .semibold).foregroundStyle(Theme.warning)
             }
         }
         .frame(maxWidth: .infinity)
@@ -413,6 +413,8 @@ struct SamePersonPicker: View {
 private struct PlayButton: View {
     let hasSample: Bool
     let playing: Bool
+    /// Your own row. Everyone else's sample stays on the brand gradient.
+    var you: Bool = false
     let play: () -> Void
 
     var body: some View {
@@ -421,7 +423,7 @@ private struct PlayButton: View {
                 .font(.system(size: 9, weight: .bold))
                 .foregroundStyle(.white)
                 .frame(width: 22, height: 22)
-                .background(Circle().fill(hasSample ? AnyShapeStyle(Theme.brand) : AnyShapeStyle(Color.gray.opacity(0.4))))
+                .background(Circle().fill(hasSample ? (you ? AnyShapeStyle(Theme.me) : AnyShapeStyle(Theme.brand)) : AnyShapeStyle(Color.gray.opacity(0.4))))
                 #if os(iOS)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
@@ -704,7 +706,7 @@ private struct YouRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                PlayButton(hasSample: voice?.sample != nil, playing: playing) {
+                PlayButton(hasSample: voice?.sample != nil, playing: playing, you: true) {
                     if let voice { people.togglePlay(voice) }
                 }
                 RowHeading(title: myName.isEmpty ? L("Me") : myName,
@@ -766,8 +768,12 @@ private struct YouRow: View {
             }
         case .failed(let why):
             VStack(alignment: .leading, spacing: 4) {
-                Text(why).ataFont(10).foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .top, spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                    Text(why).ataFont(10)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .foregroundStyle(Theme.danger)
                 Button(L("Try again")) { enrolment.start() }.controlSize(.small)
             }
         case .idle, .done:

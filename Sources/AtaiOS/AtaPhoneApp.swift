@@ -23,7 +23,7 @@ struct AtaPhoneApp: App {
             RootView()
                 .environmentObject(store)
                 .environmentObject(navigation)
-                .tint(Theme.meTint)
+                .tint(Theme.accent)
                 .preferredColorScheme(Snapshots.colorScheme)
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active, !Snapshots.rendering { store.becameActive() }

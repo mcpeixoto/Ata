@@ -44,7 +44,7 @@ enum MenuIcon {
         var color: NSColor? {
             switch self {
             case .monochrome: return nil
-            case .red: return .systemRed
+            case .red: return Theme.recordingSolidNSColor
             case .accent: return .controlAccentColor
             }
         }

@@ -45,6 +45,7 @@ struct OnboardingView: View {
             footer
         }
         .frame(width: 520, height: height)
+        .tint(Theme.accent)
         .onAppear {
             setup.refresh()
             apple = AppleModel.state
@@ -177,7 +178,7 @@ struct OnboardingView: View {
                   : L("Ata didn't hear your microphone. Check it isn't muted, and try again."),
                   systemImage: heardMic ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                 .font(.system(size: 12))
-                .foregroundStyle(heardMic ? Color.green : Color.orange)
+                .foregroundStyle(heardMic ? Color.green : Theme.danger)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -199,7 +200,7 @@ struct OnboardingView: View {
     }
 
     private func advice(_ text: String) -> some View {
-        Text(text).font(.system(size: 12)).foregroundStyle(.orange)
+        Text(text).font(.system(size: 12)).foregroundStyle(Theme.warning)
             .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -209,13 +210,20 @@ struct OnboardingView: View {
 
     private var moveNotice: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(moveError ?? L("Ata needs to be in Applications to open at login and to update itself."))
-                .font(.system(size: 12)).foregroundStyle(.orange)
-                .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .top, spacing: 6) {
+                if moveError != nil {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                }
+                Text(moveError ?? L("Ata needs to be in Applications to open at login and to update itself."))
+                    .font(.system(size: 12))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .foregroundStyle(moveError == nil ? Theme.warning : Theme.danger)
             Button("Move to Applications") { moveToApplications() }
         }
         .padding(10)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.orange.opacity(0.1)))
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .fill((moveError == nil ? Theme.warning : Theme.danger).opacity(0.1)))
     }
 
     private func moveToApplications() {
@@ -280,8 +288,12 @@ struct OnboardingView: View {
                 ProgressView(value: p).frame(width: 220)
             }
         } else if let error = setup.downloadError {
-            Text(error).font(.system(size: 11)).foregroundStyle(.orange)
-                .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                Text(error).font(.system(size: 11))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .foregroundStyle(Theme.danger)
             Button("Try again") { setup.downloadModels() }
         } else {
             Text(L("Whisper Large (%@) downloads after this step.", LocalModel.current.sizeText))

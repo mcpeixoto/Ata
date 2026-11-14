@@ -65,7 +65,7 @@ struct RecordView: View {
         let paused = store.phase == .interrupted
         return HStack(spacing: 6) {
             Circle()
-                .fill(paused ? Color.orange : Color.red)
+                .fill(paused ? Theme.warning : Theme.recordingSolid)
                 .frame(width: 8, height: 8)
             Text(paused ? L("Paused") : L("Recording"))
                 .fontWeight(.semibold)
@@ -74,7 +74,7 @@ struct RecordView: View {
                 .foregroundStyle(.secondary)
         }
         .font(.subheadline)
-        .foregroundStyle(paused ? Color.orange : Color.primary)
+        .foregroundStyle(paused ? Theme.warning : Theme.recordingSolid)
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(Capsule().fill(Color.primary.opacity(0.08)))
@@ -89,7 +89,7 @@ struct RecordView: View {
                 Circle()
                     .fill(Theme.record)
                     .frame(width: 120, height: 120)
-                    .shadow(color: .red.opacity(0.35), radius: 16, y: 6)
+                    .shadow(color: Theme.recordingSolid.opacity(0.35), radius: 16, y: 6)
                 if store.isRecording {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(.white)
@@ -142,7 +142,7 @@ struct RecordView: View {
         VStack(spacing: 8) {
             Label("Paused: another app is using the microphone.", systemImage: "pause.circle.fill")
                 .font(.subheadline)
-                .foregroundStyle(.orange)
+                .foregroundStyle(Theme.warning)
             Button("Resume") { store.resumeRecording() }
                 .buttonStyle(.borderedProminent)
         }
@@ -154,7 +154,7 @@ struct RecordView: View {
         return Button { PhoneNavigation.shared.showPaywall() } label: {
             Text(left == 1 ? L("1 free meeting left this month") : L("%d free meetings left this month", left))
                 .font(.footnote)
-                .foregroundStyle(left == 0 ? Color.orange : Color.secondary)
+                .foregroundStyle(left == 0 ? Theme.warning : Color.secondary)
         }
         .buttonStyle(.plain)
         .padding(.bottom, 8)
@@ -163,14 +163,17 @@ struct RecordView: View {
     @ViewBuilder
     private var messages: some View {
         if let warning = store.warning {
-            Text(warning).font(.footnote).foregroundStyle(.orange)
+            Text(warning).font(.footnote).foregroundStyle(Theme.warning)
         }
         if let error = store.lastError {
-            Text(error)
-                .font(.footnote)
-                .foregroundStyle(.red)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                Text(error)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(.footnote)
+            .foregroundStyle(Theme.danger)
         }
     }
 }

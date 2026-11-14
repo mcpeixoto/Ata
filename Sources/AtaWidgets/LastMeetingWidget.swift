@@ -62,14 +62,14 @@ private struct LastMeetingView: View {
             if let paused = entry.snapshot.pausedSeconds {
                 Label("Paused", systemImage: "pause.circle")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Theme.warning)
                 Text(verbatim: WidgetRecordingFace.clock(paused))
                     .font(.title2.weight(.semibold))
                     .monospacedDigit()
             } else if let since = entry.snapshot.recordingSince {
                 Label("Recording", systemImage: "record.circle")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Theme.recordingSolid)
                 Text(since, style: .timer)
                     .font(.title2.weight(.semibold))
                     .monospacedDigit()
@@ -90,7 +90,7 @@ private struct LastMeetingView: View {
                         .font(.caption.weight(.semibold))
                         .frame(maxWidth: .infinity)
                 }
-                .tint(.red)
+                .tint(Theme.recordingSolid)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

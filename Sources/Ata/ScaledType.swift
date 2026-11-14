@@ -24,6 +24,23 @@ extension View {
         foregroundStyle(.tertiary)
         #endif
     }
+
+    /// Screen title, 20 pt bold rounded.
+    func ataLargeTitle() -> some View { ataFont(20, weight: .bold, design: .rounded) }
+    /// Section title, 15 pt bold rounded.
+    func ataTitle() -> some View { ataFont(15, weight: .bold, design: .rounded) }
+    /// 13 pt semibold.
+    func ataHeadline() -> some View { ataFont(13, weight: .semibold) }
+    /// 13 pt.
+    func ataBody() -> some View { ataFont(13) }
+    /// 12 pt.
+    func ataCallout() -> some View { ataFont(12) }
+    /// 11 pt.
+    func ataCaption() -> some View { ataFont(11) }
+    /// 10 pt semibold, uppercase, tracked out. A section label.
+    func ataLabel() -> some View {
+        ataFont(10, weight: .semibold).textCase(.uppercase).tracking(0.6)
+    }
 }
 
 enum ScaledType {

@@ -43,6 +43,7 @@ struct MeetingView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         #endif
         .frame(height: height)
+        .tint(Theme.accent)
         // Only when this meeting changed: a reload reads its whole transcript,
         // and the library changes every few seconds while another one transcribes.
         // The model compares, not a publisher built here: `body` would build a new
@@ -68,7 +69,7 @@ struct MeetingView: View {
                       marks: model.moments.map(\.bookmark.ms))
             if let message = model.message {
                 HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.danger)
                     Text(message).ataFont(11).fixedSize(horizontal: false, vertical: true)
                     Spacer()
                     Button { model.message = nil } label: { Image(systemName: "xmark").ataFont(10, weight: .bold) }
@@ -77,7 +78,7 @@ struct MeetingView: View {
                         .accessibilityLabel(L("Dismiss"))
                 }
                 .padding(10)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.orange.opacity(0.10)))
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.danger.opacity(0.10)))
             }
             if let notice = model.notice {
                 Label(notice, systemImage: "checkmark.circle.fill")
@@ -93,12 +94,12 @@ struct MeetingView: View {
                 // Not dismissable: it is a fact about this recording, and it is
                 // at the top of its transcript.md too.
                 HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "waveform.slash").foregroundStyle(.orange)
+                    Image(systemName: "waveform.slash").foregroundStyle(Theme.warning)
                     Text(healthWarning).ataFont(11).fixedSize(horizontal: false, vertical: true)
                     Spacer()
                 }
                 .padding(10)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.orange.opacity(0.10)))
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.warning.opacity(0.10)))
             }
             Picker("", selection: $tab) {
                 Text("Notes").tag(Tab.notes)
@@ -360,7 +361,7 @@ struct MeetingView: View {
             #endif
         case .failed:
             HStack(spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.danger)
                 #if os(iOS)
                 Text(meeting.error ?? L("Failed")).ataFont(11).fixedSize(horizontal: false, vertical: true)
                 #else
@@ -638,7 +639,7 @@ private struct NotesTab: View {
                 } else {
                     if let reason = AppleModel.unavailableReason {
                         Text(reason)
-                            .ataFont(11).foregroundStyle(.orange)
+                            .ataFont(11).foregroundStyle(Theme.warning)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     #if os(macOS)
@@ -699,7 +700,7 @@ private struct MomentRow: View {
     var body: some View {
         Button(action: play) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Image(systemName: "bookmark.fill").ataFont(10).foregroundStyle(.orange)
+                Image(systemName: "bookmark.fill").ataFont(10).foregroundStyle(Theme.moment)
                 Text(verbatim: Transcriber.timestamp(moment.bookmark.ms))
                     .ataFont(11, weight: .semibold).monospacedDigit().foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 2) {
@@ -825,7 +826,7 @@ private struct LineRow: View, Equatable {
             if !coarse {
                 Text(Self.timestamp(line))
                     .font(.system(size: 11, design: .monospaced))
-                    .tint(current ? Color.accentColor : Color.secondary)
+                    .tint(current ? Theme.accent : Color.secondary)
                     .help(L("Play from here"))
                     .frame(width: 52, alignment: .leading)
             }
@@ -844,7 +845,7 @@ private struct LineRow: View, Equatable {
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
         .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(current ? Color.accentColor.opacity(0.08) : Color.clear))
+            .fill(current ? Theme.accent.opacity(0.08) : Color.clear))
     }
 
     static func timestamp(_ line: MeetingModel.Line) -> AttributedString {
@@ -864,7 +865,7 @@ private struct LineRow: View, Equatable {
             a.link = SeekLink.url(ms: w.start)
             if let word {
                 if i == word {
-                    a.backgroundColor = Color.accentColor.opacity(0.3)
+                    a.backgroundColor = Theme.accent.opacity(0.3)
                 } else if i > word {
                     a.foregroundColor = Color.secondary
                 }
@@ -944,7 +945,7 @@ private struct PeopleTab: View {
                         .buttonStyle(.borderedProminent)
                 } else {
                     Text("Needs macOS 15 or later.")
-                        .ataFont(11, weight: .semibold).foregroundStyle(.orange)
+                        .ataFont(11, weight: .semibold).foregroundStyle(Theme.warning)
                 }
             } else {
                 Text("No voices for this meeting yet").ataFont(13, weight: .semibold)
@@ -991,6 +992,11 @@ private struct SpeakerRow: View {
         speaker.label == Speakers.me && (speaker.voice == nil || speaker.voice?.isMe == true)
     }
 
+    /// The play button for your own row uses the same colour as "you" everywhere else.
+    private var isYou: Bool {
+        speaker.label == Speakers.me || speaker.voice?.isMe == true
+    }
+
     var body: some View {
         Group {
             if wrapsActions {
@@ -1022,7 +1028,7 @@ private struct SpeakerRow: View {
                 .foregroundStyle(.white)
                 .frame(width: 26, height: 26)
                 .background(Circle().fill(speaker.sampleStart == nil ? AnyShapeStyle(Color.gray.opacity(0.4))
-                                                                     : AnyShapeStyle(Theme.brand)))
+                                                                     : (isYou ? AnyShapeStyle(Theme.me) : AnyShapeStyle(Theme.brand))))
         }
         .buttonStyle(.plain)
         .disabled(speaker.sampleStart == nil)
@@ -1236,13 +1242,13 @@ struct WaveformView: View {
                         for ms in marks {
                             let x = min(max(0, size.width * CGFloat(Double(ms) / 1000 / duration)), size.width - 1)
                             context.fill(Path(CGRect(x: x - 0.5, y: 0, width: 1, height: size.height)),
-                                         with: .color(Color.orange.opacity(0.7)))
+                                         with: .color(Theme.moment.opacity(0.7)))
                             var flag = Path()
                             flag.move(to: CGPoint(x: x - 3.5, y: 0))
                             flag.addLine(to: CGPoint(x: x + 3.5, y: 0))
                             flag.addLine(to: CGPoint(x: x, y: 5))
                             flag.closeSubpath()
-                            context.fill(flag, with: .color(.orange))
+                            context.fill(flag, with: .color(Theme.moment))
                         }
                     }
                     .allowsHitTesting(false)
