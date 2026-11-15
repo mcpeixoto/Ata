@@ -273,7 +273,7 @@ struct Banner<Trailing: View>: View {
             if let dismiss {
                 Button(action: dismiss) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .semibold))
+                        .ataFont(10, weight: .semibold)
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
@@ -305,7 +305,7 @@ struct Banner<Trailing: View>: View {
             Spacer(minLength: Theme.Space.s)
             if showsChevron {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
+                    .ataFont(11, weight: .semibold)
                     .foregroundStyle(.secondary)
             }
             trailing
@@ -317,7 +317,7 @@ struct Banner<Trailing: View>: View {
         switch mark {
         case .symbol(let name):
             Image(systemName: name)
-                .font(.system(size: 13, weight: .semibold))
+                .ataHeadline()
                 .foregroundStyle(kind.color)
         case .progress(let value):
             if let value {
@@ -362,7 +362,7 @@ struct EmptyState: View {
     var body: some View {
         VStack(spacing: Theme.Space.s) {
             Image(systemName: icon)
-                .font(.system(size: 28))
+                .ataFont(28)
                 .foregroundStyle(.secondary)
             Text(verbatim: title)
                 .ataHeadline()
@@ -412,7 +412,7 @@ struct PlayButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: glyph, weight: .bold))
+                .ataFont(glyph, weight: .bold)
                 .foregroundStyle(.white)
                 .frame(width: size.points, height: size.points)
                 .background(Circle().fill(enabled ? tint : AnyShapeStyle(Color.gray.opacity(0.4))))
@@ -473,7 +473,7 @@ struct MeetingRowContent<Detail: View>: View {
             .frame(width: 28, height: 28)
             .overlay(
                 Image(systemName: mark.symbol)
-                    .font(.system(size: 12, weight: .semibold))
+                    .ataFont(12, weight: .semibold)
                     .foregroundStyle(mark.color)
             )
     }

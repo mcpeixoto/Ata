@@ -55,7 +55,7 @@ struct MeetingView: View {
     }
 
     private func content(_ meeting: Meeting) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: Theme.Space.m) {
             header(meeting)
             status(meeting)
             PlayerBar(player: model.player,
@@ -168,28 +168,15 @@ struct MeetingView: View {
     }
 
     private func header(_ meeting: Meeting) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(meeting.title).ataFont(20, weight: .bold, design: .rounded).lineLimit(titleLines)
-                Text(meeting.subtitle).ataFont(11).foregroundStyle(.secondary)
-                if model.participants.count > 1 {
-                    Text(model.participants.joined(separator: ", "))
-                        .ataFont(11).foregroundStyle(.secondary).lineLimit(2)
-                }
-                // Who was asked, as against who Ata heard. Worth saying
-                // separately: the difference is often the point.
-                if let invited = Self.invited(meeting.event) {
-                    Text(invited)
-                        .ataFont(11).ataFaint().lineLimit(2)
-                }
-            }
-            Spacer()
-            HStack(spacing: 2) {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
+                Text(meeting.title).ataLargeTitle().lineLimit(titleLines)
+                Spacer(minLength: Theme.Space.s)
+                HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
                 CategoryChip(category: meeting.categoryValue) { c in
                     model.setCategory(c)
                     store.reload()
                 }
-                .padding(.trailing, 4)
                 shareMenu(meeting)
 
                 #if os(macOS)
@@ -250,12 +237,27 @@ struct MeetingView: View {
                 .help(L("More"))
                 .accessibilityLabel(L("More"))
             }
-            #if os(iOS)
-            .font(.system(size: 17))
-            #else
-            .font(.system(size: 14))
-            #endif
-            .foregroundStyle(.secondary)
+                #if os(iOS)
+                .font(.system(size: 17))
+                #else
+                .font(.system(size: 14))
+                #endif
+                .foregroundStyle(.secondary)
+            }
+            Text(meeting.subtitle).ataCallout().foregroundStyle(.secondary)
+            if model.participants.count > 1 {
+                ChipWrap(spacing: Theme.Space.xs) {
+                    ForEach(model.participants, id: \.self) { name in
+                        ParticipantChip(name: name)
+                    }
+                }
+            }
+            // Who was asked, as against who Ata heard. Worth saying
+            // separately: the difference is often the point.
+            if let invited = Self.invited(meeting.event) {
+                Text(invited)
+                    .ataFont(11).ataFaint().lineLimit(2)
+            }
         }
     }
 
@@ -422,6 +424,72 @@ struct CategoryFilterPicker: View {
         }
         .pickerStyle(.segmented)
         .labelsHidden()
+    }
+}
+
+/// Same capsule as `CategoryTagView`: a name Ata heard in this meeting.
+private struct ParticipantChip: View {
+    let name: String
+
+    var body: some View {
+        Text(name)
+            .ataFont(9, weight: .semibold)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(Capsule().fill(Color.primary.opacity(0.08)))
+            .foregroundStyle(.secondary)
+    }
+}
+
+/// Wraps participant chips when the header is narrower than one line.
+private struct ChipWrap: Layout {
+    var spacing: CGFloat = Theme.Space.xs
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .greatestFiniteMagnitude
+        let laid = rows(maxWidth: maxWidth, subviews: subviews)
+        let height = laid.map(\.height).reduce(0, +) + spacing * CGFloat(max(0, laid.count - 1))
+        let contentWidth = laid.map(\.width).max() ?? 0
+        return CGSize(width: maxWidth.isFinite ? maxWidth : contentWidth, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let laid = rows(maxWidth: bounds.width, subviews: subviews)
+        var y = bounds.minY
+        var index = 0
+        for row in laid {
+            var x = bounds.minX
+            for size in row.sizes {
+                subviews[index].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+                x += size.width + spacing
+                index += 1
+            }
+            y += row.height + spacing
+        }
+    }
+
+    private struct Row {
+        var sizes: [CGSize] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+
+    private func rows(maxWidth: CGFloat, subviews: Subviews) -> [Row] {
+        var laid: [Row] = []
+        var row = Row()
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            let next = row.sizes.isEmpty ? size.width : row.width + spacing + size.width
+            if next > maxWidth, !row.sizes.isEmpty {
+                laid.append(row)
+                row = Row()
+            }
+            row.sizes.append(size)
+            row.width = row.sizes.count == 1 ? size.width : row.width + spacing + size.width
+            row.height = max(row.height, size.height)
+        }
+        if !row.sizes.isEmpty { laid.append(row) }
+        return laid
     }
 }
 
@@ -695,7 +763,7 @@ private struct MomentRow: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .background(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
                 .fill(Color.primary.opacity(hover && playable ? 0.06 : 0)))
             .contentShape(Rectangle())
         }
@@ -793,7 +861,7 @@ private struct LineRow: View, Equatable {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             if !coarse {
                 Text(Self.timestamp(line))
-                    .font(.system(size: 11, design: .monospaced))
+                    .ataFont(11, design: .monospaced)
                     .tint(current ? Theme.accent : Color.secondary)
                     .help(L("Play from here"))
                     .frame(width: 52, alignment: .leading)
@@ -812,7 +880,7 @@ private struct LineRow: View, Equatable {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+        .background(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
             .fill(current ? Theme.accent.opacity(0.08) : Color.clear))
     }
 
@@ -868,7 +936,7 @@ private struct PeopleTab: View {
                     }
                 }
                 .padding(6)
-                .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color.primary.opacity(0.045)))
+                .background(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous).fill(Color.primary.opacity(0.045)))
             }
         }
         .sheet(item: $merging) { speaker in
@@ -1179,9 +1247,9 @@ struct WaveformView: View {
                     let x = CGFloat(c) * step
                     let alpha = x <= played ? 1.0 : 0.35
                     let hUp = max(1, up * (mid - 1)), hDown = max(1, down * (mid - 1))
-                    context.fill(Path(roundedRect: CGRect(x: x, y: mid - hUp, width: 2, height: hUp), cornerRadius: 1),
+                    context.fill(Path(roundedRect: CGRect(x: x, y: mid - hUp, width: 2, height: hUp), cornerRadius: 1), // 1 pt bar, below Radius.small
                                  with: .color(Theme.othersTint.opacity(alpha)))
-                    context.fill(Path(roundedRect: CGRect(x: x, y: mid, width: 2, height: hDown), cornerRadius: 1),
+                    context.fill(Path(roundedRect: CGRect(x: x, y: mid, width: 2, height: hDown), cornerRadius: 1), // 1 pt bar, below Radius.small
                                  with: .color(Theme.meTint.opacity(alpha)))
                 }
                 context.fill(Path(CGRect(x: min(played, size.width - 1), y: 0, width: 1.5, height: size.height)),
