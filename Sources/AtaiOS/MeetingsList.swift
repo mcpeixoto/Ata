@@ -38,7 +38,7 @@ struct MeetingsList: View {
                         Label("Recordings wait here until this iPhone can transcribe them. The audio is kept.",
                               systemImage: "hourglass")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Theme.queued)
                     }
                 }
                 ForEach(shown) { meeting in
@@ -152,13 +152,11 @@ private struct PhoneMeetingRow: View {
     let stage: TranscribeStage?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(meeting.title).font(.headline).lineLimit(1)
-            HStack(spacing: 6) {
+        MeetingRowContent(meeting: meeting) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(meeting.subtitle).font(.subheadline).foregroundStyle(.secondary)
-                CategoryTagView(category: meeting.categoryValue)
+                status
             }
-            status
         }
         .padding(.vertical, 2)
     }
@@ -195,9 +193,13 @@ private struct PhoneMeetingRow: View {
                 Text("Transcribing…").font(.caption).foregroundStyle(.secondary)
             }
         case .failed:
-            Text(meeting.error ?? L("Failed")).font(.caption).foregroundStyle(.red).lineLimit(2)
+            HStack(spacing: 4) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                Text(meeting.error ?? L("Failed")).lineLimit(2)
+            }
+            .font(.caption).foregroundStyle(Theme.danger)
         case .recording:
-            Text("Recording…").font(.caption).foregroundStyle(.red)
+            Text("Recording…").font(.caption).foregroundStyle(Theme.recordingSolid)
         case .done:
             EmptyView()
         }

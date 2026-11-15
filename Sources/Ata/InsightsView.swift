@@ -93,17 +93,17 @@ struct InsightsView: View {
     }
 
     private var meetingsTile: some View {
-        Tile(symbol: "person.2.fill", tint: Theme.othersTint, title: L("Meetings"),
+        Tile(symbol: "rectangle.stack.fill", tint: Theme.othersTint, title: L("Meetings"),
              value: "\(shown ? data.meetings : 0)")
     }
 
     private var wordsTile: some View {
-        Tile(symbol: "text.word.spacing", tint: .orange, title: L("Words"),
+        Tile(symbol: "text.word.spacing", tint: Theme.accent, title: L("Words"),
              value: (shown ? data.words : 0).formatted(.number.notation(.compactName)))
     }
 
     private var monthTile: some View {
-        Tile(symbol: "calendar", tint: .pink, title: L("This month"),
+        Tile(symbol: "calendar", tint: Theme.me, title: L("This month"),
              value: hours(shown ? data.recordedThisMonth : 0))
     }
 
@@ -228,16 +228,10 @@ struct InsightsView: View {
     }
 
     private var empty: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "chart.bar.xaxis")
-                .ataFont(28)
-                .foregroundStyle(Theme.brand)
-            Text("No meetings yet").ataFont(13, weight: .semibold)
-            Text("Record one and your history shows up here.")
-                .ataFont(11).foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 30)
+        EmptyState(icon: "chart.bar.xaxis",
+                   title: L("No meetings yet"),
+                   message: L("Record one and your history shows up here."))
+            .padding(.vertical, 30)
     }
 }
 
@@ -249,25 +243,25 @@ private struct Tile: View {
     var footnote: String? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 5) {
-                Image(systemName: symbol).ataFont(10, weight: .semibold).foregroundStyle(tint)
-                Text(title.uppercased()).ataFont(9, weight: .semibold).foregroundStyle(.secondary)
+        Card {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 5) {
+                    Image(systemName: symbol).ataFont(10, weight: .semibold).foregroundStyle(tint)
+                    Text(title.uppercased()).ataFont(9, weight: .semibold).foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Text(value)
+                    .ataFont(19, weight: .bold, design: .rounded)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
                     .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                if let footnote {
+                    Text(footnote).ataFont(9).foregroundStyle(.green).lineLimit(1)
+                }
             }
-            Text(value)
-                .ataFont(19, weight: .bold, design: .rounded)
-                .monospacedDigit()
-                .contentTransition(.numericText())
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            if let footnote {
-                Text(footnote).ataFont(9).foregroundStyle(.green).lineLimit(1)
-            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color.primary.opacity(0.045)))
     }
 }
 
@@ -277,19 +271,19 @@ private struct InsightCard<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(title.uppercased()).ataFont(9, weight: .semibold).foregroundStyle(.secondary)
-                Spacer()
-                if let trailing {
-                    Text(trailing).ataFont(9).ataFaint()
+        Card {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    SectionLabel(title)
+                    Spacer()
+                    if let trailing {
+                        Text(verbatim: trailing).ataFont(9).ataFaint()
+                    }
                 }
+                content
             }
-            content
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color.primary.opacity(0.045)))
     }
 }
 
@@ -300,9 +294,9 @@ private struct TimelineRow: View {
         HStack(spacing: 8) {
             Image(systemName: event.record.isLocal ? "cpu" : "cloud")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(event.record.isLocal ? Theme.meTint : .pink)
+                .foregroundStyle(event.record.isLocal ? Theme.me : Theme.others)
                 .frame(width: 20, height: 20)
-                .background(Circle().fill((event.record.isLocal ? Theme.meTint : .pink).opacity(0.14)))
+                .background(Circle().fill((event.record.isLocal ? Theme.me : Theme.others).opacity(0.14)))
             VStack(alignment: .leading, spacing: 0) {
                 Text(event.meetingTitle).ataFont(11, weight: .semibold).lineLimit(1)
                 Text((LocalModel.find(event.record.model)?.title ?? event.record.model) + (event.isCurrent ? "" : " · " + L("replaced")))

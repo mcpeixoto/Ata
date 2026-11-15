@@ -64,6 +64,7 @@ struct SettingsView: View {
             .toggleStyle(AppSwitchStyle())
         }
         .frame(width: 540, height: height)
+        .tint(Theme.accent)
         .sheet(isPresented: $showingAcknowledgements) {
             AcknowledgementsView(text: acknowledgementsText)
         }
@@ -106,7 +107,7 @@ struct SettingsView: View {
                     Button("Allow") { setup.requestNotifications() }
                 } label: {
                     Text("Without notifications, Ata can't ask you when it notices a meeting.")
-                        .font(.system(size: 11)).foregroundStyle(.orange)
+                        .font(.system(size: 11)).foregroundStyle(Theme.warning)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -124,7 +125,7 @@ struct SettingsView: View {
             }
             if recordShortcut != nil, !Hotkey.isRegistered, !Snapshots.rendering {
                 Text("Another app already uses that combination. Try a different one.")
-                    .font(.system(size: 11)).foregroundStyle(.orange)
+                    .font(.system(size: 11)).foregroundStyle(Theme.warning)
             } else {
                 Text("Starts or stops recording without going near the icon, from whatever app you are in.")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
@@ -158,7 +159,7 @@ struct SettingsView: View {
             }
             Text(calendarFootnote)
                 .font(.system(size: 11))
-                .foregroundStyle(calendarPrompt && !setup.calendar ? .orange : .secondary)
+                .foregroundStyle(calendarPrompt && !setup.calendar ? Theme.warning : .secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -310,7 +311,7 @@ struct SettingsView: View {
         } else {
             if let reason = AppleModel.unavailableReason {
                 Text(reason)
-                    .font(.system(size: 11)).foregroundStyle(.orange)
+                    .font(.system(size: 11)).foregroundStyle(Theme.warning)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Button("Turn on Apple Intelligence") { SetupModel.openAppleIntelligence() }
@@ -576,7 +577,11 @@ struct LocalModelRows: View {
             .id(generation)
         }
         if let error = setup.downloadError {
-            Text(error).font(.system(size: 11)).foregroundStyle(.red)
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                Text(error).font(.system(size: 11))
+            }
+            .foregroundStyle(Theme.danger)
         }
     }
 }
@@ -636,8 +641,11 @@ struct UpdateControl: View {
             HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Installing…").font(.system(size: 11)) }
         case .failed(let message):
             VStack(alignment: .trailing, spacing: 2) {
-                Text(message).font(.system(size: 10)).foregroundStyle(.red)
-                    .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .top, spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                    Text(message).lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                }
+                .font(.system(size: 10)).foregroundStyle(Theme.danger)
                 Button("Try again") { updater.check() }.controlSize(.small)
             }
         }

@@ -15,6 +15,8 @@ final class AtaSnapshotTests: XCTestCase {
     private static let screens = [
         "record-idle", "record-recording", "meetings", "meeting-notes", "meeting-transcript",
         "people", "insights", "settings", "onboarding", "onboarding-permissions", "onboarding-you",
+        // The screens people pay on and the one that explains iCloud: reviewed like the rest.
+        "paywall", "icloud-help",
     ]
 
     override func setUpWithError() throws {

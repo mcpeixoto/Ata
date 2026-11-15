@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.8.0
+
+A new coat of paint. Nothing moved; everything matches.
+
+- **One colour for Ata, taken from its icon**, on the Mac and the iPhone. The Mac no longer borrows the accent colour from System Settings, and the iPhone is no longer blue.
+- **Colours mean one thing each.** Red is recording; a failure is red with a warning sign; orange is a warning; marked moments are yellow. You are the same colour everywhere, in the transcript and in People.
+- **Banners, cards, section labels, empty states and play buttons look the same wherever they appear**, and meeting rows on the iPhone now show the app tile, like the Mac.
+- **The meeting window** puts the people in the meeting as chips under the title, and the player in a card.
+- **The iPhone Record tab** is calmer: one card for the mode and your free meetings, a clearer timer and level meter while recording.
+- **Onboarding**: the iPhone permissions step shows two clear cards; the Mac's last step points at Ata in the menu bar.
+- Save as MP3 has its own icon instead of sharing Import's, and the coffee link moved from the menu to Settings.
+
 ## 3.7.2
 
 Thirty small things that made Ata feel unreliable, on the Mac and the iPhone.

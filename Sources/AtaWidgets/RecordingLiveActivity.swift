@@ -27,14 +27,14 @@ struct RecordingLiveActivity: Widget {
                     RecordingButtons(state: context.state)
                 }
             } compactLeading: {
-                Image(systemName: context.state.isPaused ? "pause.fill" : "waveform")
-                    .foregroundStyle(.red)
+                Image(systemName: context.state.isPaused ? "pause.fill" : "record.circle")
+                    .foregroundStyle(context.state.isPaused ? Theme.warning : Theme.recordingSolid)
             } compactTrailing: {
                 RecordingTimer(state: context.state)
                     .frame(maxWidth: 52)
             } minimal: {
-                Image(systemName: "mic.fill")
-                    .foregroundStyle(.red)
+                Image(systemName: "record.circle")
+                    .foregroundStyle(Theme.recordingSolid)
             }
         }
     }
@@ -50,7 +50,7 @@ private struct LockScreenRecording: View {
                 Label(state.isPaused ? L("Paused") : L("Recording"),
                       systemImage: state.isPaused ? "pause.circle.fill" : "record.circle")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(state.isPaused ? Color.orange : Color.red)
+                    .foregroundStyle(state.isPaused ? Theme.warning : Theme.recordingSolid)
                 Spacer()
                 RecordingTimer(state: state)
                     .font(.title2.weight(.semibold))
@@ -96,7 +96,7 @@ private struct RecordingButtons: View {
                 Label("Stop", systemImage: "stop.fill")
                     .frame(maxWidth: .infinity)
             }
-            .tint(.red)
+            .tint(Theme.recordingSolid)
         }
         .font(.subheadline.weight(.semibold))
     }

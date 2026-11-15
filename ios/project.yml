@@ -134,6 +134,7 @@ targets:
     sources:
       - path: ../Sources/AtaWidgets
       - path: ../Sources/Ata/Localization.swift
+      - path: ../Sources/Ata/Theme.swift
       - path: ../Resources
         excludes:
           - Info.plist

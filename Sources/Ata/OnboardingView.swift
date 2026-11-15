@@ -45,6 +45,7 @@ struct OnboardingView: View {
             footer
         }
         .frame(width: 520, height: height)
+        .tint(Theme.accent)
         .onAppear {
             setup.refresh()
             apple = AppleModel.state
@@ -126,6 +127,7 @@ struct OnboardingView: View {
     private var doneStep: some View {
         VStack(alignment: .leading, spacing: 12) {
             stepTitle(3, L("You're set"))
+            MenuBarCallout()
             Label {
                 Text("Ata is the waveform at the top right of your screen. It stays there when you close this window, and asks when it notices a meeting.")
                     .font(.system(size: 13)).foregroundStyle(.secondary)
@@ -177,7 +179,7 @@ struct OnboardingView: View {
                   : L("Ata didn't hear your microphone. Check it isn't muted, and try again."),
                   systemImage: heardMic ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                 .font(.system(size: 12))
-                .foregroundStyle(heardMic ? Color.green : Color.orange)
+                .foregroundStyle(heardMic ? Color.green : Theme.danger)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -199,7 +201,7 @@ struct OnboardingView: View {
     }
 
     private func advice(_ text: String) -> some View {
-        Text(text).font(.system(size: 12)).foregroundStyle(.orange)
+        Text(text).font(.system(size: 12)).foregroundStyle(Theme.warning)
             .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -208,14 +210,11 @@ struct OnboardingView: View {
     }
 
     private var moveNotice: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(moveError ?? L("Ata needs to be in Applications to open at login and to update itself."))
-                .font(.system(size: 12)).foregroundStyle(.orange)
-                .fixedSize(horizontal: false, vertical: true)
+        Banner(kind: moveError == nil ? .warning : .danger,
+               mark: .symbol("exclamationmark.triangle.fill"),
+               title: Text(verbatim: moveError ?? L("Ata needs to be in Applications to open at login and to update itself."))) {
             Button("Move to Applications") { moveToApplications() }
         }
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.orange.opacity(0.1)))
     }
 
     private func moveToApplications() {
@@ -280,13 +279,55 @@ struct OnboardingView: View {
                 ProgressView(value: p).frame(width: 220)
             }
         } else if let error = setup.downloadError {
-            Text(error).font(.system(size: 11)).foregroundStyle(.orange)
-                .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                Text(error).font(.system(size: 11))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .foregroundStyle(Theme.danger)
             Button("Try again") { setup.downloadModels() }
         } else {
             Text(L("Whisper Large (%@) downloads after this step.", LocalModel.current.sizeText))
                 .font(.system(size: 11)).foregroundStyle(.secondary)
         }
+    }
+}
+
+/// A 24 pt menu-bar strip. The waveform is the symbol `MenuIcon` draws, called out
+/// so the last step points at the real menu bar instead of listing it.
+private struct MenuBarCallout: View {
+    var body: some View {
+        VStack(alignment: .trailing, spacing: Theme.Space.xs) {
+            HStack(spacing: Theme.Space.s) {
+                Spacer(minLength: 0)
+                Image(systemName: "wifi")
+                    .foregroundStyle(.tertiary)
+                Image(systemName: "battery.100")
+                    .foregroundStyle(.tertiary)
+                Image(systemName: MenuIcon.Symbol.waveform.systemName)
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 22, height: 18)
+                    .background(
+                        RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+                            .fill(Theme.accent.opacity(0.16))
+                    )
+            }
+            .ataHeadline()
+            .padding(.horizontal, Theme.Space.s)
+            .frame(height: 24)
+            .frame(maxWidth: .infinity)
+            .background(Color.primary.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08))
+            )
+            Image(systemName: "arrow.up")
+                .ataCaption()
+                .foregroundStyle(Theme.accent)
+                .padding(.trailing, Theme.Space.m)
+        }
+        .accessibilityHidden(true)
     }
 }
 

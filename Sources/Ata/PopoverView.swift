@@ -135,17 +135,18 @@ struct PopoverView: View {
         .overlay {
             if dropping {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                    .strokeBorder(Theme.accent, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
                     .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(.regularMaterial))
                     .overlay {
                         Label("Drop audio to transcribe it", systemImage: "square.and.arrow.down")
-                            .font(.system(size: 13, weight: .semibold))
+                            .ataHeadline()
                     }
                     .padding(6)
                     .allowsHitTesting(false)
             }
         }
+        .tint(Theme.accent)
     }
 
     /// Picks audio files to import, from the footer.
@@ -167,8 +168,8 @@ struct PopoverView: View {
         HStack(spacing: 10) {
             AppGlyph(size: 30)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Ata").font(.system(size: 15, weight: .bold, design: .rounded))
-                Text(statusLine).font(.system(size: 11)).foregroundStyle(.secondary)
+                Text("Ata").ataTitle()
+                Text(statusLine).ataCaption().foregroundStyle(.secondary)
             }
             Spacer()
             if !inWindow {
@@ -211,60 +212,27 @@ struct PopoverView: View {
     }
 
     private var appleBanner: some View {
-        HStack(spacing: 8) {
-            Button { SetupModel.openAppleIntelligence() } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "sparkles").foregroundStyle(.orange)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Turn on Apple Intelligence").font(.system(size: 12, weight: .semibold))
-                        Text("It writes your summaries, on this Mac.").font(.system(size: 11)).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            Button { appleBannerDismissed = true } label: {
-                Image(systemName: "xmark").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .help(L("Don't show this again"))
-            .accessibilityLabel(L("Don't show this again"))
-        }
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.orange.opacity(0.1)))
+        Banner(kind: .info, mark: .symbol("sparkles"),
+               title: Text("Turn on Apple Intelligence"),
+               detail: Text("It writes your summaries, on this Mac."),
+               action: { SetupModel.openAppleIntelligence() },
+               dismiss: { appleBannerDismissed = true },
+               dismissLabel: L("Don't show this again"))
     }
 
     private func setupBanner(_ text: String) -> some View {
-        Button { WindowManager.shared.showOnboarding() } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "wrench.and.screwdriver.fill").foregroundStyle(.orange)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Finish setting up").font(.system(size: 12, weight: .semibold))
-                    Text(text).font(.system(size: 11)).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-            }
-            .padding(10)
-            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.orange.opacity(0.12)))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
+        Banner(kind: .warning, mark: .symbol("wrench.and.screwdriver.fill"),
+               title: Text("Finish setting up"),
+               detail: Text(verbatim: text),
+               action: { WindowManager.shared.showOnboarding() },
+               showsChevron: true)
     }
 
     private func errorBanner(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
-            Text(text).font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
-            Spacer()
-            Button { store.lastError = nil } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
-                .buttonStyle(.plain).foregroundStyle(.secondary)
-                .help(L("Dismiss"))
-                .accessibilityLabel(L("Dismiss"))
-        }
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.red.opacity(0.10)))
+        Banner(kind: .danger, mark: .symbol("exclamationmark.triangle.fill"),
+               title: Text(verbatim: text),
+               dismiss: { store.lastError = nil },
+               dismissLabel: L("Dismiss"))
     }
 
     // MARK: Recording
@@ -290,14 +258,14 @@ struct PopoverView: View {
                 if let app = store.detectedApp {
                     HStack(spacing: 6) {
                         PulsingDot(color: .green)
-                        Text(L("Meeting in %@", app)).font(.system(size: 13, weight: .semibold))
+                        Text(L("Meeting in %@", app)).ataHeadline()
                     }
-                    Text("Hit record to capture and transcribe it.").font(.system(size: 11)).foregroundStyle(.secondary)
+                    Text("Hit record to capture and transcribe it.").ataCaption().foregroundStyle(.secondary)
                 } else {
                     Text(store.phase == .starting ? L("Getting ready…") : L("Record a meeting"))
                         .font(.system(size: 14, weight: .semibold))
                     Text("Your microphone and your Mac's audio. Works with any app.")
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                        .ataCaption().foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -315,9 +283,7 @@ struct PopoverView: View {
     private var recent: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text("RECENT")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                SectionLabel(L("RECENT"))
                     .padding(.leading, 4)
                 Spacer()
                 CategoryFilterPicker(selection: $categoryFilter)
@@ -330,9 +296,8 @@ struct PopoverView: View {
                     MeetingRow(meeting: m)
                 }
                 if shown.isEmpty {
-                    Text("No meetings here yet")
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity).padding(.vertical, 10)
+                    EmptyState(icon: "tag", title: L("No meetings here yet"), message: "")
+                        .padding(.vertical, 10)
                 }
             }
         }
@@ -365,14 +330,6 @@ struct PopoverView: View {
             GhostButton(title: L("Import audio…"), systemImage: "square.and.arrow.down") { chooseAudio() }
                 .help(L("Transcribe audio recorded elsewhere. You can also drop files here."))
             Spacer()
-            Link(destination: CoffeeButton.donateURL) {
-                Image(systemName: "cup.and.saucer.fill").font(.system(size: 11))
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help(L("Buy me a coffee"))
-            .accessibilityLabel(L("Buy me a coffee"))
-            .padding(.horizontal, 4)
             GhostButton(title: L("Quit Ata"), systemImage: "power") { quit() }
             .help(L("Stops Ata, including the menu bar icon. Closing a window leaves Ata running there."))
         }
@@ -389,10 +346,10 @@ private struct RecordingContent: View {
         VStack(spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
                 HStack(spacing: 6) {
-                    PulsingDot()
+                    PulsingDot(color: Theme.recordingSolid)
                     Text(store.phase == .stopping ? L("WRAPPING UP") : L("RECORDING"))
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.red)
+                        .ataLabel()
+                        .foregroundStyle(Theme.recordingSolid)
                 }
                 Spacer()
                 Text(store.elapsedText)
@@ -400,11 +357,21 @@ private struct RecordingContent: View {
                     .monospacedDigit()
             }
 
-            VStack(spacing: 8) {
-                meter(Pref.myNameOrDefault, icon: "mic.fill",
-                      level: store.micLevel, tint: Theme.meTint)
-                meter(L("Others"), icon: "speaker.wave.2.fill", level: store.systemLevel, tint: Theme.othersTint)
+            Grid(horizontalSpacing: Theme.Space.s, verticalSpacing: Theme.Space.s) {
+                GridRow {
+                    meterIcon("mic.fill", Theme.meTint)
+                    meterLabel(Pref.myNameOrDefault)
+                    LevelMeter(level: store.micLevel, tint: Theme.meTint)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                GridRow {
+                    meterIcon("speaker.wave.2.fill", Theme.othersTint)
+                    meterLabel(L("Others"))
+                    LevelMeter(level: store.systemLevel, tint: Theme.othersTint)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             if let w = store.warning {
                 HStack(spacing: 6) {
@@ -413,7 +380,7 @@ private struct RecordingContent: View {
                     if Recorder.warningIsRetry(w) {
                         ProgressView().controlSize(.mini)
                     }
-                    Text(w).font(.system(size: 11)).foregroundStyle(.orange).lineLimit(2)
+                    Text(w).ataCaption().foregroundStyle(Theme.warning).lineLimit(2)
                     Spacer()
                 }
             }
@@ -423,10 +390,10 @@ private struct RecordingContent: View {
                     store.stopRecording()
                 } label: {
                     Label("Stop and transcribe", systemImage: "stop.fill")
-                        .font(.system(size: 13, weight: .semibold))
+                        .ataHeadline()
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
-                        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Theme.record))
+                        .background(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous).fill(Theme.record))
                         .foregroundStyle(.white)
                         .contentShape(Rectangle())
                 }
@@ -443,11 +410,11 @@ private struct RecordingContent: View {
                             Text(verbatim: "\(store.bookmarkCount)").monospacedDigit()
                         }
                     }
-                    .font(.system(size: 12, weight: .medium))
+                    .ataCallout()
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
-                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(0.06)))
-                    .foregroundStyle(store.bookmarkCount > 0 ? Color.orange : Color.secondary)
+                    .background(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous).fill(Color.primary.opacity(0.06)))
+                    .foregroundStyle(store.bookmarkCount > 0 ? Theme.moment : Color.secondary)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -465,10 +432,10 @@ private struct RecordingContent: View {
                     }
                 } label: {
                     Text(confirmDiscard ? L("Delete?") : L("Discard"))
-                        .font(.system(size: 12, weight: .medium))
+                        .ataCallout()
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
-                        .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .background(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
                             .fill(confirmDiscard ? Color.red.opacity(0.15) : Color.primary.opacity(0.06)))
                         .foregroundStyle(confirmDiscard ? Color.red : Color.secondary)
                         .contentShape(Rectangle())
@@ -479,13 +446,18 @@ private struct RecordingContent: View {
         }
     }
 
-    private func meter(_ label: String, icon: String, level: Float, tint: Color) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon).font(.system(size: 10)).foregroundStyle(tint).frame(width: 14)
-            Text(label).font(.system(size: 11, weight: .medium)).frame(width: 56, alignment: .leading)
-                .lineLimit(1)
-            LevelMeter(level: level, tint: tint)
-        }
+    private func meterIcon(_ name: String, _ tint: Color) -> some View {
+        Image(systemName: name)
+            .font(.system(size: 10))
+            .foregroundStyle(tint)
+            .frame(width: 14)
+    }
+
+    private func meterLabel(_ label: String) -> some View {
+        Text(label)
+            .ataCaption()
+            .lineLimit(1)
+            .gridColumnAlignment(.leading)
     }
 }
 
@@ -497,16 +469,11 @@ struct MeetingRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            icon
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 5) {
-                    Text(meeting.title).font(.system(size: 12, weight: .semibold)).lineLimit(1)
-                    CategoryTagView(category: meeting.categoryValue)
-                }
+            MeetingRowContent(meeting: meeting) {
                 if isTranscribing {
-                    TranscribeStatus().font(.system(size: 11))
+                    TranscribeStatus().ataCaption()
                 } else {
-                    Text(detail).font(.system(size: 11)).foregroundStyle(detailColor).lineLimit(1)
+                    Text(verbatim: detail).ataCaption().foregroundStyle(detailColor).lineLimit(1)
                 }
             }
             Spacer(minLength: 4)
@@ -536,23 +503,7 @@ struct MeetingRow: View {
         }
     }
 
-    private var detailColor: Color { meeting.status == .failed ? .red : .secondary }
-
-    private var icon: some View {
-        let (symbol, color): (String, Color) = {
-            if meeting.isPlaceholder { return ("icloud.and.arrow.down", .secondary) }
-            switch meeting.status {
-            case .done: return ("doc.text.fill", .accentColor)
-            case .failed: return ("exclamationmark.triangle.fill", .red)
-            case .recording: return ("record.circle.fill", .red)
-            case .pending, .transcribing: return ("hourglass", .orange)
-            }
-        }()
-        return RoundedRectangle(cornerRadius: 7, style: .continuous)
-            .fill(color.opacity(0.14))
-            .frame(width: 28, height: 28)
-            .overlay(Image(systemName: symbol).font(.system(size: 12, weight: .semibold)).foregroundStyle(color))
-    }
+    private var detailColor: Color { meeting.status == .failed ? Theme.danger : .secondary }
 
     @ViewBuilder
     private var trailing: some View {
@@ -617,49 +568,24 @@ struct UpdateBanner: View {
     var body: some View {
         switch updater.state {
         case .available(let version, _):
-            row {
-                Image(systemName: "arrow.down.circle.fill").foregroundStyle(Color.accentColor)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(L("Ata %@ is available", version)).font(.system(size: 12, weight: .semibold))
-                    Text("Click to download and restart.").font(.system(size: 11)).foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            .onTapGesture { updater.installUpdate() }
+            Banner(kind: .info, mark: .symbol("arrow.down.circle.fill"),
+                   title: Text(verbatim: L("Ata %@ is available", version)),
+                   detail: Text("Click to download and restart."),
+                   action: { updater.installUpdate() })
         case .downloading(let p):
-            row {
-                ProgressView(value: p).frame(width: 90)
-                Text(L("Downloading the update… %d%%", Int(p * 100)))
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
-                Spacer()
-            }
+            Banner(kind: .info, mark: .progress(p),
+                   title: Text(verbatim: L("Downloading the update… %d%%", Int(p * 100))))
         case .installing:
-            row {
-                ProgressView().controlSize(.small)
-                Text("Installing the update…").font(.system(size: 11)).foregroundStyle(.secondary)
-                Spacer()
-            }
+            Banner(kind: .info, mark: .progress(nil),
+                   title: Text("Installing the update…"))
         case .failed(let message):
-            row {
-                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                Text(message).font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
-                Spacer()
-                Button { updater.dismiss() } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
-                    .buttonStyle(.plain).foregroundStyle(.secondary)
-                    .help(L("Dismiss"))
-                    .accessibilityLabel(L("Dismiss"))
-            }
+            Banner(kind: .danger, mark: .symbol("exclamationmark.triangle.fill"),
+                   title: Text(verbatim: message),
+                   dismiss: { updater.dismiss() },
+                   dismissLabel: L("Dismiss"))
         default:
             EmptyView()
         }
-    }
-
-    private func row<C: View>(@ViewBuilder _ content: () -> C) -> some View {
-        HStack(spacing: 8) { content() }
-            .padding(10)
-            .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.accentColor.opacity(0.12)))
-            .contentShape(Rectangle())
     }
 }
 
@@ -672,24 +598,12 @@ struct NameVoicesBanner: View {
     var body: some View {
         let count = people.enabled ? people.worthAsking.count : 0
         if count > 0 {
-            Button(action: open) {
-                HStack(spacing: 8) {
-                    Image(systemName: "person.crop.circle.badge.questionmark").foregroundStyle(Color.accentColor)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(count == 1 ? L("1 voice to name") : L("%d voices to name", count))
-                            .font(.system(size: 12, weight: .semibold))
-                        Text("Name them once; every transcript uses the name.")
-                            .font(.system(size: 11)).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                }
-                .padding(10)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.accentColor.opacity(0.12)))
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .onAppear { people.reload() }
+            Banner(kind: .info, mark: .symbol("person.crop.circle.badge.questionmark"),
+                   title: Text(verbatim: count == 1 ? L("1 voice to name") : L("%d voices to name", count)),
+                   detail: Text("Name them once; every transcript uses the name."),
+                   action: open,
+                   showsChevron: true)
+                .onAppear { people.reload() }
         }
     }
 }
