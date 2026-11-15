@@ -9,8 +9,8 @@ final class DesignSystemTests: XCTestCase {
         .appending(path: "Sources/Ata")
 
     private static let literalFontCeilings: [String: Int] = [
-        "MeetingView.swift": 6,
-        "PeopleView.swift": 2,
+        "MeetingView.swift": 3,
+        "PeopleView.swift": 1,
         "InsightsView.swift": 1,
         "Components.swift": 3,
     ]
@@ -39,11 +39,11 @@ final class DesignSystemTests: XCTestCase {
         }
     }
 
-    /// Literal radii left today; the screen passes bring these to zero.
+    /// Literal radii left after the 3.8.0 redesign. Only ever lower these.
     private static let radiusCeilings: [String: Int] = [
-        "MeetingView.swift": 10,
-        "PeopleView.swift": 2,
-        "InsightsView.swift": 2,
-        "Components.swift": 3,
+        "MeetingView.swift": 0,
+        "PeopleView.swift": 1,
+        "InsightsView.swift": 0,
+        "Components.swift": 2,
     ]
 }
