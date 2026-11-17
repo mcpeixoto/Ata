@@ -9,7 +9,7 @@
 ![macOS 14.2+](https://img.shields.io/badge/macOS-14.2%2B-black?logo=apple)
 ![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-arm64-black)
 ![Swift 5.9](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)
-[![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Buy me a coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/mcpeixoto)
 
 **Ata** is a tiny menu bar app that records your meetings — Slack, Zoom, Meet, Teams, FaceTime,
@@ -293,7 +293,7 @@ Licences are listed in [NOTICE](NOTICE).
 
 ## License
 
-[PolyForm Noncommercial 1.0.0](LICENSE) © Miguel Peixoto
+[Apache License 2.0](LICENSE) © Miguel Peixoto
 
 Free for personal use, study, research and non-profits. Using Ata or its code in a
 business, or selling anything built from it, needs a separate licence: open an issue
