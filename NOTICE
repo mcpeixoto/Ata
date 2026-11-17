@@ -1,6 +1,10 @@
 Ata
-Copyright (c) 2026 Miguel Peixoto — PolyForm Noncommercial License 1.0.0, see LICENSE.
-Versions up to and including 3.4.0 were released under the MIT licence.
+Copyright 2026 Miguel Peixoto
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+Licence history: versions up to and including 3.4.0 were released under the MIT
+licence; 3.5.0 to 3.8.0 under the PolyForm Noncommercial licence 1.0.0; from
+3.9.0 under the Apache License 2.0.
 
 Ata uses, at runtime, the following third-party software and models.
 
@@ -21,7 +25,9 @@ LAME 3.100 (the MP3 encoder) — GNU LGPL, version 2 or later
   https://lame.sourceforge.io
   Built into Ata from source in Sources/CLame, where the licence (COPYING) and the
   exact files taken are listed. Ata's full source is public, so it can be rebuilt
-  against a modified LAME.
+  against a modified LAME. LAME is offered under version 2 of the LGPL "or any
+  later version"; Ata relies on that option and takes it under version 3, which is
+  compatible with the Apache License 2.0.
 
 FluidAudio — Apache License 2.0
   https://github.com/FluidInference/FluidAudio

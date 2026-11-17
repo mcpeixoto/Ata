@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.9.0
+
+Ata is open source again, this time under the Apache License 2.0.
+
+- **The licence is now [Apache 2.0](LICENSE)**, a recognised open source licence: use it, change it, ship it, commercially or not, with an express patent grant. Versions 3.5.0 to 3.8.0 were PolyForm Noncommercial, and everything up to 3.4.0 was MIT.
+- **[NOTICE](NOTICE) records the licence history** and spells out that LAME is taken under version 3 of the LGPL, which the Apache licence is compatible with.
+
 ## 3.8.0
 
 A new coat of paint. Nothing moved; everything matches.
