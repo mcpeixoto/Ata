@@ -144,7 +144,8 @@ struct RecordHomeIdle: View {
         switch caption {
         case .starting: return L("Starting")
         case .saving: return L("Saving…")
-        case .tapToRecord, .none: return L("Record")
+        // The UI tests and VoiceOver users find the button by this name.
+        case .tapToRecord, .none: return L("Record a conversation")
         }
     }
 
