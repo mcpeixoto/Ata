@@ -185,10 +185,44 @@ def planned_points(tok, subscription, base_point, euro, target):
     return points, amounts
 
 
+def availability_territories(tok, subscription):
+    """The territories a subscription is sold in, or None when it has no availability yet."""
+    try:
+        row = call(tok, f"/v1/subscriptions/{subscription}/subscriptionAvailability").get("data")
+    except SystemExit as e:
+        if "HTTP 404" in str(e):
+            return None
+        raise
+    rows, _ = pages(tok, f"/v1/subscriptionAvailabilities/{row['id']}/availableTerritories?limit=200")
+    return sorted(r["id"] for r in rows)
+
+
+def ensure_availability(tok, source, target, apply):
+    wanted = availability_territories(tok, source) or []
+    have = availability_territories(tok, target)
+    if have is not None and set(wanted) <= set(have):
+        print(f"\nyearly availability: {len(have)} territories, already there")
+        return
+    print(f"\nyearly availability: {len(wanted)} territories, same as monthly")
+    if apply:
+        call(tok, "/v1/subscriptionAvailabilities", "POST", {"data": {
+            "type": "subscriptionAvailabilities",
+            "attributes": {"availableInNewTerritories": True},
+            "relationships": {
+                "subscription": {"data": {"type": "subscriptions", "id": target}},
+                "availableTerritories": {"data": [{"type": "territories", "id": t} for t in wanted]},
+            },
+        }})
+
+
 def create_price(tok, subscription, point, territory, preserve):
     attributes = {}
     if preserve:
+        # A change to an approved subscription needs a start date: without one Apple
+        # reads the request as the initial price and answers 409. Apple wants it at
+        # least two days out (measured 2026-11-22: "must be on or after 2026-11-24").
         attributes["preserveCurrentPrice"] = True
+        attributes["startDate"] = (date.today() + timedelta(days=2)).isoformat()
     call(tok, "/v1/subscriptionPrices", "POST", {"data": {
         "type": "subscriptionPrices",
         "attributes": attributes,
@@ -297,6 +331,10 @@ def main() -> int:
                 "relationships": {"subscription": {"data": {"type": "subscriptions", "id": yearly_id}}},
             }})
 
+    # A new subscription is sold nowhere until it has an availability, and Apple
+    # refuses a price in a territory it is not sold in. Same territories as monthly.
+    ensure_availability(tok, monthly["id"], yearly_id, apply)
+
     usa_yearly = price_point(tok, yearly_id, "USA", YEARLY_PRICE)
     if not usa_yearly:
         sys.exit(f"No {YEARLY_PRICE} price point for yearly in USA")
@@ -310,15 +348,17 @@ def main() -> int:
                 continue
             create_price(tok, yearly_id, point, territory, preserve=False)
 
-    intro, _ = pages(tok, f"/v1/subscriptions/{yearly_id}/introductoryOffers?limit=200")
+    # Without include=territory the relationship comes back empty and every
+    # territory looks missing, so a second run would try to create them again.
+    intro, _ = pages(tok, f"/v1/subscriptions/{yearly_id}/introductoryOffers?include=territory&limit=200")
     intro_territories = set()
     for row in intro:
+        attrs = row.get("attributes") or {}
+        if attrs.get("offerMode") != "FREE_TRIAL" or attrs.get("duration") != "ONE_WEEK":
+            continue
         rel = ((row.get("relationships") or {}).get("territory") or {}).get("data") or {}
         if rel.get("id"):
             intro_territories.add(rel["id"])
-        attrs = row.get("attributes") or {}
-        if attrs.get("offerMode") == "FREE_TRIAL" and attrs.get("duration") == "ONE_WEEK":
-            pass
     missing_intro = [t for t in sorted(yearly_plan) if t not in intro_territories]
     print(f"\nyearly introductory offer: FREE_TRIAL ONE_WEEK already on {len(intro_territories)}, "
           f"missing {len(missing_intro)}")
@@ -339,13 +379,12 @@ def main() -> int:
         print(f"\noffer code {OFFER_NAME}: create FREE_TRIAL ONE_YEAR, auto-renew off, "
               "eligibilities NEW EXISTING EXPIRED")
         if apply:
-            # A free trial has no offer price. The prices relationship is required,
-            # and points at the subscription price the year renews into where the
-            # code can be redeemed. USA and Portugal cover the owner's storefronts.
+            # The prices relationship is required and names the territories the
+            # code can be redeemed in; a free trial has no price point (Apple
+            # answers 409 if one is given). USA and Portugal cover the owner.
             included = []
             pointers = []
             for i, territory in enumerate(("USA", "PRT")):
-                point = yearly_plan[territory]
                 local = "${price" + str(i) + "}"
                 pointers.append({"type": "subscriptionOfferCodePrices", "id": local})
                 included.append({
@@ -353,8 +392,6 @@ def main() -> int:
                     "id": local,
                     "relationships": {
                         "territory": {"data": {"type": "territories", "id": territory}},
-                        "subscriptionPricePoint": {
-                            "data": {"type": "subscriptionPricePoints", "id": point}},
                     },
                 })
             created = call(tok, "/v1/subscriptionOfferCodes", "POST", {
@@ -363,7 +400,9 @@ def main() -> int:
                     "attributes": {
                         "name": OFFER_NAME,
                         "customerEligibilities": ["NEW", "EXISTING", "EXPIRED"],
-                        "offerEligibility": "STACK_WITH_INTRO_OFFERS",
+                        # Apple refuses a code without auto-renew stacked on the
+                        # week's trial; the free year replaces the trial instead.
+                        "offerEligibility": "REPLACE_INTRO_OFFERS",
                         "duration": "ONE_YEAR",
                         "offerMode": "FREE_TRIAL",
                         "numberOfPeriods": 1,
@@ -382,10 +421,16 @@ def main() -> int:
 
     if owner is not None:
         existing_codes, _ = pages(tok, f"/v1/subscriptionOfferCodes/{owner['id']}/oneTimeUseCodes?limit=200")
+        state = (call(tok, f"/v1/subscriptions/{yearly_id}").get("data", {}).get("attributes") or {}).get("state")
         if existing_codes:
             print(f"  one-time code: already {len(existing_codes)} batch(es); not creating another")
+        elif state != "APPROVED":
+            # Apple makes codes only for an approved subscription; yearly is approved
+            # with the 4.0 review. Run this script again after that.
+            print(f"  one-time code: yearly is {state}; codes can be made once it is APPROVED")
         else:
-            expires = (date.today() + timedelta(days=365)).isoformat()
+            # Apple caps a one-time code's expiry at six months out.
+            expires = (date.today() + timedelta(days=180)).isoformat()
             print(f"  one-time code: 1 PRODUCTION code, expires {expires}")
             if apply:
                 call(tok, "/v1/subscriptionOfferCodeOneTimeUseCodes", "POST", {"data": {
