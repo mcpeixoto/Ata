@@ -224,7 +224,7 @@ final class PhoneStore: ObservableObject {
         // At the limit, record nothing. From an intent the sheet is armed only
         // after Ata is in front; see `presentBlockedStart`.
         do {
-            try RecordingStart.begin(usedMinutes: freeUsed, isPro: ProStore.shared.isPro,
+            try RecordingStart.begin(usedMinutes: freeUsed, isPro: ProAccess.shared.isPro,
                                      limitMinutes: FreeQuota.limitMinutes, record: {})
         } catch {
             if !fromIntent { PhoneNavigation.shared.showPaywall() }
