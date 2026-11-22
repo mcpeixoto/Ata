@@ -7,6 +7,9 @@ struct AtaPhoneApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        ProGate.presentPaywall = { feature in
+            ProPromptCenter.shared.openPaywall(.feature, feature: feature)
+        }
         // The screenshot run starts from fixtures instead; see PhoneSnapshots.swift.
         if Snapshots.rendering {
             Snapshots.setUp()

@@ -323,10 +323,10 @@ final class MeetingModel: ObservableObject {
         if next != cursor { cursor = next }
     }
 
-    /// From a word or a timestamp in the transcript.
+    /// From a word or a timestamp in the transcript, or from an Ask citation.
+    /// The player may still be loading the file; the position is kept until it is.
     func play(fromMs ms: Int) {
-        player.seek(to: Double(ms) / 1000)
-        player.play()
+        player.play(atMs: ms)
     }
 
     /// The library's copy of this meeting, as of the last reload it caused.
@@ -570,7 +570,9 @@ final class MeetingModel: ObservableObject {
     }
 
     /// Asks for a summary of a meeting that was transcribed without one.
-    func writeNotes() async {
+    /// `choice` rewrites an existing summary in that shape. A free user's custom
+    /// template falls back to the standard notes inside `TemplateChoice.forUse`.
+    func writeNotes(choice: TemplateChoice? = nil) async {
         guard let meeting, !writingNotes,
               let stored = StoredTranscript.load(from: meeting.storedTranscriptURL) else { return }
         writingNotes = true
@@ -580,7 +582,8 @@ final class MeetingModel: ObservableObject {
         let options = TranscribeOptions.current()
         let draft = Transcriber.render(stored, meeting: meeting,
                                        names: Speakers.names(for: meeting, myName: options.myName))
-        guard let result = await Summarizer.summarize(markdown: draft, options: options) else {
+        let resolved = choice.map { TemplateChoice.forUse($0, isPro: ProAccess.shared.isPro) }
+        guard let result = await Summarizer.summarize(markdown: draft, options: options, choice: resolved) else {
             // Turning it on is only the answer when it is off.
             message = AppleModel.unavailableReason ?? L("Apple Intelligence could not write notes for this meeting. Try again.")
             return
@@ -779,6 +782,8 @@ final class MeetingPlayer: ObservableObject {
     private var statusObserver: NSKeyValueObservation?
     private var loading = false
     private var playWhenLoaded = false
+    /// Where playback should begin once the file is actually loaded.
+    private var pendingStart: Double?
     /// A meeting whose audio is still in iCloud: loaded when it is played.
     private var waiting: Meeting?
     /// Remembered across `close`, so Play works again after a tab switch unloaded it.
@@ -815,6 +820,13 @@ final class MeetingPlayer: ObservableObject {
         }
     }
 
+    /// Seek to a citation or a transcript word, then play. Safe before `load` finishes.
+    func play(atMs ms: Int) {
+        pendingStart = Double(max(0, ms)) / 1000
+        seek(to: pendingStart ?? 0)
+        play()
+    }
+
     func play() {
         // One meeting at a time, on the Mac and the iPhone.
         NowPlaying.shared.claim(self)
@@ -824,6 +836,10 @@ final class MeetingPlayer: ObservableObject {
             return
         }
         playWhenLoaded = false
+        if let pendingStart {
+            seek(to: pendingStart)
+            self.pendingStart = nil
+        }
         if duration > 0, time >= duration - 0.1 { seek(to: 0) }
         player.playImmediately(atRate: rate)
     }
@@ -854,6 +870,7 @@ final class MeetingPlayer: ObservableObject {
         loaded = false
         loading = false
         isPlaying = false
+        pendingStart = nil
     }
 
     func seek(to seconds: Double) {

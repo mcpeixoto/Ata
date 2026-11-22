@@ -3,6 +3,14 @@ import Foundation
 /// How a locked control reaches the paywall. The Mac Pro window is owned by
 /// another part of the app, which replaces `presentPaywall`; until it does, the
 /// tap is still counted and nothing is presented.
+/// Which feature opened the paywall, so that line can lead. Cleared when the
+/// paywall is opened from anywhere else.
+@MainActor
+final class PaywallFocus: ObservableObject {
+    static let shared = PaywallFocus()
+    @Published var feature: ProFeature?
+}
+
 @MainActor
 enum ProGate {
     static var presentPaywall: (ProFeature) -> Void = { _ in }

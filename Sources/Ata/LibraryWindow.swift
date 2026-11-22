@@ -135,7 +135,7 @@ struct FreeQuotaFooter: View {
 /// Ata's window: record, the meeting library, Insights and People.
 /// 900×620, and never smaller than 720×480.
 struct LibraryWindow: View {
-    enum Pane: Hashable { case meetings, insights, people }
+    enum Pane: Hashable { case meetings, ask, insights, people }
 
     static let opening = NSSize(width: 900, height: 620)
     static let minSize = NSSize(width: 720, height: 480)
@@ -236,6 +236,11 @@ struct LibraryWindow: View {
                 .padding(.bottom, Theme.Space.xs)
             List(selection: $navigation.pane) {
                 Label("Meetings", systemImage: "list.bullet").tag(Pane.meetings)
+                if AppleModel.isAvailable {
+                    // questionmark.bubble, not sparkle.magnifyingglass: that symbol
+                    // arrived in macOS 15, and Ata still runs on 14.2.
+                    Label("Ask", systemImage: "questionmark.bubble").tag(Pane.ask)
+                }
                 Label("Insights", systemImage: "chart.bar").tag(Pane.insights)
                 Label("People", systemImage: "person.2").tag(Pane.people)
             }
@@ -285,6 +290,14 @@ struct LibraryWindow: View {
         switch pane {
         case .meetings:
             meetingsDetail
+        case .ask:
+            if AppleModel.isAvailable {
+                AskView()
+                    .frame(maxWidth: Self.contentMaxWidth, maxHeight: .infinity, alignment: .topLeading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else {
+                meetingsDetail
+            }
         case .insights:
             ScrollView {
                 InsightsView()

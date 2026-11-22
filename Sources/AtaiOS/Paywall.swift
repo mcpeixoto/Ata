@@ -60,9 +60,8 @@ final class ProPromptCenter: ObservableObject {
         highlighted = feature
         preferYearly = true
         Funnel.count(.paywallShown(trigger))
-        if trigger == .feature, let feature {
-            Funnel.count(.featureLocked(feature))
-        }
+        // `featureLocked` is counted by `ProGate.lockedTap`, which is what opens
+        // this for a feature. Counting it here as well would record one tap twice.
         if trigger == .limit {
             Funnel.count(.limitHit)
         }
@@ -117,11 +116,6 @@ struct Paywall: View {
 
     /// Apple's minimum hit target. The glyph inside it is smaller.
     private static let closeTarget: CGFloat = 44
-
-    /// Track 10 inserts a feature here in the change that ships it. Until then
-    /// the paywall does not advertise it. Opening the paywall from that lock
-    /// still puts the one line first.
-    private static let shipped: Set<ProFeature> = []
 
     var body: some View {
         ScrollView {
@@ -237,26 +231,19 @@ struct Paywall: View {
 
     private var benefits: [(id: String, title: String)] {
         var lines: [(id: String, title: String)] = []
-        func add(_ feature: ProFeature) {
-            guard let title = Self.title(of: feature) else { return }
-            lines.append((feature.rawValue, title))
-        }
-        if let highlighted = prompts.highlighted { add(highlighted) }
-        lines.append(("minutes", L("Unlimited minutes")))
-        for feature in ProFeature.allCases where Self.shipped.contains(feature) && feature != prompts.highlighted {
-            add(feature)
+        let features = ProFeature.lines(highlighted: prompts.highlighted)
+        // A lock puts that feature first. Otherwise the minute line still leads,
+        // which is what Settings and the limit open onto.
+        if prompts.highlighted != nil {
+            for feature in features { lines.append((feature.rawValue, feature.title)) }
+            lines.append(("minutes", L("Unlimited minutes")))
+        } else {
+            lines.append(("minutes", L("Unlimited minutes")))
+            for feature in features { lines.append((feature.rawValue, feature.title)) }
         }
         lines.append(("mac", L("Unlocks your Mac too")))
         lines.append(("private", L("Private: stays on device")))
         return lines
-    }
-
-    private static func title(of feature: ProFeature) -> String? {
-        switch feature {
-        case .askMeetings: return L("Ask all your meetings")
-        case .customTemplates: return L("Your own summary formats")
-        case .documentExport: return L("Export a meeting as a document")
-        }
     }
 
     private var plans: some View {

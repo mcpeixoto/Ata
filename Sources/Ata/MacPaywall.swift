@@ -23,6 +23,7 @@ struct MacPaywall: View {
     @Environment(\.openURL) private var openURL
     @ObservedObject private var access = ProAccess.shared
     @ObservedObject private var licence = LicenceStore.shared
+    @ObservedObject private var focus = PaywallFocus.shared
     var fixture: Fixture? = nil
 
     @State private var showKey = false
@@ -88,10 +89,18 @@ struct MacPaywall: View {
     }
 
     private var features: some View {
-        VStack(alignment: .leading, spacing: Theme.Space.s) {
+        let highlighted = focus.feature
+        let rest = ProFeature.lines(highlighted: highlighted).filter { $0 != highlighted }
+        return VStack(alignment: .leading, spacing: Theme.Space.s) {
+            if let highlighted {
+                featureRow { Text(verbatim: highlighted.title) }
+            }
             featureRow { Text("No monthly limit") }
             featureRow { Text("Still transcribed on your Mac, private") }
             featureRow { Text("One subscription, both devices") }
+            ForEach(rest, id: \.rawValue) { feature in
+                featureRow { Text(verbatim: feature.title) }
+            }
         }
     }
 

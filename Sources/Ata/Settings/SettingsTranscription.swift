@@ -9,6 +9,7 @@ struct SettingsTranscriptionPane: View {
     @AppStorage(Pref.cancelEcho) private var cancelEcho = true
     @AppStorage(Pref.summaryTemplate) private var summaryTemplate = SummaryTemplate.standard.rawValue
     @AppStorage(Pref.dictionary) private var dictionary = ""
+    @State private var showingTemplates = false
 
     var body: some View {
         Form {
@@ -33,11 +34,15 @@ struct SettingsTranscriptionPane: View {
                             Text(template.title).tag(template.rawValue)
                         }
                     }
+                    Button("Your templates") { showingTemplates = true }
                     summaryFootnote
                 }
             }
         }
         .settingsForm()
+        .sheet(isPresented: $showingTemplates) {
+            TemplateListView()
+        }
     }
 
     @ViewBuilder

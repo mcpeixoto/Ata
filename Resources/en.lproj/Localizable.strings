@@ -806,3 +806,35 @@
 "Word document saved." = "Word document saved.";
 "Could not save the PDF: %@" = "Could not save the PDF: %@";
 "Could not save the Word document: %@" = "Could not save the Word document: %@";
+/* Track 10B */
+"Your templates" = "Your templates";
+"Add template" = "Add template";
+"Example: Client call" = "Example: Client call";
+"A call with a client. Write what they need, what concerns them, and the next step that was agreed. Leave out small talk." = "A call with a client. Write what they need, what concerns them, and the next step that was agreed. Leave out small talk.";
+"What they need" = "What they need";
+"Concerns" = "Concerns";
+"Next step" = "Next step";
+"Delete this template?" = "Delete this template?";
+"Instructions" = "Instructions";
+"Sections" = "Sections";
+"Heading" = "Heading";
+"Add a section" = "Add a section";
+"New template" = "New template";
+"Edit template" = "Edit template";
+"Rewrite summary with" = "Rewrite summary with";
+"Ask" = "Ask";
+"Ask your meetings" = "Ask your meetings";
+"Ask about your meetings" = "Ask about your meetings";
+"What did we decide about pricing?" = "What did we decide about pricing?";
+"What are my open action items?" = "What are my open action items?";
+"What did the client ask for?" = "What did the client ask for?";
+"No answer found in your meetings" = "No answer found in your meetings";
+"Looking through your meetings…" = "Looking through your meetings…";
+"Move up" = "Move up";
+"Move down" = "Move down";
+
+/* Track 10B — template list explains itself without a navigation bar */
+"Your own summary formats. Ata writes the summary in the sections you choose." = "Your own summary formats. Ata writes the summary in the sections you choose.";
+"Your own templates are part of Ata Pro." = "Your own templates are part of Ata Pro.";
+"Unlock with Ata Pro" = "Unlock with Ata Pro";
+"No templates yet. Add one to use it from any meeting's summary." = "No templates yet. Add one to use it from any meeting's summary.";

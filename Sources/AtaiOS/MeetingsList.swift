@@ -8,6 +8,7 @@ struct MeetingsList: View {
     @State private var query = ""
     @State private var pendingDelete: Meeting?
     @State private var choosingAudio = false
+    @State private var showingAsk = false
     /// Not Insights' filter: choosing Work there used to hide meetings here, with
     /// no control on this screen unless a search was open.
     @AppStorage(Pref.meetingsCategoryFilter) private var categoryFilter = ""
@@ -117,6 +118,14 @@ struct MeetingsList: View {
             .navigationTitle("Meetings")
             // Audio recorded elsewhere: Voice Memos, a recorder, a file someone sent.
             .toolbar {
+                if AppleModel.isAvailable {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button { showingAsk = true } label: {
+                            Label("Ask", systemImage: "sparkle.magnifyingglass")
+                        }
+                        .accessibilityLabel(L("Ask your meetings"))
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     // Past the free minutes, Pro comes first. A file already shared
                     // in is refused too, once the month is used; see PhoneStore.
@@ -127,6 +136,9 @@ struct MeetingsList: View {
                         Label("Import audio…", systemImage: "square.and.arrow.down")
                     }
                 }
+            }
+            .sheet(isPresented: $showingAsk) {
+                AskView()
             }
             .fileImporter(isPresented: $choosingAudio, allowedContentTypes: AudioImport.types,
                           allowsMultipleSelection: true) { result in
@@ -255,8 +267,11 @@ private struct PhoneMeetingRow: View {
 /// every redraw of the list.
 private struct MeetingScreen: View {
     @StateObject private var model: MeetingModel
+    @EnvironmentObject private var navigation: PhoneNavigation
+    private let id: String
 
     init(id: String) {
+        self.id = id
         _model = StateObject(wrappedValue: MeetingModel(id: id))
     }
 
@@ -268,7 +283,20 @@ private struct MeetingScreen: View {
                 if let meeting = model.meeting, !model.player.loaded {
                     model.player.load(meeting)
                 }
+                consumeSeek()
             }
+            .onChange(of: navigation.pendingSeek) { _, _ in consumeSeek() }
             .onDisappear { model.close() }
+    }
+
+    /// An Ask citation opened this meeting at a time. Applied once, including
+    /// when the screen was already on screen under the Ask sheet.
+    private func consumeSeek() {
+        guard let seek = navigation.pendingSeek, seek.meetingID == id else { return }
+        navigation.pendingSeek = nil
+        if let meeting = model.meeting, !model.player.loaded {
+            model.player.load(meeting)
+        }
+        model.play(fromMs: seek.milliseconds)
     }
 }

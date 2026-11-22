@@ -7,6 +7,22 @@ enum ProFeature: String, CaseIterable {
     case askMeetings
     case customTemplates
     case documentExport
+
+    var title: String {
+        switch self {
+        case .askMeetings: return L("Ask all your meetings")
+        case .customTemplates: return L("Your own summary formats")
+        case .documentExport: return L("Export a meeting as a document")
+        }
+    }
+
+    /// The feature that opened the paywall first, then the rest in `allCases` order.
+    /// Nil keeps that order, so a paywall opened from Settings does not reshuffle.
+    static func lines(highlighted: ProFeature?) -> [ProFeature] {
+        let all = Array(allCases)
+        guard let highlighted, all.contains(highlighted) else { return all }
+        return [highlighted] + all.filter { $0 != highlighted }
+    }
 }
 
 /// A paid plan. Monthly and yearly are the App Store subscription; lifetime is
