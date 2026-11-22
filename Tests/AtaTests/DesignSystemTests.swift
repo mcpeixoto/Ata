@@ -4,20 +4,30 @@ import XCTest
 /// sizes ignore Dynamic Type on the iPhone and drift from `AtaType`, so their
 /// number may only go down. Lower a ceiling when a file loses one; never raise it.
 final class DesignSystemTests: XCTestCase {
-    private static let sources = URL(filePath: #filePath)
+    private static let repo = URL(filePath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        .appending(path: "Sources/Ata")
+
+    /// A bare name still means `Sources/Ata`. Paths are the iPhone views and the
+    /// Mac onboarding, counted where they already live.
+    private static func sourceURL(_ file: String) -> URL {
+        if file.contains("/") { return repo.appending(path: file) }
+        return repo.appending(path: "Sources/Ata").appending(path: file)
+    }
 
     private static let literalFontCeilings: [String: Int] = [
         "MeetingView.swift": 3,
         "PeopleView.swift": 1,
         "InsightsView.swift": 1,
         "Components.swift": 3,
+        "Sources/AtaiOS/RecordView.swift": 1,
+        "Sources/AtaiOS/PhoneOnboarding.swift": 0,
+        "Sources/AtaiOS/Paywall.swift": 0,
+        "Sources/Ata/OnboardingView.swift": 19,
     ]
 
     func testSharedViewsAddNoLiteralFontSizes() throws {
         for (file, ceiling) in Self.literalFontCeilings {
-            let text = try String(contentsOf: Self.sources.appending(path: file), encoding: .utf8)
+            let text = try String(contentsOf: Self.sourceURL(file), encoding: .utf8)
             let count = text.components(separatedBy: ".font(.system(size:").count - 1
             XCTAssertLessThanOrEqual(count, ceiling,
                 "\(file) has \(count) literal font sizes; use AtaType (ScaledType.swift) instead")
@@ -27,7 +37,7 @@ final class DesignSystemTests: XCTestCase {
     func testSharedViewsUseRadiusTokensForNewShapes() throws {
         // Every radius in a shared view is a token, or a literal with a comment saying why.
         for file in Self.literalFontCeilings.keys {
-            let lines = try String(contentsOf: Self.sources.appending(path: file), encoding: .utf8)
+            let lines = try String(contentsOf: Self.sourceURL(file), encoding: .utf8)
                 .components(separatedBy: .newlines)
             let bare = lines.filter { line in
                 guard let range = line.range(of: "cornerRadius: ") else { return false }
@@ -45,5 +55,9 @@ final class DesignSystemTests: XCTestCase {
         "PeopleView.swift": 1,
         "InsightsView.swift": 0,
         "Components.swift": 2,
+        "Sources/AtaiOS/RecordView.swift": 0,
+        "Sources/AtaiOS/PhoneOnboarding.swift": 0,
+        "Sources/AtaiOS/Paywall.swift": 1,
+        "Sources/Ata/OnboardingView.swift": 1,
     ]
 }

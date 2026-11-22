@@ -662,3 +662,6 @@
 /* Track 0 */
 "%d shared recordings are waiting" = "%d shared recordings are waiting";
 "They import with Ata Pro or when next month's free minutes start." = "They import with Ata Pro or when next month's free minutes start.";
+
+/* Track 1 */
+"%d of %d free minutes" = "%d of %d free minutes";

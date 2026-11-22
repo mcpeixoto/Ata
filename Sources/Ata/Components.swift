@@ -48,28 +48,13 @@ struct PulsingDot: View {
     }
 }
 
-/// The big round record button.
+/// The big round record button in the menu. The drawing lives in `HeroRecordButton`.
 struct RecordButton: View {
     let action: () -> Void
-    @State private var hover = false
 
     var body: some View {
-        Button(action: action) {
-            ZStack {
-                Circle()
-                    .fill(Theme.record)
-                    .frame(width: 64, height: 64)
-                    .shadow(color: Theme.recordingSolid.opacity(hover ? 0.5 : 0.3), radius: hover ? 14 : 8, y: 3)
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
-            .scaleEffect(hover ? 1.05 : 1)
-            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: hover)
-        }
-        .buttonStyle(.plain)
-        .onHover { hover = $0 }
-        .help(L("Start recording (⌘R)"))
+        HeroRecordButton(size: 64, state: .idle, action: action)
+            .help(L("Start recording (⌘R)"))
     }
 }
 
@@ -487,5 +472,344 @@ struct MeetingRowContent<Detail: View>: View {
         case .recording: return ("record.circle.fill", Theme.recordingSolid)
         case .pending, .transcribing: return ("hourglass", Theme.queued)
         }
+    }
+}
+
+/// Full-width capsule. The brand gradient and ink that stays readable on it.
+struct PrimaryButtonStyle: ButtonStyle {
+    /// 50 pt on iPhone, 32 pt on Mac: the capsule's height on each platform.
+    static var height: CGFloat {
+        #if os(iOS)
+        50
+        #else
+        32
+        #endif
+    }
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(Theme.accentInk)
+            .frame(maxWidth: .infinity, minHeight: Self.height)
+            .background(Capsule().fill(Theme.brand))
+            .contentShape(Capsule())
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+    }
+}
+
+/// Same capsule as `PrimaryButtonStyle`, with a 6% fill and accent text.
+struct SecondaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(Theme.accent)
+            .frame(maxWidth: .infinity, minHeight: PrimaryButtonStyle.height)
+            .background(Capsule().fill(Color.primary.opacity(0.06)))
+            .contentShape(Capsule())
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+    }
+}
+
+/// One capsule per step. The current one is 18 pt wide; the others are 6 pt,
+/// the same thickness as `QuotaMeter`.
+struct StepDots: View {
+    var count: Int
+    var current: Int
+
+    /// Out-of-range values sit on the first or last dot. An empty row stays at 0.
+    static func clampedIndex(count: Int, current: Int) -> Int {
+        guard count > 0 else { return 0 }
+        return min(max(current, 0), count - 1)
+    }
+
+    var body: some View {
+        let index = Self.clampedIndex(count: count, current: current)
+        HStack(spacing: Theme.Space.xs) {
+            ForEach(0..<max(count, 0), id: \.self) { item in
+                Capsule()
+                    .fill(item == index ? Theme.accent : Color.primary.opacity(0.2))
+                    .frame(width: item == index ? 18 : 6, height: 6)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// The free-minutes bar. Accent until 80% of the allowance, warning from there.
+struct QuotaMeter: View {
+    var usedMinutes: Int
+    var limitMinutes: Int
+
+    static func showsWarning(usedMinutes: Int, limitMinutes: Int) -> Bool {
+        guard limitMinutes > 0, usedMinutes > 0 else { return false }
+        return usedMinutes * 5 >= limitMinutes * 4
+    }
+
+    static func fraction(usedMinutes: Int, limitMinutes: Int) -> Double {
+        guard limitMinutes > 0, usedMinutes > 0 else { return 0 }
+        return min(Double(usedMinutes) / Double(limitMinutes), 1)
+    }
+
+    static func fillColor(usedMinutes: Int, limitMinutes: Int) -> Color {
+        showsWarning(usedMinutes: usedMinutes, limitMinutes: limitMinutes) ? Theme.warning : Theme.accent
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.xs) {
+            Text(L("%d of %d free minutes", max(usedMinutes, 0), max(limitMinutes, 0)))
+                .ataCaption()
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Capsule()
+                .fill(Color.primary.opacity(0.08))
+                .frame(height: 6)
+                .overlay(alignment: .leading) {
+                    GeometryReader { proxy in
+                        Capsule()
+                            .fill(Self.fillColor(usedMinutes: usedMinutes, limitMinutes: limitMinutes))
+                            .frame(width: max(0, proxy.size.width * Self.fraction(usedMinutes: usedMinutes, limitMinutes: limitMinutes)))
+                    }
+                }
+                .accessibilityHidden(true)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A price option. The caller computes `badge` from the product prices ("Save 46 %").
+struct PlanCard: View {
+    var title: String
+    var price: String
+    var detail: String
+    var badge: String?
+    var selected: Bool
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
+                    Text(verbatim: title)
+                        .ataHeadline()
+                    Spacer(minLength: Theme.Space.s)
+                    if let badge {
+                        Text(verbatim: badge)
+                            .ataCaption()
+                            .foregroundStyle(Theme.accentInk)
+                            .padding(.horizontal, Theme.Space.s)
+                            .padding(.vertical, Theme.Space.xs)
+                            .background(Capsule().fill(Theme.accent))
+                    }
+                }
+                Text(verbatim: price)
+                    .ataTitle()
+                Text(verbatim: detail)
+                    .ataCaption()
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(Theme.Space.m)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous)
+                    .fill(Color.primary.opacity(0.045))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous)
+                    // Selected is a 2 pt accent stroke. Unselected keeps the card hairline.
+                    .strokeBorder(selected ? Theme.accent : Color.primary.opacity(0.06),
+                                  lineWidth: selected ? 2 : 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+}
+
+/// The round record control shared by the menu (64 pt) and the iPhone (120 pt).
+/// Idle draws a ring in `Theme.recordingSolid` at 25% that grows from 1 to 1.15
+/// over 2.4 s. Reduce Motion and snapshot runs hold it still, at rest, so the
+/// ring sits under the fill and the button looks as it did.
+struct HeroRecordButton: View {
+    /// Named `Phase` so it does not hide SwiftUI's `@State`.
+    enum Phase: Equatable {
+        case idle, busy, recording
+    }
+
+    var size: CGFloat
+    var state: Phase
+    var action: () -> Void
+
+    #if os(macOS)
+    @State private var hover = false
+    #endif
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var expanded = false
+
+    private static let breathDuration = 2.4
+    private static let breathScale = 1.15
+
+    static func animatesBreath(state: Phase, reduceMotion: Bool, renderingSnapshots: Bool) -> Bool {
+        state == .idle && !reduceMotion && !renderingSnapshots
+    }
+
+    private var breathes: Bool {
+        Self.animatesBreath(state: state, reduceMotion: reduceMotion, renderingSnapshots: Snapshots.rendering)
+    }
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                if state == .idle {
+                    Circle()
+                        .stroke(Theme.recordingSolid.opacity(0.25), lineWidth: ringWidth)
+                        .frame(width: size - ringWidth, height: size - ringWidth)
+                        .scaleEffect(breathes && expanded ? Self.breathScale : 1)
+                }
+                Circle()
+                    .fill(Theme.recording)
+                    .frame(width: size, height: size)
+                    .shadow(color: Theme.recordingSolid.opacity(shadowOpacity), radius: shadowRadius, y: shadowY)
+                glyph
+            }
+            .frame(width: size, height: size)
+            .scaleEffect(hoverScale)
+        }
+        .buttonStyle(.plain)
+        .contentShape(Circle())
+        #if os(macOS)
+        .onHover { hover = $0 }
+        .animation(reduceMotion || Snapshots.rendering
+                   ? nil
+                   : .spring(response: 0.25, dampingFraction: 0.7),
+                   value: hover)
+        #endif
+        .onAppear { startBreath() }
+        .onChange(of: breathes) { _, _ in startBreath() }
+    }
+
+    /// Repeats only while idle. Snapshot runs and Reduce Motion leave `expanded`
+    /// false, so the ring stays at 1 and is covered by the fill.
+    private func startBreath() {
+        guard breathes else {
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { expanded = false }
+            return
+        }
+        guard !expanded else { return }
+        withAnimation(.easeInOut(duration: Self.breathDuration).repeatForever(autoreverses: true)) {
+            expanded = true
+        }
+    }
+
+    /// The phone button is 120 pt and the menu button is 64. The shadow stays
+    /// what each of those drew before they shared this view.
+    private var phoneSized: Bool { size >= 100 }
+
+    private var ringWidth: CGFloat { max(size * 0.06, 1) }
+
+    #if os(macOS)
+    private var hoverScale: CGFloat { hover ? 1.05 : 1 }
+    #else
+    private var hoverScale: CGFloat { 1 }
+    #endif
+
+    private var shadowOpacity: Double {
+        if phoneSized { return 0.35 }
+        #if os(macOS)
+        return hover ? 0.5 : 0.3
+        #else
+        return 0.3
+        #endif
+    }
+
+    private var shadowRadius: CGFloat {
+        if phoneSized { return 16 }
+        #if os(macOS)
+        return hover ? 14 : 8
+        #else
+        return 8
+        #endif
+    }
+
+    private var shadowY: CGFloat { phoneSized ? 6 : 3 }
+
+    /// White on the red fill. `Theme.accentInk` is near-black in dark mode, which
+    /// would sink into this button.
+    @ViewBuilder private var glyph: some View {
+        if state == .recording {
+            RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
+                .fill(.white)
+                .frame(width: size * 40 / 120, height: size * 40 / 120)
+        } else if phoneSized {
+            Image(systemName: "mic.fill")
+                .font(.largeTitle.weight(.semibold))
+                .foregroundStyle(.white)
+        } else {
+            Image(systemName: "mic.fill")
+                .ataFont(24, weight: .semibold)
+                .foregroundStyle(.white)
+        }
+    }
+}
+
+/// Header, scrolling step, pinned footer. Both onboardings share this chrome.
+struct OnboardingScaffold<Content: View, Footer: View>: View {
+    var step: Int
+    var count: Int
+    var back: (() -> Void)?
+    private var content: Content
+    private var footer: Footer
+
+    init(step: Int, count: Int, back: (() -> Void)? = nil,
+         @ViewBuilder content: () -> Content,
+         @ViewBuilder footer: () -> Footer) {
+        self.step = step
+        self.count = count
+        self.back = back
+        self.content = content()
+        self.footer = footer()
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            ScrollView {
+                content
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, Theme.Space.xl)
+                    .padding(.vertical, Theme.Space.l)
+            }
+            footer
+                .frame(maxWidth: .infinity)
+                .padding(Theme.Space.xl)
+        }
+    }
+
+    /// A hidden Back on the right keeps the dots centred, including on step one
+    /// where the real Back is only there to hold the width.
+    private var header: some View {
+        HStack(spacing: Theme.Space.s) {
+            backButton
+            Spacer(minLength: Theme.Space.s)
+            StepDots(count: count, current: step)
+            Spacer(minLength: Theme.Space.s)
+            backButton
+                .hidden()
+                .accessibilityHidden(true)
+                .allowsHitTesting(false)
+        }
+        .padding(.horizontal, Theme.Space.xl)
+        .padding(.top, Theme.Space.l)
+        .padding(.bottom, Theme.Space.s)
+    }
+
+    private var backButton: some View {
+        Button(action: { back?() }) {
+            Label("Back", systemImage: "chevron.left")
+        }
+        .buttonStyle(.plain)
+        .opacity(back == nil ? 0 : 1)
+        .accessibilityHidden(back == nil)
+        .allowsHitTesting(back != nil)
     }
 }
