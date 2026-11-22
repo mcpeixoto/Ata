@@ -13,7 +13,7 @@ import XCTest
 final class AtaSnapshotTests: XCTestCase {
     /// The same names as `Snapshots.Screen` in the app.
     private static let screens = [
-        "record-idle", "record-recording", "meetings", "meeting-notes", "meeting-transcript",
+        "record-idle", "record-recording", "record-first-run", "record-transcribing", "meetings", "meeting-notes", "meeting-transcript",
         "people", "insights", "settings", "onboarding", "onboarding-usecase", "onboarding-permissions",
         "onboarding-you", "onboarding-try", "onboarding-pro",
         // The screens people pay on and the one that explains iCloud: reviewed like the rest.
@@ -48,6 +48,12 @@ final class AtaSnapshotTests: XCTestCase {
         for screen in Self.screens {
             let name = "iphone-\(screen)-\(appearance)"
             let folder = try freshCopy(of: URL(fileURLWithPath: fixtures, isDirectory: true), named: name)
+            if screen == "record-first-run" {
+                // A first run has no meetings: an empty folder in place of the fixtures.
+                let meetings = folder.appendingPathComponent("meetings", isDirectory: true)
+                try FileManager.default.removeItem(at: meetings)
+                try FileManager.default.createDirectory(at: meetings, withIntermediateDirectories: true)
+            }
 
             let app = XCUIApplication()
             app.launchArguments = [
@@ -100,6 +106,8 @@ final class AtaSnapshotTests: XCTestCase {
         switch screen {
         case "record-idle": return app.buttons["Record a conversation"]
         case "record-recording": return app.buttons["Stop recording"]
+        case "record-first-run": return app.descendants(matching: .any)["record-first-run"]
+        case "record-transcribing": return app.descendants(matching: .any)["record-transcribing"]
         case "meetings": return app.navigationBars["Meetings"]
         // Not any segmented control: Record has one too.
         case "meeting-notes", "meeting-transcript": return app.segmentedControls.buttons["Transcript"]

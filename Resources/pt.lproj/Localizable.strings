@@ -698,3 +698,26 @@
 "Continue free" = "Continuar grátis";
 "7 days free" = "7 dias grátis";
 "Unlimited meetings, including your Mac" = "Reuniões ilimitadas, incluindo o teu Mac";
+/* Track 5 */
+"Good morning" = "Bom dia";
+"Good afternoon" = "Boa tarde";
+"Good evening" = "Boa noite";
+"Good morning, %@" = "Bom dia, %@";
+"Good afternoon, %@" = "Boa tarde, %@";
+"Good evening, %@" = "Boa noite, %@";
+"Ready when you are" = "Pronta quando quiser";
+"1 meeting this week · %@" = "1 reunião esta semana · %@";
+"%d meetings this week · %@" = "%d reuniões esta semana · %@";
+"Tap to record" = "Toque para gravar";
+"Starting…" = "A iniciar…";
+"Saving…" = "A guardar…";
+"Saved. Transcribing now." = "Guardada. A transcrever agora.";
+"Recent" = "Recentes";
+"See all" = "Ver todas";
+"Your meetings will appear here" = "As suas reuniões vão aparecer aqui";
+"Record 30 seconds to see how it works." = "Grave 30 segundos para ver como funciona.";
+"Try Ata Pro" = "Experimentar a Ata Pro";
+"Add the Record with Ata control to your Lock Screen or Control Center." = "Adicione o controlo Gravar com a Ata ao ecrã bloqueado ou à central de controlo.";
+"On an iPhone with an Action button, you can set it to Record with Ata." = "Num iPhone com botão de ação, pode atribuir-lhe Gravar com a Ata.";
+"Say “Record with Ata” to Siri to start a recording." = "Diga «Gravar com a Ata» à Siri para começar a gravar.";
+"Add the Ata widget to your Home Screen to see your last meeting." = "Adicione o widget da Ata ao ecrã principal para ver a última reunião.";
