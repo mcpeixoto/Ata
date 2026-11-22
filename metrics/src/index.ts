@@ -23,6 +23,10 @@ export interface Ping {
   minutes: number;
   /** Every other app's counters, by name. */
   counts: Record<string, number>;
+  /** Ata's funnel counters. Empty when the ping didn't carry any. */
+  funnel: Record<string, number>;
+  /** Search Ads campaign id, or "organic". Null when the ping didn't carry one. */
+  campaign: string | null;
 }
 
 const COMMON = ["id", "platform", "version", "build", "os", "locale"];
@@ -32,9 +36,14 @@ const SHARED = ["app", ...COMMON, "counts"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SHORT = /^[A-Za-z0-9._-]{1,32}$/;
 const COUNTER = /^[a-z][a-z0-9_]{0,31}$/;
+// `onboardingStep`, `paywallShown.limit`, `featureLocked.askMeetings`.
+const FUNNEL_KEY = /^[a-z][A-Za-z0-9]{0,40}(\.[a-z][A-Za-z0-9]{0,40})?$/;
+const CAMPAIGN = /^[A-Za-z0-9._-]{1,32}$/;
 const MAX_BODY = 1024;
 const MAX_COUNT = 10_000;
 const MAX_COUNTERS = 8;
+// The app's known set is 17. A few new names fit without a worker change.
+const MAX_FUNNEL_KEYS = 24;
 
 const hasExactly = (b: Record<string, unknown>, keys: string[]) =>
   Object.keys(b).length === keys.length && keys.every((k) => k in b);
@@ -49,21 +58,39 @@ function parseCounts(v: unknown): Record<string, number> | null {
   return Object.fromEntries(entries) as Record<string, number>;
 }
 
+function parseFunnel(v: unknown): Record<string, number> | null {
+  if (typeof v !== "object" || v === null || Array.isArray(v)) return null;
+  const entries = Object.entries(v);
+  if (entries.length > MAX_FUNNEL_KEYS) return null;
+  if (!entries.every(([k, n]) => FUNNEL_KEY.test(k) && isCount(n))) return null;
+  return Object.fromEntries(entries) as Record<string, number>;
+}
+
+/** The body without the two optional keys, so the required shape stays exact. */
+function required(b: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(b)) {
+    if (k !== "funnel" && k !== "campaign") out[k] = v;
+  }
+  return out;
+}
+
 /** The ping, or null when it is anything other than exactly what an app sends. */
 export function parse(body: unknown): Ping | null {
   if (typeof body !== "object" || body === null || Array.isArray(body)) return null;
   const b = body as Record<string, unknown>;
+  const base = required(b);
 
   let app: App;
   let meetings = 0;
   let minutes = 0;
   let counts: Record<string, number> = {};
-  if (hasExactly(b, LEGACY)) {
+  if (hasExactly(base, LEGACY)) {
     if (!isCount(b.meetings) || !isCount(b.minutes)) return null;
     app = "ata";
     meetings = b.meetings;
     minutes = b.minutes;
-  } else if (hasExactly(b, SHARED)) {
+  } else if (hasExactly(base, SHARED)) {
     if (!APPS.includes(b.app as App)) return null;
     const c = parseCounts(b.counts);
     if (!c) return null;
@@ -71,6 +98,18 @@ export function parse(body: unknown): Ping | null {
     counts = c;
   } else {
     return null;
+  }
+
+  let funnel: Record<string, number> = {};
+  if ("funnel" in b) {
+    const parsed = parseFunnel(b.funnel);
+    if (!parsed) return null;
+    funnel = parsed;
+  }
+  let campaign: string | null = null;
+  if ("campaign" in b) {
+    if (typeof b.campaign !== "string" || !CAMPAIGN.test(b.campaign)) return null;
+    campaign = b.campaign;
   }
 
   const short = (v: unknown) => typeof v === "string" && SHORT.test(v);
@@ -88,6 +127,8 @@ export function parse(body: unknown): Ping | null {
     meetings,
     minutes,
     counts,
+    funnel,
+    campaign,
   };
 }
 
@@ -112,8 +153,8 @@ export default {
     const day = new Date().toISOString().slice(0, 10);
     // A second ping the same day adds to the first, counter by counter.
     await env.DB.prepare(
-      `INSERT INTO pings (app, id, day, platform, version, build, os, locale, country, meetings, minutes, counts)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+      `INSERT INTO pings (app, id, day, platform, version, build, os, locale, country, meetings, minutes, counts, funnel, campaign)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
        ON CONFLICT (app, id, day) DO UPDATE SET
          platform = excluded.platform, version = excluded.version, build = excluded.build,
          os = excluded.os, locale = excluded.locale, country = excluded.country,
@@ -127,10 +168,23 @@ export default {
                SELECT key, value FROM json_each(excluded.counts)
              ) GROUP BY key
            )
-         )`,
+         ),
+         funnel = (
+           SELECT COALESCE(json_group_object(key, total), '{}') FROM (
+             SELECT key,
+                    CASE WHEN key = 'onboardingStep' THEN MAX(value) ELSE SUM(value) END AS total
+             FROM (
+               SELECT key, value FROM json_each(pings.funnel)
+               UNION ALL
+               SELECT key, value FROM json_each(excluded.funnel)
+             ) GROUP BY key
+           )
+         ),
+         campaign = COALESCE(excluded.campaign, pings.campaign)`,
     )
       .bind(ping.app, ping.id, day, ping.platform, ping.version, ping.build, ping.os, ping.locale,
-            country, ping.meetings, ping.minutes, JSON.stringify(ping.counts))
+            country, ping.meetings, ping.minutes, JSON.stringify(ping.counts),
+            JSON.stringify(ping.funnel), ping.campaign)
       .run();
     return new Response(null, { status: 204 });
   },

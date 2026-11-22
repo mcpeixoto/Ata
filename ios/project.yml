@@ -112,6 +112,8 @@ targets:
       - package: AtaDependencies
       - target: AtaWidgets
       - target: AtaShare
+      # Search Ads attribution token. No ATT prompt; see Attribution.swift.
+      - sdk: AdServices.framework
     settings:
       base:
         PRODUCT_NAME: Ata
