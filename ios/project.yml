@@ -171,6 +171,7 @@ targets:
       - path: ../Sources/Ata/MeetingEvent.swift
       - path: ../Sources/AtaShare/Shared/ShareInbox.swift
       - path: ../Sources/AtaiOS/PhoneDecisions.swift
+      - path: ../Sources/AtaiOS/RecordHomeModel.swift
       - path: ../Sources/AtaWidgets/Shared/WidgetRecordingFace.swift
     settings:
       base:

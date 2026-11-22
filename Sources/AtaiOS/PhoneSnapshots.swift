@@ -15,6 +15,8 @@ extension Snapshots {
     enum Screen: String {
         case recordIdle = "record-idle"
         case recordRecording = "record-recording"
+        case recordFirstRun = "record-first-run"
+        case recordTranscribing = "record-transcribing"
         case meetings
         case meetingNotes = "meeting-notes"
         case meetingTranscript = "meeting-transcript"
@@ -49,6 +51,19 @@ extension Snapshots {
     /// Shown mid-transcription in the meetings list, as on the Mac's screenshots.
     static let transcribingID = "fixture-slack"
 
+    /// Two left on the record tab; none on the paywall, which is when it shows.
+    /// The Record home: 212 of 300 (the meter, no banner), past 80 % while
+    /// transcribing (the banner), none used on a first run.
+    private static var freeUsed: Int {
+        switch screen {
+        case .paywall: return FreeQuota.limitMinutes
+        case .recordIdle: return 212
+        case .recordTranscribing: return 250
+        case .recordFirstRun: return 0
+        default: return FreeQuota.limitMinutes - 2
+        }
+    }
+
     private static func argument(after flag: String) -> String? {
         let args = ProcessInfo.processInfo.arguments
         guard let i = args.firstIndex(of: flag), i + 1 < args.count else { return nil }
@@ -65,14 +80,15 @@ extension Snapshots {
 
         // Mid-meeting: 23 minutes in, a voice in the room, two moments marked.
         let recording = screen == .recordRecording
+        // The Record home shows the transcribing card only on its own screen.
+        let quietHome = screen == .recordIdle || screen == .recordFirstRun
         PhoneStore.shared.applySnapshotFixture(recording: recording,
                                                elapsed: recording ? 23 * 60 + 14 : 0,
                                                level: recording ? 0.64 : 0,
                                                bookmarks: recording ? [4 * 60_000 + 12_000, 17 * 60_000 + 40_000] : [],
-                                               transcribingID: recording ? nil : transcribingID,
-                                               progress: recording ? 0 : 0.62,
-                                               // Two left on the record tab; none on the paywall, which is when it shows.
-                                               freeUsed: screen == .paywall ? FreeQuota.limitMinutes : FreeQuota.limitMinutes - 2)
+                                               transcribingID: recording || quietHome ? nil : transcribingID,
+                                               progress: recording || quietHome ? 0 : 0.62,
+                                               freeUsed: freeUsed)
 
         let navigation = PhoneNavigation.shared
         switch screen {
@@ -93,8 +109,8 @@ extension Snapshots {
         }
         navigation.showingPaywall = screen == .paywall
         switch screen {
-        case .recordIdle, .recordRecording, .onboarding, .onboardingUseCase, .onboardingPermissions,
-                .onboardingYou, .onboardingTry, .onboardingPro, .paywall:
+        case .recordIdle, .recordRecording, .recordFirstRun, .recordTranscribing, .onboarding, .onboardingUseCase,
+                .onboardingPermissions, .onboardingYou, .onboardingTry, .onboardingPro, .paywall:
             navigation.tab = .record
         case .meetings:
             navigation.tab = .meetings

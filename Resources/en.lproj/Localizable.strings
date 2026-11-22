@@ -698,3 +698,26 @@
 "Continue free" = "Continue free";
 "7 days free" = "7 days free";
 "Unlimited meetings, including your Mac" = "Unlimited meetings, including your Mac";
+/* Track 5 */
+"Good morning" = "Good morning";
+"Good afternoon" = "Good afternoon";
+"Good evening" = "Good evening";
+"Good morning, %@" = "Good morning, %@";
+"Good afternoon, %@" = "Good afternoon, %@";
+"Good evening, %@" = "Good evening, %@";
+"Ready when you are" = "Ready when you are";
+"1 meeting this week · %@" = "1 meeting this week · %@";
+"%d meetings this week · %@" = "%d meetings this week · %@";
+"Tap to record" = "Tap to record";
+"Starting…" = "Starting…";
+"Saving…" = "Saving…";
+"Saved. Transcribing now." = "Saved. Transcribing now.";
+"Recent" = "Recent";
+"See all" = "See all";
+"Your meetings will appear here" = "Your meetings will appear here";
+"Record 30 seconds to see how it works." = "Record 30 seconds to see how it works.";
+"Try Ata Pro" = "Try Ata Pro";
+"Add the Record with Ata control to your Lock Screen or Control Center." = "Add the Record with Ata control to your Lock Screen or Control Center.";
+"On an iPhone with an Action button, you can set it to Record with Ata." = "On an iPhone with an Action button, you can set it to Record with Ata.";
+"Say “Record with Ata” to Siri to start a recording." = "Say “Record with Ata” to Siri to start a recording.";
+"Add the Ata widget to your Home Screen to see your last meeting." = "Add the Ata widget to your Home Screen to see your last meeting.";
