@@ -693,11 +693,11 @@ private struct NotesTab: View {
                     Label("Copy follow-up draft", systemImage: "envelope")
                 }
                 .controlSize(.small)
-                #if os(macOS)
+                // On the iPhone too: the paywall there sells "your own summary
+                // formats", and this menu is the only place one is used.
                 if AppleModel.isAvailable {
                     rewriteMenu
                 }
-                #endif
             }
         } else if model.writingNotes {
             HStack(spacing: 8) {
@@ -741,7 +741,6 @@ private struct NotesTab: View {
         }
     }
 
-    #if os(macOS)
     /// Built-in templates, then the user's. A free user sees the lock and the
     /// paywall; choosing one never reaches a custom prompt.
     private var rewriteMenu: some View {
@@ -774,7 +773,6 @@ private struct NotesTab: View {
         }
         .disabled(model.writingNotes)
     }
-    #endif
 }
 
 /// The summary, list items hanging-indented: a wrapped action item lines up
