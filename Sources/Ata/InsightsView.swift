@@ -230,7 +230,7 @@ struct InsightsView: View {
     private var empty: some View {
         ZStack {
             InsightsGhost()
-                .blur(radius: 4) // Shapes, not numbers someone could read as their own.
+                .redacted(reason: .placeholder) // Shapes, not numbers someone could read as their own.
                 .opacity(0.3) // A preview of the charts, not data: the plan asks for 30%.
                 .accessibilityHidden(true)
                 .allowsHitTesting(false)
