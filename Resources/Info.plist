@@ -4,8 +4,17 @@
 <dict>
 	<key>AtaDonateURL</key>
 	<string>https://buymeacoffee.com/mcpeixoto</string>
+	<key>AtaLicenceURL</key>
+	<string>https://ata-licence.miguelpeixoto457.workers.dev</string>
 	<key>AtaMetricsURL</key>
 	<string>https://ata-metrics.miguelpeixoto457.workers.dev/v1/ping</string>
+	<key>AtaProPrice</key>
+	<dict>
+		<key>EUR</key>
+		<string>€44.99/year</string>
+		<key>USD</key>
+		<string>$44.99/year</string>
+	</dict>
 	<key>AtaRepository</key>
 	<string>mcpeixoto/Ata</string>
 	<key>CFBundleDevelopmentRegion</key>
@@ -29,6 +38,17 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>3.10.0</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>ai.interactive.ata.licence</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>ata</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>21</string>
 	<key>LSApplicationCategoryType</key>
