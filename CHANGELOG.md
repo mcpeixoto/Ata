@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.1
+
+- **Your own summary formats work on the iPhone**: "Rewrite summary with" is under a meeting's summary, as on the Mac.
+
 ## 4.0.0
 
 A redesign of both apps, a proper welcome, and Ata Pro on the Mac.
