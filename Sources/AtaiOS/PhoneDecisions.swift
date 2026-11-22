@@ -9,9 +9,27 @@ enum FreeQuotaError: Error, Equatable {
 /// The gate at the start of a recording. At the free limit it throws and does
 /// not record.
 enum RecordingStart {
+    /// `usedMinutes` is compared with `limitMinutes`, which the app passes as
+    /// `FreeQuota.limitMinutes`. The default is that same 300, so a caller
+    /// that only has the minutes still gates on the free tier. This file is
+    /// compiled into the iPhone unit tests without the meeting model, so it
+    /// cannot name `FreeQuota` itself.
+    static func begin(usedMinutes: Int, isPro: Bool, limitMinutes: Int = 300,
+                      record: () throws -> Void) throws {
+        try begin(needsPro: !isPro && usedMinutes >= limitMinutes, record: record)
+    }
+
     static func begin(needsPro: Bool, record: () throws -> Void) throws {
         if needsPro { throw FreeQuotaError.limitReached }
         try record()
+    }
+}
+
+/// The share-inbox paywall. Once a launch, and only while files are waiting
+/// at the free limit. The files stay in the inbox either way.
+enum InboxOffer {
+    static func shouldPresent(alreadyOffered: Bool, atLimit: Bool, pending: Int) -> Bool {
+        !alreadyOffered && atLimit && pending > 0
     }
 }
 

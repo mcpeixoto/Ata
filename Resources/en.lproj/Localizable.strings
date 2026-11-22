@@ -659,3 +659,6 @@
 "Copy configuration" = "Copy configuration";
 "Paste it into your agent's MCP settings. For Claude Code: %@" = "Paste it into your agent's MCP settings. For Claude Code: %@";
 "Copied." = "Copied.";
+/* Track 0 */
+"%d shared recordings are waiting" = "%d shared recordings are waiting";
+"They import with Ata Pro or when next month's free minutes start." = "They import with Ata Pro or when next month's free minutes start.";

@@ -187,9 +187,10 @@ final class AppStore: ObservableObject {
         }
     }
 
-    /// This month's 300 minutes are used. The Mac has no purchase, so a new
-    /// recording or import waits until the month turns.
-    var atFreeLimit: Bool { freeUsed >= FreeQuota.limitMinutes }
+    /// This month's 300 minutes are used, and the limit is being enforced.
+    /// While `FreeQuota.appliesOnMac` is false the Mac still writes the seconds
+    /// into the ledger and blocks nothing, until the limit can be unlocked.
+    var atFreeLimit: Bool { FreeQuota.appliesOnMac && freeUsed >= FreeQuota.limitMinutes }
 
     /// Counted from the library and the keychain. A meeting still recording
     /// has no duration and is not included.

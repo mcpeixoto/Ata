@@ -1,13 +1,14 @@
 import Foundation
 
 /// Each device is free for 300 minutes of new audio a calendar month. Ata Pro
-/// lifts the limit on iPhone. The Mac has the same allowance and no purchase
-/// yet, so past 300 a new recording or import waits until next month.
+/// lifts the limit on iPhone. The Mac counts the same allowance, and blocks on
+/// it only while `appliesOnMac` is on.
 ///
 /// What counts is audio this device made. An iPhone counts its own recordings
 /// and imports; a Mac counts its own. A meeting that arrived through iCloud
 /// from the other device, a transcript run again, and reading or exporting
-/// never count. A recording with no audio does not count. One that is still
+/// never count. Any finished recording with audio and a duration above zero
+/// counts its seconds. One that is still
 /// recording has no duration yet and uses none of the allowance, so it is never
 /// cut off; the next recording or import is what waits.
 ///
@@ -23,6 +24,10 @@ import Foundation
 enum FreeQuota {
     /// Five hours, as a round number of minutes.
     static let limitMinutes = 300
+
+    /// The Mac has no way to buy Ata Pro yet, so the 300-minute limit is off
+    /// there until it can be unlocked.
+    static let appliesOnMac = false
 
     /// One stored meeting. `seconds` is nil on a line written before durations
     /// were kept: an id alone.

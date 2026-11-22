@@ -49,6 +49,25 @@ final class PhoneDecisionsTests: XCTestCase {
         XCTAssertFalse(MicDenial.shouldClear(granted: true, showingDenial: false), "a full disk stays put")
     }
 
+    func testANewRecordingThrowsAtThreeHundredMinutesAndNotAtTwoNinetyNine() {
+        var recorded = false
+        XCTAssertThrowsError(try RecordingStart.begin(usedMinutes: 300, isPro: false, record: { recorded = true })) { error in
+            XCTAssertEqual(error as? FreeQuotaError, .limitReached)
+        }
+        XCTAssertFalse(recorded)
+
+        recorded = false
+        XCTAssertNoThrow(try RecordingStart.begin(usedMinutes: 299, isPro: false, record: { recorded = true }))
+        XCTAssertTrue(recorded)
+    }
+
+    func testTheInboxPaywallIsOfferedOnceWhileFilesWaitAtTheLimit() {
+        XCTAssertTrue(InboxOffer.shouldPresent(alreadyOffered: false, atLimit: true, pending: 2))
+        XCTAssertFalse(InboxOffer.shouldPresent(alreadyOffered: true, atLimit: true, pending: 2))
+        XCTAssertFalse(InboxOffer.shouldPresent(alreadyOffered: false, atLimit: false, pending: 2))
+        XCTAssertFalse(InboxOffer.shouldPresent(alreadyOffered: false, atLimit: true, pending: 0))
+    }
+
     func testTheEmptyMeetingsStateHidesWhileAudioIsComingIn() {
         XCTAssertTrue(MeetingsPlaceholder.shown(meetings: 0, importing: 0, waitingForEngine: false))
         XCTAssertFalse(MeetingsPlaceholder.shown(meetings: 0, importing: 1, waitingForEngine: false))

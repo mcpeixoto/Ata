@@ -35,6 +35,9 @@ final class PhoneStore: ObservableObject {
     @Published private(set) var bookmarks: [Int] = []
     /// Free minutes used on this iPhone this month; see `FreeQuota`.
     @Published private(set) var freeUsed = 0
+    /// Shared files still sitting in the inbox. At the free limit they stay
+    /// there, and the meetings list says how many are waiting.
+    @Published private(set) var inboxWaiting = 0
 
     /// No free minute left this month, and no Ata Pro.
     var needsPro: Bool { !ProStore.shared.isPro && freeUsed >= FreeQuota.limitMinutes }
@@ -54,6 +57,9 @@ final class PhoneStore: ObservableObject {
     private var searchCache: [String: (stamp: Date?, text: String)] = [:]
     private var bootstrapped = false
     private var drainingInbox = false
+    /// The inbox paywall was already presented this launch. Later returns to
+    /// the foreground leave the files and do not present it again.
+    private var offeredProForInbox = false
     /// Meetings whose speech model could not be downloaded. Retried when Ata is in front.
     private var waitingForSpeechModel: Set<String> = []
     private var lastHealth = Date.distantPast
@@ -218,7 +224,8 @@ final class PhoneStore: ObservableObject {
         // At the limit, record nothing. From an intent the sheet is armed only
         // after Ata is in front; see `presentBlockedStart`.
         do {
-            try RecordingStart.begin(needsPro: needsPro, record: {})
+            try RecordingStart.begin(usedMinutes: freeUsed, isPro: ProStore.shared.isPro,
+                                     limitMinutes: FreeQuota.limitMinutes, record: {})
         } catch {
             if !fromIntent { PhoneNavigation.shared.showPaywall() }
             throw error
@@ -529,15 +536,20 @@ final class PhoneStore: ObservableObject {
     /// Audio shared to Ata from another app waits in the app group's inbox (see
     /// `ShareInbox`). Each file becomes a meeting here; its copy is removed only
     /// once that meeting exists, and one that fails stays for the next time.
+    /// At the free limit the files stay too, and the paywall is presented at
+    /// most once this launch. Coming back to the app does not present it again.
     func drainShareInbox() {
         guard !drainingInbox, let folder = ShareInbox.folder else { return }
         let entries = ShareInbox.pending(in: folder)
+        inboxWaiting = entries.count
         guard !entries.isEmpty else { return }
         updateQuota()
-        if needsPro {
+        if InboxOffer.shouldPresent(alreadyOffered: offeredProForInbox, atLimit: needsPro,
+                                    pending: entries.count) {
+            offeredProForInbox = true
             PhoneNavigation.shared.showPaywall()
-            return
         }
+        if needsPro { return }
         drainingInbox = true
         importing += entries.count
         Task {
@@ -554,6 +566,7 @@ final class PhoneStore: ObservableObject {
             }
             importing -= entries.count
             drainingInbox = false
+            inboxWaiting = ShareInbox.pending(in: folder).count
             reload()
             offerProIfOverLimit()
             pump()
