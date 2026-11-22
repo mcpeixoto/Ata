@@ -481,12 +481,12 @@ struct PhoneOnboarding: View {
 }
 
 /// The yearly subscription, when ProStore has one. The monthly product is not
-/// offered here. Until Track 3 loads a yearly product this stays empty and the
+/// offered here. Until the yearly product loads this stays empty and the
 /// last step only offers the free minutes.
 @MainActor
 enum OnboardingYearly {
     static var product: Product? {
-        guard let product = ProStore.shared.product, isYearly(product) else { return nil }
+        guard let product = ProStore.shared.yearly, isYearly(product) else { return nil }
         return product
     }
 
@@ -495,7 +495,7 @@ enum OnboardingYearly {
     }
 
     static func plan(for product: Product) -> OnboardingProPlan {
-        let trial = product.subscription?.introductoryOffer?.paymentMode == .freeTrial
+        let trial = ProStore.shared.trialEligible && product.subscription?.introductoryOffer?.paymentMode == .freeTrial
         return OnboardingProPlan(
             title: product.displayName,
             price: product.displayPrice,
@@ -504,11 +504,11 @@ enum OnboardingYearly {
             offersTrial: trial)
     }
 
-    /// Buys only when the product ProStore would purchase is this yearly one,
+    /// Buys the yearly product only,
     /// so a monthly product can never be sold from this step.
     static func purchase() async {
-        guard let product = product, product.id == ProStore.shared.product?.id else { return }
-        await ProStore.shared.purchase()
+        guard let product else { return }
+        await ProStore.shared.purchase(product)
     }
 }
 

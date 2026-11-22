@@ -497,19 +497,10 @@
 "What a new recording is filed under. You can change it in the meeting." = "What a new recording is filed under. You can change it in the meeting.";
 /* Ata Pro (iPhone) */
 "Ata Pro" = "Ata Pro";
-"You have Ata Pro. Thank you!" = "You have Ata Pro. Thank you!";
 "%d of %d free minutes left this month" = "%d of %d free minutes left this month";
-"Unlimited meetings on iPhone" = "Unlimited meetings on iPhone";
-"Record and import as many as you like. Without Pro, %d minutes a month are free." = "Record and import as many as you like. Without Pro, %d minutes a month are free.";
-"Transcribed on your iPhone" = "Transcribed on your iPhone";
-"Transcripts and voices are made on the device, with or without Pro." = "Transcripts and voices are made on the device, with or without Pro.";
-"The same free minutes on Mac" = "The same free minutes on Mac";
-"The Mac has %d free minutes a month too. A meeting counts only on the device that recorded it." = "The Mac has %d free minutes a month too. A meeting counts only on the device that recorded it.";
 "Terms of Use" = "Terms of Use";
 "Privacy Policy" = "Privacy Policy";
-"Subscribe for %@" = "Subscribe for %@";
 "Unavailable right now" = "Unavailable right now";
-"Renews monthly until cancelled. Cancel any time in Settings." = "Renews monthly until cancelled. Cancel any time in Settings.";
 "Restore Purchases" = "Restore Purchases";
 "The App Store could not confirm this purchase." = "The App Store could not confirm this purchase.";
 "Your purchase is waiting for approval. Ata Pro starts as soon as it is approved." = "Your purchase is waiting for approval. Ata Pro starts as soon as it is approved.";
@@ -754,3 +745,27 @@
 "Upgrade" = "Upgrade";
 "Enter licence key" = "Enter licence key";
 "Deactivate" = "Deactivate";
+/* Track 3 */
+"Every meeting, written up." = "Every meeting, written up.";
+"Unlimited minutes" = "Unlimited minutes";
+"Ask all your meetings" = "Ask all your meetings";
+"Your own summary formats" = "Your own summary formats";
+"Unlocks your Mac too" = "Unlocks your Mac too";
+"Private: stays on device" = "Private: stays on device";
+"Export a meeting as a document" = "Export a meeting as a document";
+"Yearly" = "Yearly";
+"Monthly" = "Monthly";
+"SAVE %d %%" = "SAVE %d %%";
+"%d days free" = "%d days free";
+"Try %d days free" = "Try %d days free";
+"Subscribe" = "Subscribe";
+"Then %@/%@. Cancel anytime in Settings." = "Then %@/%@. Cancel anytime in Settings.";
+"Today: full access · Day %d: reminder · Day %d: %@" = "Today: full access · Day %d: reminder · Day %d: %@";
+"Restore" = "Restore";
+"Terms" = "Terms";
+"Privacy" = "Privacy";
+"This month's free minutes are used." = "This month's free minutes are used.";
+"Your first meeting is written up" = "Your first meeting is written up";
+"Your free trial ends in %d days" = "Your free trial ends in %d days";
+"Ata Pro renews at %@ unless you cancel before then." = "Ata Pro renews at %@ unless you cancel before then.";
+"Subscribe for %@" = "Subscribe for %@";

@@ -115,7 +115,7 @@ struct PhoneSettings: View {
                     if pro.isPro {
                         Button("Manage subscription") { managingSubscription = true }
                     } else {
-                        Button("Upgrade to Ata Pro") { PhoneNavigation.shared.showPaywall() }
+                        Button("Upgrade to Ata Pro") { ProPromptCenter.shared.openPaywall(.settings) }
                     }
                     Button("Restore Purchases") { Task { await pro.restore() } }
                         .disabled(pro.purchasing)

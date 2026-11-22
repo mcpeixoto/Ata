@@ -497,19 +497,10 @@
 "What a new recording is filed under. You can change it in the meeting." = "Onde fica arrumada cada gravação nova. Podes mudar isto na reunião.";
 /* Ata Pro (iPhone) */
 "Ata Pro" = "Ata Pro";
-"You have Ata Pro. Thank you!" = "Tens a Ata Pro. Obrigado!";
 "%d of %d free minutes left this month" = "Restam %d de %d minutos gratuitos este mês";
-"Unlimited meetings on iPhone" = "Reuniões ilimitadas no iPhone";
-"Record and import as many as you like. Without Pro, %d minutes a month are free." = "Grava e importa à vontade. Sem a Pro, %d minutos por mês são gratuitos.";
-"Transcribed on your iPhone" = "Transcrito no teu iPhone";
-"Transcripts and voices are made on the device, with or without Pro." = "As transcrições e as vozes são feitas no dispositivo, com ou sem a Pro.";
-"The same free minutes on Mac" = "Os mesmos minutos grátis no Mac";
-"The Mac has %d free minutes a month too. A meeting counts only on the device that recorded it." = "O Mac também tem %d minutos grátis por mês. Uma reunião só conta no dispositivo que a gravou.";
 "Terms of Use" = "Termos de Utilização";
 "Privacy Policy" = "Política de Privacidade";
-"Subscribe for %@" = "Subscrever por %@";
 "Unavailable right now" = "Indisponível de momento";
-"Renews monthly until cancelled. Cancel any time in Settings." = "Renova-se todos os meses até ser cancelada. Cancela quando quiseres nas Definições.";
 "Restore Purchases" = "Restaurar compras";
 "The App Store could not confirm this purchase." = "A App Store não conseguiu confirmar esta compra.";
 "Your purchase is waiting for approval. Ata Pro starts as soon as it is approved." = "A tua compra aguarda aprovação. A Ata Pro começa assim que for aprovada.";
@@ -754,3 +745,27 @@
 "Upgrade" = "Passar a Pro";
 "Enter licence key" = "Introduzir a chave de licença";
 "Deactivate" = "Desativar";
+/* Track 3 */
+"Every meeting, written up." = "Cada reunião, escrita.";
+"Unlimited minutes" = "Minutos ilimitados";
+"Ask all your meetings" = "Pergunta a todas as tuas reuniões";
+"Your own summary formats" = "Os teus formatos de resumo";
+"Unlocks your Mac too" = "Também desbloqueia o Mac";
+"Private: stays on device" = "Privado: fica no dispositivo";
+"Export a meeting as a document" = "Exportar uma reunião como documento";
+"Yearly" = "Anual";
+"Monthly" = "Mensal";
+"SAVE %d %%" = "POUPA %d %%";
+"%d days free" = "%d dias grátis";
+"Try %d days free" = "Experimentar %d dias grátis";
+"Subscribe" = "Subscrever";
+"Then %@/%@. Cancel anytime in Settings." = "Depois %@/%@. Cancela quando quiseres nas Definições.";
+"Today: full access · Day %d: reminder · Day %d: %@" = "Hoje: acesso total · Dia %d: aviso · Dia %d: %@";
+"Restore" = "Restaurar";
+"Terms" = "Termos";
+"Privacy" = "Privacidade";
+"This month's free minutes are used." = "Os minutos grátis deste mês estão gastos.";
+"Your first meeting is written up" = "A tua primeira reunião está escrita";
+"Your free trial ends in %d days" = "O período experimental acaba dentro de %d dias";
+"Ata Pro renews at %@ unless you cancel before then." = "A Ata Pro renova-se a %@ se não cancelares antes.";
+"Subscribe for %@" = "Subscrever por %@";

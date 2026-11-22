@@ -133,6 +133,123 @@ enum BlockedStart {
     }
 }
 
+/// Which Pro prompt, if any, should be shown for what just happened.
+///
+/// The caller stores the dates and the counts. This only decides. `limit` and
+/// `feature` are never held back. `eightyPercent` is an inline banner, once
+/// each calendar month. `firstTranscript` is the only modal this applies the
+/// three-day cap to, and it stays quiet on a day the App Store review prompt
+/// (Track 9) already asked.
+enum ProPrompt: Equatable {
+    case eightyPercent
+    case firstTranscript
+    case limit
+    case feature(Feature)
+
+    /// Same raw values as `ProFeature`. Named here so this file stays free of
+    /// the app target: the unit tests compile it on its own.
+    enum Feature: String, Equatable, CaseIterable {
+        case askMeetings
+        case customTemplates
+        case documentExport
+    }
+
+    enum Event: Equatable {
+        /// Record home. `alreadyThisMonth` is the banner having been shown in
+        /// this calendar month.
+        case eightyPercent(alreadyThisMonth: Bool)
+        /// A transcript finished. `reviewPromptToday` is Track 9's review ask.
+        case firstTranscript(foreground: Bool, recording: Bool, celebrated: Bool, reviewPromptToday: Bool)
+        case limit
+        case feature(Feature)
+    }
+
+    /// How long the first-transcript sheet waits after the transcript finishes.
+    static let firstTranscriptDelay: TimeInterval = 2
+    /// At most one modal prompt per this long, apart from `limit` and `feature`.
+    static let modalGap: TimeInterval = 3 * 24 * 60 * 60
+    /// `yyyy-MM` of the month the eighty-percent banner was shown.
+    static let eightyPercentMonthKey = "proPromptEightyPercentMonth"
+    /// `yyyy-MM-dd` Track 9 writes when it asks for an App Store review.
+    static let reviewPromptDayKey = "reviewPromptDay"
+
+    static func due(used: Int, limit: Int, isPro: Bool, lastShown: Date?, count: Int,
+                    event: Event, now: Date = Date()) -> ProPrompt? {
+        if isPro { return nil }
+        switch event {
+        case .limit:
+            return .limit
+        case .feature(let feature):
+            return .feature(feature)
+        case .eightyPercent(let already):
+            guard !already, reachedEighty(used: used, limit: limit), used < limit else { return nil }
+            return .eightyPercent
+        case .firstTranscript(let foreground, let recording, let celebrated, let reviewToday):
+            guard foreground, !recording, !celebrated, !reviewToday else { return nil }
+            guard !modalCoolingDown(lastShown: lastShown, count: count, now: now) else { return nil }
+            return .firstTranscript
+        }
+    }
+
+    /// 80% of the allowance, the same line the quota bar turns amber on.
+    static func reachedEighty(used: Int, limit: Int) -> Bool {
+        guard limit > 0, used > 0 else { return false }
+        return used * 5 >= limit * 4
+    }
+
+    /// A recorded modal (`count` > 0) whose `lastShown` is under three days ago.
+    /// A count of zero means nothing was shown, so a leftover date does not block.
+    static func modalCoolingDown(lastShown: Date?, count: Int, now: Date) -> Bool {
+        guard count > 0, let lastShown else { return false }
+        return now.timeIntervalSince(lastShown) < modalGap
+    }
+
+    static func monthID(_ date: Date, calendar: Calendar = .current) -> String {
+        let parts = calendar.dateComponents([.year, .month], from: date)
+        return String(format: "%04d-%02d", parts.year ?? 0, parts.month ?? 0)
+    }
+
+    static func dayID(_ date: Date, calendar: Calendar = .current) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+}
+
+/// The yearly saving and the trial's day numbers, from the two prices and the
+/// introductory period. No currency and no fixed 46.
+enum PlanMath {
+    enum Unit { case day, week, month, year }
+
+    static func savingsPercent(yearly: Decimal, monthly: Decimal) -> Int? {
+        guard monthly > 0 else { return nil }
+        let full = monthly * 12
+        guard full > yearly else { return nil }
+        var ratio = ((full - yearly) / full) * 100
+        var rounded = Decimal()
+        NSDecimalRound(&rounded, &ratio, 0, .plain)
+        let percent = NSDecimalNumber(decimal: rounded).intValue
+        return percent > 0 ? percent : nil
+    }
+
+    /// A week is seven days. Months and years are not a day count.
+    static func days(unit: Unit, value: Int, count: Int) -> Int? {
+        let each: Int
+        switch unit {
+        case .day: each = 1
+        case .week: each = 7
+        case .month, .year: return nil
+        }
+        let total = each * value * count
+        return total > 0 ? total : nil
+    }
+
+    /// Day 5 of a 7-day trial: the reminder goes out two days before it ends.
+    static func reminderDay(trialDays: Int) -> Int {
+        guard trialDays > 2 else { return max(trialDays, 1) }
+        return trialDays - 2
+    }
+}
+
 /// What happens to the transcription queue when a recording starts or stops,
 /// and when iOS ends the background task. Both pauses cancel the running job;
 /// that cancellation saves the meeting back as pending. Stopping resumes the queue.

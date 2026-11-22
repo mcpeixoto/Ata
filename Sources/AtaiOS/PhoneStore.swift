@@ -161,7 +161,7 @@ final class PhoneStore: ObservableObject {
     /// After an import that was allowed to start. Crossing 300 offers Pro; the
     /// file itself is kept.
     private func offerProIfOverLimit() {
-        if needsPro { PhoneNavigation.shared.showPaywall() }
+        if needsPro { ProPromptCenter.shared.openPaywall(.limit) }
     }
 
     /// Nothing is recording, transcribing or importing: the library can move
@@ -209,7 +209,7 @@ final class PhoneStore: ObservableObject {
     func presentBlockedStart(_ error: Error, appIsActive: Bool, becomingForeground: Bool) {
         guard BlockedStart.presentation(appIsActive: appIsActive, becomingForeground: becomingForeground) == .showNow else { return }
         if error is FreeQuotaError {
-            PhoneNavigation.shared.showPaywall()
+            ProPromptCenter.shared.openPaywall(.limit)
             return
         }
         if let recorderError = error as? PhoneRecorderError, case .micDenied = recorderError {
@@ -229,7 +229,7 @@ final class PhoneStore: ObservableObject {
             try RecordingStart.begin(usedMinutes: freeUsed, isPro: ProAccess.shared.isPro,
                                      limitMinutes: FreeQuota.limitMinutes, record: {})
         } catch {
-            if !fromIntent { PhoneNavigation.shared.showPaywall() }
+            if !fromIntent { ProPromptCenter.shared.openPaywall(.limit) }
             throw error
         }
         phase = .starting
@@ -501,7 +501,7 @@ final class PhoneStore: ObservableObject {
         }
         updateQuota()
         if needsPro {
-            PhoneNavigation.shared.showPaywall()
+            ProPromptCenter.shared.openPaywall(.limit)
             return
         }
         importing += files.count
@@ -549,7 +549,7 @@ final class PhoneStore: ObservableObject {
         if InboxOffer.shouldPresent(alreadyOffered: offeredProForInbox, atLimit: needsPro,
                                     pending: entries.count) {
             offeredProForInbox = true
-            PhoneNavigation.shared.showPaywall()
+            ProPromptCenter.shared.openPaywall(.limit)
         }
         if needsPro { return }
         drainingInbox = true
@@ -645,6 +645,7 @@ final class PhoneStore: ObservableObject {
                 if let m = await RunEnd.save(queued.id, as: .done, apply: RunEnd.done(outcome)) {
                     await handleAudio(of: m)
                     Notifier.shared.transcriptReady(m)
+                    ProPromptCenter.shared.noteTranscript(m.id)
                 }
                 background?.finish(success: true)
             } catch let error where Self.shouldRequeue(error) {

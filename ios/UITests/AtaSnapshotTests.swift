@@ -17,7 +17,7 @@ final class AtaSnapshotTests: XCTestCase {
         "people", "insights", "settings", "onboarding", "onboarding-usecase", "onboarding-permissions",
         "onboarding-you", "onboarding-try", "onboarding-pro",
         // The screens people pay on and the one that explains iCloud: reviewed like the rest.
-        "paywall", "icloud-help",
+        "paywall", "paywall-limit", "paywall-monthly", "icloud-help",
     ]
 
     override func setUpWithError() throws {
@@ -120,6 +120,8 @@ final class AtaSnapshotTests: XCTestCase {
         case "onboarding-you": return app.staticTexts["Two questions"]
         case "onboarding-try": return app.staticTexts["Try it: say a sentence"]
         case "onboarding-pro": return app.staticTexts["You're set"]
+        case "paywall", "paywall-monthly": return app.staticTexts["Every meeting, written up."]
+        case "paywall-limit": return app.staticTexts["This month's free minutes are used."]
         default: return app.windows.firstMatch
         }
     }
