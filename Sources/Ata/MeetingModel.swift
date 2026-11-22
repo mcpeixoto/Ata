@@ -705,6 +705,58 @@ final class MeetingModel: ObservableObject {
             exporting = false
         }
     }
+
+    /// The notes, the summary and the transcript as a PDF, wherever you choose.
+    func exportPDF() { exportDocument(as: .pdf) }
+
+    /// The same pages as a Word document.
+    func exportWord() { exportDocument(as: .word) }
+
+    private enum DocumentKind { case pdf, word }
+
+    private func exportDocument(as kind: DocumentKind) {
+        guard ProGate.allows(.documentExport) else { return }
+        guard let meeting, !exporting, !choosingDestination else { return }
+        let document = ExportDocument(
+            title: meeting.title,
+            notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
+            summary: summary ?? "",
+            lines: lines.map {
+                ExportLine(startMs: $0.start, speaker: $0.name, isMe: $0.speaker == Speakers.me, text: $0.text)
+            })
+        choosingDestination = true
+        let name = MeetingSharing.name(for: meeting)
+        Task {
+            do {
+                let saved: Bool
+                switch kind {
+                case .pdf:
+                    let data = DocumentExport.pdf(document)
+                    saved = try await Platform.actions.saveFile(named: name + ".pdf", type: .pdf) { [weak self] url in
+                        self?.exporting = true
+                        self?.message = nil
+                        try data.write(to: url, options: .atomic)
+                    }
+                    if saved { say(L("PDF saved.")) }
+                case .word:
+                    let data = DocumentExport.docx(document)
+                    saved = try await Platform.actions.saveFile(named: name + ".docx",
+                                                                type: DocumentExport.wordType) { [weak self] url in
+                        self?.exporting = true
+                        self?.message = nil
+                        try data.write(to: url, options: .atomic)
+                    }
+                    if saved { say(L("Word document saved.")) }
+                }
+            } catch {
+                message = kind == .pdf
+                    ? L("Could not save the PDF: %@", error.localizedDescription)
+                    : L("Could not save the Word document: %@", error.localizedDescription)
+            }
+            choosingDestination = false
+            exporting = false
+        }
+    }
 }
 
 /// Plays a meeting: meeting.mp3 when there is one, otherwise both tracks

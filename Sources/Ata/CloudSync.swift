@@ -356,7 +356,9 @@ final class CloudSync: ObservableObject {
         #else
         let can = true
         #endif
-        SettingsSync.shared.update(on: isOn && CloudLibrary.isActive && can)
+        let syncing = isOn && CloudLibrary.isActive && can
+        SettingsSync.shared.update(on: syncing)
+        TemplateSync.shared.update(on: syncing)
     }
 
     // MARK: Watching

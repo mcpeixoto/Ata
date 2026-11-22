@@ -39,11 +39,11 @@ enum AppleModel {
     /// The summary as Markdown, or nil when the model is unavailable, does not
     /// write the app's language, or fails, so the caller can fall back.
     static func summarize(markdown: String, myName: String,
-                          template: SummaryTemplate = .standard, vocabulary: [String] = []) async -> String? {
+                          choice: TemplateChoice = .builtIn(.standard), vocabulary: [String] = []) async -> String? {
         #if canImport(FoundationModels)
         if #available(macOS 26.0, iOS 26.0, *) {
             return await AppleSummarizer.summarize(markdown: markdown, myName: myName,
-                                                   template: template, vocabulary: vocabulary)
+                                                   choice: choice, vocabulary: vocabulary)
         }
         #endif
         return nil
@@ -283,16 +283,19 @@ enum AppleSummarizer {
     /// One set of notes per piece of the conversation, joined here. A piece the model
     /// refuses is left out and the summary says so, rather than the meeting getting none.
     static func summarize(markdown: String, myName: String, maxCharacters: Int = 4500,
-                          template: SummaryTemplate = .standard, vocabulary: [String] = []) async -> String? {
+                          choice: TemplateChoice = .builtIn(.standard), vocabulary: [String] = []) async -> String? {
+        // A custom template is Pro. Resolved here so every call, including the
+        // smaller-pieces retry below, has already fallen back to the standard notes.
+        let choice = TemplateChoice.forUse(choice, isPro: await MainActor.run { ProAccess.shared.isPro })
         guard unavailableReason == nil else { return nil }
         do {
             return try await attempt(markdown: markdown, myName: myName, maxCharacters: maxCharacters,
-                                     template: template, vocabulary: vocabulary)
+                                     choice: choice, vocabulary: vocabulary)
         } catch LanguageModelSession.GenerationError.exceededContextWindowSize where maxCharacters > 1500 {
             // The window counts tokens and this counts characters, so a dense
             // stretch can overflow it. Smaller pieces fit.
             return await summarize(markdown: markdown, myName: myName, maxCharacters: maxCharacters / 2,
-                                   template: template, vocabulary: vocabulary)
+                                   choice: choice, vocabulary: vocabulary)
         } catch {
             NSLog("Ata: summary on this Mac failed: \(error.localizedDescription)")
             return nil
@@ -300,8 +303,8 @@ enum AppleSummarizer {
     }
 
     private static func attempt(markdown: String, myName: String, maxCharacters: Int,
-                                template: SummaryTemplate, vocabulary: [String]) async throws -> String? {
-        let instructions = partInstructions(myName: myName, template: template, vocabulary: vocabulary)
+                                choice: TemplateChoice, vocabulary: [String]) async throws -> String? {
+        let instructions = partInstructions(myName: myName, choice: choice, vocabulary: vocabulary)
         var parts: [SummaryNotes.Part] = []
         var skippedPart = false
         for piece in SummaryChunks.split(SummaryNotes.conversation(from: markdown), maxCharacters: maxCharacters) {
@@ -346,26 +349,9 @@ enum AppleSummarizer {
         return try await session.respond(to: prompt, options: GenerationOptions(temperature: 0.2)).content
     }
 
-    private static func partInstructions(myName: String, template: SummaryTemplate = .standard,
-                                         vocabulary: [String] = []) -> String {
-        var text = """
-        You take notes on one part of a recorded conversation between people who know each \
-        other. It may be a work meeting, a planning session or a family phone call. \
-        "\(myName)" is the person recording.
-
-        The text comes from automatic speech recognition. Words can be wrong, speaker names \
-        can be wrong, and sometimes only one side of a call was recorded. When a phrase makes \
-        no sense, leave it out rather than guess what it meant. Never add an amount, date, \
-        name or reason that is not in the text. Advice from one person is not a task for another.
-
-        Write in \(Summarizer.replyLanguage). Speakers may use other languages; write about \
-        what they said in that language anyway.
-        """
-        // The template steers what it notices, and the dictionary how names are spelled.
-        if !template.focus.isEmpty { text += "\n\n" + template.focus }
-        if let spelling = Vocabulary.spellingInstruction(vocabulary) { text += "\n\n" + spelling }
-        text += "\n\nReply with one line saying the topic, then up to five short bullet points of what was actually said, in your own words. Never copy lines of the text."
-        return text
+    private static func partInstructions(myName: String, choice: TemplateChoice,
+                                         vocabulary: [String]) -> String {
+        SummaryPrompt.part(myName: myName, choice: choice, vocabulary: vocabulary)
     }
 
     private static let retryReminder = "\n\nThe text may be one long speech by one person. Each bullet point must be one short sentence of your own about it, not a quotation."

@@ -153,10 +153,12 @@ enum Summarizer {
         return text
     }
 
-    static func summarize(markdown: String, options: TranscribeOptions) async -> String? {
+    static func summarize(markdown: String, options: TranscribeOptions,
+                          choice: TemplateChoice? = nil) async -> String? {
         guard AppleModel.isAvailable else { return nil }
+        let selected = choice ?? .builtIn(SummaryTemplate.named(options.summaryTemplate))
         return await AppleModel.summarize(markdown: String(markdown.prefix(maxCharacters)), myName: options.myName,
-                                          template: SummaryTemplate.named(options.summaryTemplate),
+                                          choice: selected,
                                           vocabulary: options.vocabulary)
     }
 }

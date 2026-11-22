@@ -31,6 +31,10 @@ final class ProAccess: ObservableObject {
     }
 
     @Published private(set) var isPro = false
+
+    /// Pro is one switch. `feature` is which control asked; none of them unlocks alone.
+    func allows(_ feature: ProFeature) -> Bool { isPro }
+
     @Published private(set) var sources: Set<Source> = []
     /// When the StoreKit entitlement ends, if it has an end. Nil while the
     /// cached "Pro" flag is all we know, and when it is not Pro.

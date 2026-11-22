@@ -6,6 +6,7 @@ struct MeetingView: View {
     @EnvironmentObject var store: AppStore
     @StateObject private var model: MeetingModel
     @StateObject private var people = PeopleModel.shared
+    @ObservedObject private var proAccess = ProAccess.shared
 
     enum Tab: Hashable { case notes, transcript, people }
     @State private var tab: Tab
@@ -185,6 +186,8 @@ struct MeetingView: View {
                         .disabled(meeting.existingTranscriptURL == nil)
                     Button("Copy notes") { model.copyNotes() }
                         .disabled(model.summary == nil && model.notes.isEmpty)
+                    Divider()
+                    documentExportButtons()
                 } label: {
                     Image(systemName: "doc.on.doc")
                 }
@@ -210,6 +213,7 @@ struct MeetingView: View {
                         .disabled(meeting.existingTranscriptURL == nil)
                     Button("Copy notes", systemImage: "note.text") { model.copyNotes() }
                         .disabled(model.summary == nil && model.notes.isEmpty)
+                    documentExportButtons()
                     Button(L("Save as MP3…"), systemImage: "arrow.down.doc") { model.exportMP3() }
                         .disabled(!(meeting.hasAudio || meeting.hasMergedAudio) || model.exporting)
                     Button(Self.revealTitle, systemImage: "folder") { Platform.actions.reveal(meeting.dir) }
@@ -261,6 +265,36 @@ struct MeetingView: View {
         }
     }
 
+    /// Pro exports the notes, the summary and the transcript. A free user sees the
+    /// lock and the tap opens the paywall; the file is not written.
+    private var documentsUnlocked: Bool {
+        proAccess.isPro && ProGate.allows(.documentExport)
+    }
+
+    @ViewBuilder
+    private func documentExportButtons() -> some View {
+        exportPDFButton()
+        exportWordButton()
+    }
+
+    private func exportPDFButton() -> some View {
+        let unlocked = documentsUnlocked
+        return Button("Export PDF…", systemImage: unlocked ? "doc.richtext" : "lock.fill") {
+            if ProGate.lockedTap(.documentExport, isPro: ProGate.allows(.documentExport)) {
+                model.exportPDF()
+            }
+        }
+    }
+
+    private func exportWordButton() -> some View {
+        let unlocked = documentsUnlocked
+        return Button("Export Word…", systemImage: unlocked ? "doc.text" : "lock.fill") {
+            if ProGate.lockedTap(.documentExport, isPro: ProGate.allows(.documentExport)) {
+                model.exportWord()
+            }
+        }
+    }
+
     /// AirDrop, Mail, Messages and the rest, for the audio, the transcript or the notes.
     private func shareMenu(_ meeting: Meeting) -> some View {
         Menu {
@@ -280,6 +314,8 @@ struct MeetingView: View {
                     Label("Audio and transcript", systemImage: "square.stack")
                 }
             }
+            Divider()
+            documentExportButtons()
         } label: {
             Image(systemName: "square.and.arrow.up")
         }

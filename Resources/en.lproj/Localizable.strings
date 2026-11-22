@@ -798,3 +798,11 @@
 "Yesterday" = "Yesterday";
 "Earlier this month" = "Earlier this month";
 "No meetings match this search" = "No meetings match this search";
+
+/* Track 10 */
+"Export PDF…" = "Export PDF…";
+"Export Word…" = "Export Word…";
+"PDF saved." = "PDF saved.";
+"Word document saved." = "Word document saved.";
+"Could not save the PDF: %@" = "Could not save the PDF: %@";
+"Could not save the Word document: %@" = "Could not save the Word document: %@";
