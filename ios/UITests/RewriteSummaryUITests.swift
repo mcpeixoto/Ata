@@ -33,8 +33,18 @@ final class RewriteSummaryUITests: XCTestCase {
         app.launch()
 
         let rewrite = app.buttons["Rewrite summary with"]
-        XCTAssertTrue(rewrite.waitForExistence(timeout: 30),
-                      "a meeting's summary should offer Rewrite summary with on the iPhone")
+        guard rewrite.waitForExistence(timeout: 30) else {
+            // Both menus need Apple Intelligence, which a CI simulator does not have.
+            // Ask sits behind the same check: if the phone offers Ask, it has Apple
+            // Intelligence, and a missing Rewrite is the 4.0.0 bug coming back.
+            app.terminate()
+            app.launchArguments[1] = "meetings"
+            app.launch()
+            if app.buttons["Ask your meetings"].waitForExistence(timeout: 30) {
+                XCTFail("Ask is offered but a meeting's summary has no Rewrite summary with")
+            }
+            throw XCTSkip("No Apple Intelligence on this simulator; neither menu is shown")
+        }
         rewrite.tap()
         XCTAssertTrue(app.buttons["Standard"].waitForExistence(timeout: 10)
                       || app.staticTexts["Standard"].waitForExistence(timeout: 2),
