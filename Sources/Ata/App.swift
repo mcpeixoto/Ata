@@ -204,7 +204,7 @@ final class WindowManager {
             comeForward(onboarding)
             return
         }
-        let window = present(nil, title: L("Welcome to Ata"), size: NSSize(width: 520, height: 520)) {
+        let window = present(nil, title: L("Welcome to Ata"), size: NSSize(width: OnboardingView.width, height: 620)) {
             OnboardingView()
                 .environmentObject(AppStore.shared)
                 .environmentObject(AppStore.shared.setup)

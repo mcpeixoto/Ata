@@ -106,9 +106,15 @@ enum Snapshots {
                                   width: 540, height: 2280, appearance: appearance)
             write(frame(settings, appearance), to: out, name: "settings-\(appearance.name)")
 
-            let onboarding = render(OnboardingView(height: 520, previewStep: .done).environmentObject(store).environmentObject(store.setup),
-                                    width: 520, height: 520, appearance: appearance)
-            write(frame(onboarding, appearance), to: out, name: "onboarding-\(appearance.name)")
+            // One per step. Plain `onboarding` stays the last step, for the README's links.
+            for (step, name) in [(OnboardingStep.welcome, "welcome"), (.permissions, "permissions"),
+                                 (.you, "you"), (.test, "test"), (.done, "done")] {
+                let shot = render(OnboardingView(height: 620, previewStep: step)
+                                    .environmentObject(store).environmentObject(store.setup),
+                                  width: OnboardingView.width, height: 620, appearance: appearance)
+                write(frame(shot, appearance), to: out, name: "onboarding-\(name)-\(appearance.name)")
+                if step == .done { write(frame(shot, appearance), to: out, name: "onboarding-\(appearance.name)") }
+            }
 
             if appearance == .dark {
                 // The hero banner, 2:1 so it doubles as the GitHub social preview.
