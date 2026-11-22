@@ -76,7 +76,7 @@ struct MeetingsList: View {
                     Banner(kind: .info, mark: .symbol("square.and.arrow.down"),
                            title: Text(verbatim: L("%d shared recordings are waiting", store.inboxWaiting)),
                            detail: Text(verbatim: L("They import with Ata Pro or when next month's free minutes start.")),
-                           action: { PhoneNavigation.shared.showPaywall() })
+                           action: { ProPromptCenter.shared.openPaywall(.limit) })
                         .padding(.horizontal, Theme.Space.l)
                         .padding(.vertical, Theme.Space.s)
                 }
@@ -108,7 +108,7 @@ struct MeetingsList: View {
                     // in is refused too, once the month is used; see PhoneStore.
                     Button {
                         store.updateQuota()
-                        if store.needsPro { PhoneNavigation.shared.showPaywall() } else { choosingAudio = true }
+                        if store.needsPro { ProPromptCenter.shared.openPaywall(.limit) } else { choosingAudio = true }
                     } label: {
                         Label("Import audio…", systemImage: "square.and.arrow.down")
                     }

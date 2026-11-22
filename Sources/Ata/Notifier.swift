@@ -137,6 +137,22 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sen
              trigger: UNCalendarNotificationTrigger(dateMatching: when, repeats: false))
     }
 
+    /// Day 5 of a free trial: a local reminder, and only when the person has
+    /// already allowed notifications. Asking for permission here would be a
+    /// second prompt on top of the purchase.
+    func scheduleTrialReminder(fireAfterDays days: Int, daysLeft: Int, price: String) {
+        guard days > 0, daysLeft > 0, !price.isEmpty else { return }
+        center.getNotificationSettings { settings in
+            guard settings.authorizationStatus == .authorized else { return }
+            let seconds = TimeInterval(days) * 24 * 60 * 60
+            self.post(id: "trial-reminder", category: "",
+                      title: L("Your free trial ends in %d days", daysLeft),
+                      body: L("Ata Pro renews at %@ unless you cancel before then.", price),
+                      info: [:],
+                      trigger: UNTimeIntervalNotificationTrigger(timeInterval: seconds, repeats: false))
+        }
+    }
+
     /// Withdraws every scheduled meeting prompt — the feature was turned off,
     /// or access was taken away.
     func clearScheduledMeetings() {

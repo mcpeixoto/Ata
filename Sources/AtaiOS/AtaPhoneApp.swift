@@ -42,6 +42,7 @@ struct AtaPhoneApp: App {
 struct RootView: View {
     @EnvironmentObject var store: PhoneStore
     @EnvironmentObject var navigation: PhoneNavigation
+    @ObservedObject private var prompts = ProPromptCenter.shared
 
     var body: some View {
         TabView(selection: $navigation.tab) {
@@ -74,6 +75,9 @@ struct RootView: View {
         }
         .sheet(isPresented: $navigation.showingPaywall, onDismiss: { ProStore.shared.message = nil }) {
             Paywall()
+        }
+        .sheet(item: $prompts.firstTranscript) { invite in
+            FirstTranscriptPrompt(meetingID: invite.id)
         }
         .alert(store.importError ?? "", isPresented: Binding(
             get: { store.importError != nil },

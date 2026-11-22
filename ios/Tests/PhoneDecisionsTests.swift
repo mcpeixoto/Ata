@@ -68,6 +68,98 @@ final class PhoneDecisionsTests: XCTestCase {
         XCTAssertFalse(InboxOffer.shouldPresent(alreadyOffered: false, atLimit: true, pending: 0))
     }
 
+    func testEightyPercentShowsOnceAMonthAndIgnoresTheModalCap() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let recent = now.addingTimeInterval(-86_400)
+        XCTAssertEqual(ProPrompt.due(used: 240, limit: 300, isPro: false, lastShown: recent, count: 4,
+                                     event: .eightyPercent(alreadyThisMonth: false), now: now), .eightyPercent)
+        XCTAssertNil(ProPrompt.due(used: 240, limit: 300, isPro: false, lastShown: nil, count: 0,
+                                   event: .eightyPercent(alreadyThisMonth: true), now: now))
+        XCTAssertNil(ProPrompt.due(used: 239, limit: 300, isPro: false, lastShown: nil, count: 0,
+                                   event: .eightyPercent(alreadyThisMonth: false), now: now))
+        XCTAssertNil(ProPrompt.due(used: 300, limit: 300, isPro: false, lastShown: nil, count: 0,
+                                   event: .eightyPercent(alreadyThisMonth: false), now: now),
+                     "at the limit the banner is not the prompt")
+        XCTAssertNil(ProPrompt.due(used: 240, limit: 300, isPro: true, lastShown: nil, count: 0,
+                                   event: .eightyPercent(alreadyThisMonth: false), now: now))
+    }
+
+    func testTheEightyPercentMonthRollsOnTheFirst() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let march = calendar.date(from: DateComponents(year: 2026, month: 3, day: 31))!
+        let april = calendar.date(from: DateComponents(year: 2026, month: 4, day: 1))!
+        XCTAssertEqual(ProPrompt.monthID(march, calendar: calendar), "2026-03")
+        XCTAssertEqual(ProPrompt.monthID(april, calendar: calendar), "2026-04")
+    }
+
+    func testLimitAlwaysShowsForAFreeUserAndTheCapDoesNotApply() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        XCTAssertEqual(ProPrompt.due(used: 300, limit: 300, isPro: false, lastShown: now, count: 9,
+                                     event: .limit, now: now), .limit)
+        XCTAssertEqual(ProPrompt.due(used: 0, limit: 300, isPro: false, lastShown: nil, count: 0,
+                                     event: .limit, now: now), .limit)
+        XCTAssertNil(ProPrompt.due(used: 300, limit: 300, isPro: true, lastShown: nil, count: 0,
+                                   event: .limit, now: now))
+    }
+
+    func testFirstTranscriptWaitsOutTheCapAndSkipsAReviewDay() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let ready = ProPrompt.Event.firstTranscript(foreground: true, recording: false,
+                                                    celebrated: false, reviewPromptToday: false)
+        XCTAssertEqual(ProPrompt.due(used: 10, limit: 300, isPro: false, lastShown: nil, count: 0,
+                                     event: ready, now: now), .firstTranscript)
+        XCTAssertNil(ProPrompt.due(used: 10, limit: 300, isPro: false,
+                                   lastShown: now.addingTimeInterval(-86_400), count: 1,
+                                   event: ready, now: now))
+        XCTAssertEqual(ProPrompt.due(used: 10, limit: 300, isPro: false,
+                                     lastShown: now.addingTimeInterval(-ProPrompt.modalGap), count: 1,
+                                     event: ready, now: now), .firstTranscript)
+        XCTAssertNil(ProPrompt.due(used: 10, limit: 300, isPro: false,
+                                   lastShown: now.addingTimeInterval(-(ProPrompt.modalGap - 1)), count: 1,
+                                   event: ready, now: now))
+        XCTAssertEqual(ProPrompt.due(used: 10, limit: 300, isPro: false,
+                                     lastShown: now.addingTimeInterval(-86_400), count: 0,
+                                     event: ready, now: now), .firstTranscript,
+                       "a date with nothing recorded does not block")
+        XCTAssertNil(ProPrompt.due(used: 10, limit: 300, isPro: false, lastShown: nil, count: 0,
+                                   event: .firstTranscript(foreground: false, recording: false,
+                                                           celebrated: false, reviewPromptToday: false), now: now))
+        XCTAssertNil(ProPrompt.due(used: 10, limit: 300, isPro: false, lastShown: nil, count: 0,
+                                   event: .firstTranscript(foreground: true, recording: true,
+                                                           celebrated: false, reviewPromptToday: false), now: now))
+        XCTAssertNil(ProPrompt.due(used: 10, limit: 300, isPro: false, lastShown: nil, count: 0,
+                                   event: .firstTranscript(foreground: true, recording: false,
+                                                           celebrated: true, reviewPromptToday: false), now: now))
+        XCTAssertNil(ProPrompt.due(used: 10, limit: 300, isPro: false, lastShown: nil, count: 0,
+                                   event: .firstTranscript(foreground: true, recording: false,
+                                                           celebrated: false, reviewPromptToday: true), now: now))
+        XCTAssertNil(ProPrompt.due(used: 10, limit: 300, isPro: true, lastShown: nil, count: 0,
+                                   event: ready, now: now))
+        XCTAssertEqual(ProPrompt.firstTranscriptDelay, 2)
+    }
+
+    func testALockedFeatureAlwaysOpensForAFreeUser() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        for feature in ProPrompt.Feature.allCases {
+            XCTAssertEqual(ProPrompt.due(used: 0, limit: 300, isPro: false, lastShown: now, count: 5,
+                                         event: .feature(feature), now: now), .feature(feature))
+            XCTAssertNil(ProPrompt.due(used: 0, limit: 300, isPro: true, lastShown: nil, count: 0,
+                                       event: .feature(feature), now: now))
+        }
+    }
+
+    func testTheYearlySavingAndTheTrialReminderComeFromThePrices() {
+        let yearly = Decimal(string: "44.99")!
+        let monthly = Decimal(string: "6.99")!
+        XCTAssertEqual(PlanMath.savingsPercent(yearly: yearly, monthly: monthly), 46)
+        XCTAssertNil(PlanMath.savingsPercent(yearly: Decimal(string: "100")!, monthly: monthly))
+        XCTAssertNil(PlanMath.savingsPercent(yearly: yearly, monthly: 0))
+        XCTAssertEqual(PlanMath.days(unit: .week, value: 1, count: 1), 7)
+        XCTAssertEqual(PlanMath.reminderDay(trialDays: 7), 5)
+        XCTAssertNil(PlanMath.days(unit: .month, value: 1, count: 1))
+    }
+
     func testTheEmptyMeetingsStateHidesWhileAudioIsComingIn() {
         XCTAssertTrue(MeetingsPlaceholder.shown(meetings: 0, importing: 0, waitingForEngine: false))
         XCTAssertFalse(MeetingsPlaceholder.shown(meetings: 0, importing: 1, waitingForEngine: false))

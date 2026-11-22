@@ -31,6 +31,8 @@ extension Snapshots {
         case onboardingTry = "onboarding-try"
         case onboardingPro = "onboarding-pro"
         case paywall
+        case paywallLimit = "paywall-limit"
+        case paywallMonthly = "paywall-monthly"
     }
 
     static let screen: Screen = Snapshots.argument(after: "-AtaSnapshots").flatMap(Screen.init(rawValue:)) ?? .recordIdle
@@ -42,22 +44,41 @@ extension Snapshots {
         return Snapshots.argument(after: "-AtaSnapshotAppearance") == "dark" ? .dark : .light
     }()
 
-    /// Ata Pro's price on the paywall: StoreKit's test configuration only
-    /// reaches runs started from Xcode, not a UI test's launch.
-    static var price: String { L("%@ / %@", "€2.99", L("month")) }
+    /// The storekit file's prices, formatted the way `Product.displayPrice`
+    /// would for this launch's locale. StoreKit's test configuration only
+    /// reaches runs started from Xcode, not a UI test's launch, so the paywall
+    /// reads these instead of a hard-coded currency.
+    static let monthlyDecimal: Decimal = Decimal(string: "6.99")!
+    static let yearlyDecimal: Decimal = Decimal(string: "44.99")!
+
+    static func format(_ amount: Decimal) -> String {
+        amount.formatted(.currency(code: currencyCode).locale(priceLocale).presentation(.narrow))
+    }
+
+    /// en_US shows dollars. A Portuguese locale shows euros, the same amounts.
+    private static var priceLocale: Locale {
+        localeIsPortuguese ? Locale(identifier: "pt_PT") : Locale(identifier: "en_US")
+    }
+
+    private static var currencyCode: String { localeIsPortuguese ? "EUR" : "USD" }
+
+    private static var localeIsPortuguese: Bool {
+        let id = Locale.current.identifier.lowercased().replacingOccurrences(of: "-", with: "_")
+        return id.hasPrefix("pt")
+    }
 
     /// The README's meeting: a summary, your notes, a transcript and two voices.
     static let meetingID = "fixture-zoom"
     /// Shown mid-transcription in the meetings list, as on the Mac's screenshots.
     static let transcribingID = "fixture-slack"
 
-    /// Two left on the record tab; none on the paywall, which is when it shows.
-    /// The Record home: 212 of 300 (the meter, no banner), past 80 % while
-    /// transcribing (the banner), none used on a first run.
+    /// 212 of 300 on the Record home and the paywall mock (the meter, no banner),
+    /// past 80 % while transcribing (the banner), none on a first run, and the
+    /// month used up on the limit paywall. Everywhere else, two minutes are left.
     private static var freeUsed: Int {
         switch screen {
-        case .paywall: return FreeQuota.limitMinutes
-        case .recordIdle: return 212
+        case .paywall, .paywallMonthly, .recordIdle: return 212
+        case .paywallLimit: return FreeQuota.limitMinutes
         case .recordTranscribing: return 250
         case .recordFirstRun: return 0
         default: return FreeQuota.limitMinutes - 2
@@ -107,10 +128,24 @@ extension Snapshots {
         default:
             break
         }
-        navigation.showingPaywall = screen == .paywall
+        switch screen {
+        case .paywallLimit:
+            ProPromptCenter.shared.trigger = .limit
+            ProPromptCenter.shared.preferYearly = true
+        case .paywallMonthly:
+            ProPromptCenter.shared.trigger = .settings
+            ProPromptCenter.shared.preferYearly = false
+        case .paywall:
+            ProPromptCenter.shared.trigger = .settings
+            ProPromptCenter.shared.preferYearly = true
+        default:
+            break
+        }
+        navigation.showingPaywall = screen == .paywall || screen == .paywallLimit || screen == .paywallMonthly
         switch screen {
         case .recordIdle, .recordRecording, .recordFirstRun, .recordTranscribing, .onboarding, .onboardingUseCase,
-                .onboardingPermissions, .onboardingYou, .onboardingTry, .onboardingPro, .paywall:
+                .onboardingPermissions, .onboardingYou, .onboardingTry, .onboardingPro,
+                .paywall, .paywallLimit, .paywallMonthly:
             navigation.tab = .record
         case .meetings:
             navigation.tab = .meetings

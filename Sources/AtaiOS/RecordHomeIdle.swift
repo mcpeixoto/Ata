@@ -103,8 +103,7 @@ struct RecordHomeIdle: View {
                    title: Text(verbatim: left == 1 ? L("1 free minute left this month")
                                                    : L("%d free minutes left this month", left)),
                    action: {
-                       Funnel.count(.paywallShown(.eightyPercent))
-                       navigation.showPaywall()
+                       ProPromptCenter.shared.openPaywall(.eightyPercent)
                    },
                    showsChevron: true,
                    dismiss: { bannerMonth = RecordHomeModel.month(Date()) })
@@ -246,8 +245,7 @@ struct RecordHomeIdle: View {
 
     private var quotaCard: some View {
         Button {
-            Funnel.count(.paywallShown(.recordHome))
-            navigation.showPaywall()
+            ProPromptCenter.shared.openPaywall(store.needsPro ? .limit : .recordHome)
         } label: {
             Card(padding: Theme.Space.m) {
                 VStack(alignment: .leading, spacing: Theme.Space.m) {
