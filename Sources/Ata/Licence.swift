@@ -315,12 +315,14 @@ final class LicenceStore: ObservableObject {
 
     init(api: LicenceAPI = LicenceHTTP(),
          fileURL: URL = Paths.supportDir.appendingPathComponent("licence.json"),
-         access: ProAccess = .shared,
+         access: ProAccess? = nil,
          instanceName: String = Device.name,
          now: @escaping () -> Date = Date.init) {
         self.api = api
         self.fileURL = fileURL
-        self.access = access
+        // Resolved here, not as a default argument: defaults are evaluated outside
+        // the main actor, where `ProAccess.shared` cannot be read (Swift 6).
+        self.access = access ?? .shared
         self.instanceName = instanceName
         self.now = now
     }

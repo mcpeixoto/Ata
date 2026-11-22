@@ -109,6 +109,7 @@ struct Paywall: View {
     @ObservedObject private var pro = ProStore.shared
     @ObservedObject private var prompts = ProPromptCenter.shared
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var yearlySelected = ProPromptCenter.shared.preferYearly
 
     static let termsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
@@ -120,7 +121,7 @@ struct Paywall: View {
     var body: some View {
         ScrollView {
             VStack(spacing: Theme.Space.l) {
-                AppGlyph(size: 64)
+                AppGlyph(size: 64) // hero mark; not a type size
                 VStack(spacing: Theme.Space.s) {
                     Text("Ata Pro")
                         .ataLargeTitle()
@@ -128,6 +129,7 @@ struct Paywall: View {
                         .ataBody()
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 quota
@@ -136,8 +138,9 @@ struct Paywall: View {
                     ForEach(benefits, id: \.id) { line in
                         HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
                             Image(systemName: "checkmark")
-                                .ataFont(13, weight: .semibold)
+                                .ataHeadline()
                                 .foregroundStyle(Theme.accent)
+                                .accessibilityHidden(true)
                             Text(verbatim: line.title)
                                 .ataBody()
                                 .fixedSize(horizontal: false, vertical: true)
@@ -159,17 +162,22 @@ struct Paywall: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                HStack(spacing: Theme.Space.s) {
-                    Button("Restore") { Task { await pro.restore() } }
-                        .buttonStyle(.plain)
-                        .disabled(pro.purchasing)
-                        .accessibilityIdentifier("restore")
-                    Text(verbatim: "·").foregroundStyle(.secondary)
-                    Link("Terms", destination: Self.termsURL)
-                        .accessibilityIdentifier("terms")
-                    Text(verbatim: "·").foregroundStyle(.secondary)
-                    Link("Privacy", destination: Self.privacyURL)
-                        .accessibilityIdentifier("privacy")
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(spacing: Theme.Space.xs) {
+                            restoreButton
+                            termsLink
+                            privacyLink
+                        }
+                    } else {
+                        HStack(spacing: Theme.Space.s) {
+                            restoreButton
+                            Text(verbatim: "·").foregroundStyle(.secondary)
+                            termsLink
+                            Text(verbatim: "·").foregroundStyle(.secondary)
+                            privacyLink
+                        }
+                    }
                 }
                 .ataCaption()
             }
@@ -179,7 +187,7 @@ struct Paywall: View {
         .overlay(alignment: .topTrailing) {
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
-                    .ataFont(13, weight: .semibold)
+                    .ataHeadline()
                     .foregroundStyle(.secondary)
                     .frame(width: Self.closeTarget, height: Self.closeTarget)
                     .contentShape(Rectangle())
@@ -196,6 +204,23 @@ struct Paywall: View {
         .onChange(of: pro.isPro) { _, isPro in
             if isPro { dismiss() }
         }
+    }
+
+    private var restoreButton: some View {
+        Button("Restore") { Task { await pro.restore() } }
+            .buttonStyle(.plain)
+            .disabled(pro.purchasing)
+            .accessibilityIdentifier("restore")
+    }
+
+    private var termsLink: some View {
+        Link("Terms", destination: Self.termsURL)
+            .accessibilityIdentifier("terms")
+    }
+
+    private var privacyLink: some View {
+        Link("Privacy", destination: Self.privacyURL)
+            .accessibilityIdentifier("privacy")
     }
 
     private var quota: some View {
@@ -307,6 +332,7 @@ struct Paywall: View {
                     .ataCaption()
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("trial-timeline")
             }
 
@@ -355,6 +381,7 @@ struct FirstTranscriptPrompt: View {
             Text("Your first meeting is written up")
                 .ataLargeTitle()
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             Button {
                 let id = meetingID
                 dismiss()

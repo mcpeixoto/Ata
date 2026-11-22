@@ -655,14 +655,14 @@
 "%d of %d free minutes" = "%d de %d minutos gratuitos";
 
 /* Track 6 */
-"Meet Ata" = "Conheça a Ata";
-"Records your calls and writes them up, on this Mac." = "Grava as suas chamadas e passa-as a escrito, neste Mac.";
+"Meet Ata" = "Conhece a Ata";
+"Records your calls and writes them up, on this Mac." = "Grava as tuas chamadas e passa-as a escrito, neste Mac.";
 "Zoom, Meet, Teams or any other app" = "Zoom, Meet, Teams ou qualquer outra app";
-"Tells you and the others apart" = "Distingue a sua voz da dos outros";
+"Tells you and the others apart" = "Distingue a tua voz da dos outros";
 "Transcribed on this Mac, not on a server" = "Transcrito neste Mac, não num servidor";
 "Get started" = "Começar";
-"Let Ata record your meetings" = "Deixe a Ata gravar as suas reuniões";
-"Your side of the call." = "O seu lado da chamada.";
+"Let Ata record your meetings" = "Deixa a Ata gravar as tuas reuniões";
+"Your side of the call." = "O teu lado da chamada.";
 "Mac audio" = "Áudio do Mac";
 "The others, from whichever app the call is in." = "Os outros, seja qual for a app da chamada.";
 "Optional. Ata tells you when it notices a meeting." = "Opcional. A Ata avisa quando deteta uma reunião.";
@@ -670,7 +670,7 @@
 "Continue without Mac audio" = "Continuar sem áudio do Mac";
 "A few choices" = "Algumas escolhas";
 "Allow calendar" = "Permitir calendário";
-"Say a few words and play something on your Mac. Nothing is saved." = "Diga algumas palavras e reproduza algo no Mac. Nada é guardado.";
+"Say a few words and play something on your Mac. Nothing is saved." = "Diz algumas palavras e reproduz algo no Mac. Nada é guardado.";
 "Skip" = "Saltar";
 /* Track 4 */
 "What will you record most?" = "O que vais gravar mais?";
@@ -699,19 +699,19 @@
 "Ready when you are" = "Pronta quando quiser";
 "1 meeting this week · %@" = "1 reunião esta semana · %@";
 "%d meetings this week · %@" = "%d reuniões esta semana · %@";
-"Tap to record" = "Toque para gravar";
+"Tap to record" = "Toca para gravar";
 "Starting…" = "A iniciar…";
 "Saving…" = "A guardar…";
 "Saved. Transcribing now." = "Guardada. A transcrever agora.";
 "Recent" = "Recentes";
 "See all" = "Ver todas";
 "Your meetings will appear here" = "As suas reuniões vão aparecer aqui";
-"Record 30 seconds to see how it works." = "Grave 30 segundos para ver como funciona.";
+"Record 30 seconds to see how it works." = "Grava 30 segundos para veres como funciona.";
 "Try Ata Pro" = "Experimentar a Ata Pro";
-"Add the Record with Ata control to your Lock Screen or Control Center." = "Adicione o controlo Gravar com a Ata ao ecrã bloqueado ou à central de controlo.";
+"Add the Record with Ata control to your Lock Screen or Control Center." = "Adiciona o controlo Gravar com a Ata ao ecrã bloqueado ou à central de controlo.";
 "On an iPhone with an Action button, you can set it to Record with Ata." = "Num iPhone com botão de ação, pode atribuir-lhe Gravar com a Ata.";
-"Say “Record with Ata” to Siri to start a recording." = "Diga «Gravar com a Ata» à Siri para começar a gravar.";
-"Add the Ata widget to your Home Screen to see your last meeting." = "Adicione o widget da Ata ao ecrã principal para ver a última reunião.";
+"Say “Record with Ata” to Siri to start a recording." = "Diz «Gravar com a Ata» à Siri para começares a gravar.";
+"Add the Ata widget to your Home Screen to see your last meeting." = "Adiciona o widget da Ata ao ecrã principal para veres a última reunião.";
 /* Track 2 */
 "Unlimited meetings on Mac and iPhone" = "Reuniões sem limite no Mac e no iPhone";
 "No monthly limit" = "Sem limite mensal";
@@ -838,3 +838,8 @@
 "Your own templates are part of Ata Pro." = "Os teus próprios modelos fazem parte da Ata Pro.";
 "Unlock with Ata Pro" = "Desbloquear com a Ata Pro";
 "No templates yet. Add one to use it from any meeting's summary." = "Ainda não tens modelos. Adiciona um para o usares no resumo de qualquer reunião.";
+
+/* Track 9 — names for icon-only controls */
+"Starting" = "A iniciar";
+"Granted" = "Concedido";
+"Locked" = "Bloqueado";

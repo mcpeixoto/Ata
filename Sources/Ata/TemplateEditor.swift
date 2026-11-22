@@ -167,6 +167,7 @@ struct TemplateListView: View {
                                 Image(systemName: "lock.fill")
                                     .ataCaption()
                                     .foregroundStyle(.secondary)
+                                    .accessibilityLabel(L("Locked"))
                             }
                         }
                         .contentShape(Rectangle())
@@ -226,6 +227,7 @@ struct TemplateListView: View {
                     Image(systemName: "lock.fill")
                         .ataHeadline()
                         .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
                     Text("Your own templates are part of Ata Pro.")
                         .ataBody()
                         .fixedSize(horizontal: false, vertical: true)

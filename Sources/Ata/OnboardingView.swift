@@ -144,6 +144,7 @@ struct OnboardingView: View {
             Text(verbatim: text).ataBody()
         } icon: {
             Image(systemName: "checkmark").foregroundStyle(Theme.accent)
+                .accessibilityHidden(true)
         }
     }
 
@@ -154,7 +155,7 @@ struct OnboardingView: View {
                 .ataBody().foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Card(padding: Theme.Space.s) {
-                VStack(spacing: 0) {
+                VStack(spacing: 0) { // flush rows; the dividers are the gap, Space.xs would open one
                     CheckRow(ok: setup.mic, title: L("Microphone"),
                              detail: micDenied ? L("Turn on Ata under Microphone in the settings that open.")
                                                : L("Your side of the call.")) {
@@ -241,7 +242,7 @@ struct OnboardingView: View {
                 }
                 .toggleStyle(AppSwitchStyle())
                 Toggle(isOn: $shareUsage) {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 2) { // 2 pt under the toggle title; Space.xs is 4
                         Text("Share anonymous usage stats").ataBody()
                         Text("Once a day: the app version, your country and how many minutes you recorded. Never your audio, transcripts or names.")
                             .ataCaption().foregroundStyle(.secondary)
@@ -263,6 +264,7 @@ struct OnboardingView: View {
                 Spacer()
                 HeroRecordButton(size: 64, state: trialButtonState) { trial.start(store) }
                     .disabled(store.phase != .idle || trial.phase == .running)
+                    .accessibilityLabel(trialButtonLabel)
                 Spacer()
             }
             VStack(alignment: .leading, spacing: Theme.Space.s) {
@@ -276,9 +278,17 @@ struct OnboardingView: View {
                       : L("Ata didn't hear your microphone. Check it isn't muted, and try again."),
                       systemImage: heardMic ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                     .ataCallout()
-                    .foregroundStyle(heardMic ? Color.green : Theme.danger)
+                    .foregroundStyle(heardMic ? Color.green : Theme.danger) // no success colour in Theme
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+
+    private var trialButtonLabel: String {
+        switch trialButtonState {
+        case .recording: return L("Stop recording")
+        case .busy: return L("Starting")
+        case .idle: return L("Record")
         }
     }
 
@@ -300,6 +310,7 @@ struct OnboardingView: View {
                     .fixedSize(horizontal: false, vertical: true)
             } icon: {
                 Image(systemName: "waveform").foregroundStyle(Theme.meTint)
+                    .accessibilityHidden(true)
             }
             if let shortcut = Shortcut(Pref.d.string(forKey: Pref.recordShortcut) ?? "") {
                 Label(L("Record from anywhere with %@.", shortcut.display), systemImage: "command")
@@ -314,6 +325,7 @@ struct OnboardingView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                             Spacer(minLength: Theme.Space.s)
                             Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                                .accessibilityHidden(true)
                         }
                     }
                 }
@@ -375,15 +387,16 @@ struct OnboardingView: View {
     private var modelStatus: some View {
         if setup.model {
             Label(L("Whisper Large is ready"), systemImage: "checkmark.circle.fill")
-                .ataCallout().foregroundStyle(.green)
+                .ataCallout().foregroundStyle(.green) // no success colour in Theme
         } else if let p = setup.downloadProgress {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 2) { // 2 pt above the bar; Space.xs is 4
                 Text(L("Downloading Whisper Large, %d%%", Int(p * 100))).ataCaption().foregroundStyle(.secondary)
                 ProgressView(value: p).frame(width: 200)
             }
         } else if let error = setup.downloadError {
-            HStack(alignment: .top, spacing: 6) {
+            HStack(alignment: .top, spacing: 6) { // 6 pt; 2 pt from Space.xs and Space.s
                 Image(systemName: "exclamationmark.triangle.fill")
+                    .accessibilityHidden(true)
                 Text(error).ataCaption()
                     .fixedSize(horizontal: false, vertical: true)
             }
