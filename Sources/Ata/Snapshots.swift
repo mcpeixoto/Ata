@@ -123,6 +123,41 @@ enum Snapshots {
                                    width: MacPaywall.width, height: MacPaywall.height, appearance: appearance)
             write(frame(proActive, appearance), to: out, name: "pro-active-\(appearance.name)")
 
+            // Empty Insights: the ghost charts, and People with recognition off
+            // so the primary button is what's on screen. XXL once, in the light set.
+            store.applySnapshotMeetings([])
+            let insightsEmpty = render(InsightsView().environmentObject(store).environmentObject(store.setup),
+                                       width: 350, appearance: appearance)
+            write(frame(insightsEmpty, appearance), to: out, name: "menu-insights-empty-\(appearance.name)")
+            if appearance == .light {
+                let insightsXXL = render(InsightsView()
+                    .environment(\.dynamicTypeSize, .accessibility4) // Extra extra large.
+                    .environmentObject(store).environmentObject(store.setup),
+                    width: 350, appearance: appearance)
+                write(frame(insightsXXL, appearance), to: out, name: "menu-insights-empty-xxl")
+            }
+            store.applySnapshotFixture(recordingApp: nil, elapsed: 0, mic: 0, system: 0,
+                                       transcribingID: nil, progress: 0)
+
+            // -recogniseVoices on the command line lives in the argument domain,
+            // which wins over a normal set. Swap that domain for this shot, then
+            // put it back so the next pass still has voices on.
+            let argument = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
+            var offDomain = argument
+            offDomain[Pref.recogniseVoices] = false
+            UserDefaults.standard.setVolatileDomain(offDomain, forName: UserDefaults.argumentDomain)
+            let peopleOff = render(PeopleView().environmentObject(store).environmentObject(store.setup),
+                                   width: 350, appearance: appearance)
+            write(frame(peopleOff, appearance), to: out, name: "menu-people-off-\(appearance.name)")
+            if appearance == .light {
+                let peopleXXL = render(PeopleView()
+                    .environment(\.dynamicTypeSize, .accessibility4) // Extra extra large.
+                    .environmentObject(store).environmentObject(store.setup),
+                    width: 350, appearance: appearance)
+                write(frame(peopleXXL, appearance), to: out, name: "menu-people-off-xxl")
+            }
+            UserDefaults.standard.setVolatileDomain(argument, forName: UserDefaults.argumentDomain)
+
             if appearance == .dark {
                 // The hero banner, 2:1 so it doubles as the GitHub social preview.
                 let banner = render(Banner(shot: Image(nsImage: recording)), width: 1280, height: 640,

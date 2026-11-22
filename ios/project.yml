@@ -172,6 +172,7 @@ targets:
       - path: ../Sources/AtaShare/Shared/ShareInbox.swift
       - path: ../Sources/AtaiOS/PhoneDecisions.swift
       - path: ../Sources/AtaiOS/RecordHomeModel.swift
+      - path: ../Sources/AtaiOS/ReviewPrompt.swift
       - path: ../Sources/AtaWidgets/Shared/WidgetRecordingFace.swift
     settings:
       base:

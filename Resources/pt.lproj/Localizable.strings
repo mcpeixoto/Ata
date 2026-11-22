@@ -769,3 +769,16 @@
 "Your free trial ends in %d days" = "O período experimental acaba dentro de %d dias";
 "Ata Pro renews at %@ unless you cancel before then." = "A Ata Pro renova-se a %@ se não cancelares antes.";
 "Subscribe for %@" = "Subscrever por %@";
+/* Track 9 */
+"Example: weekly sync" = "Exemplo: sincronização semanal";
+"Example" = "Exemplo";
+"Record your first meeting" = "Grava a tua primeira reunião";
+"Opens the Record tab" = "Abre o separador Gravar";
+"Morning. Shall we lock Friday as the launch date?" = "Bom dia. Fechamos sexta como data de lançamento?";
+"Design is done. I can finish the onboarding copy by Wednesday." = "O design está pronto. Consigo acabar o texto de boas-vindas até quarta.";
+"Friday works. That gives QA two days." = "Sexta resulta. Assim os testes ficam com dois dias.";
+"I'll send the copy over and update the screenshots." = "Envio o texto e atualizo as capturas de ecrã.";
+"Let's look at the numbers on Thursday." = "Vemos os números na quinta.";
+"I'll book thirty minutes." = "Marco trinta minutos.";
+"The team agreed to launch on Friday, once the onboarding copy is finished and QA has had two days." = "A equipa combinou lançar na sexta, quando o texto de boas-vindas estiver pronto e os testes tiverem tido dois dias.";
+"Send the copy" = "Enviar o texto";

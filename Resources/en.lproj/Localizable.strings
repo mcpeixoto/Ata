@@ -769,3 +769,16 @@
 "Your free trial ends in %d days" = "Your free trial ends in %d days";
 "Ata Pro renews at %@ unless you cancel before then." = "Ata Pro renews at %@ unless you cancel before then.";
 "Subscribe for %@" = "Subscribe for %@";
+/* Track 9 */
+"Example: weekly sync" = "Example: weekly sync";
+"Example" = "Example";
+"Record your first meeting" = "Record your first meeting";
+"Opens the Record tab" = "Opens the Record tab";
+"Morning. Shall we lock Friday as the launch date?" = "Morning. Shall we lock Friday as the launch date?";
+"Design is done. I can finish the onboarding copy by Wednesday." = "Design is done. I can finish the onboarding copy by Wednesday.";
+"Friday works. That gives QA two days." = "Friday works. That gives QA two days.";
+"I'll send the copy over and update the screenshots." = "I'll send the copy over and update the screenshots.";
+"Let's look at the numbers on Thursday." = "Let's look at the numbers on Thursday.";
+"I'll book thirty minutes." = "I'll book thirty minutes.";
+"The team agreed to launch on Friday, once the onboarding copy is finished and QA has had two days." = "The team agreed to launch on Friday, once the onboarding copy is finished and QA has had two days.";
+"Send the copy" = "Send the copy";

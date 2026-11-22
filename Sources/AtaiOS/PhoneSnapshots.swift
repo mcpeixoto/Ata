@@ -33,6 +33,9 @@ extension Snapshots {
         case paywall
         case paywallLimit = "paywall-limit"
         case paywallMonthly = "paywall-monthly"
+        case meetingsEmptyXXL = "meetings-empty-xxl"
+        case insightsEmptyXXL = "insights-empty-xxl"
+        case peopleOffXXL = "people-off-xxl"
     }
 
     static let screen: Screen = Snapshots.argument(after: "-AtaSnapshots").flatMap(Screen.init(rawValue:)) ?? .recordIdle
@@ -103,13 +106,15 @@ extension Snapshots {
         let recording = screen == .recordRecording
         // The Record home shows the transcribing card only on its own screen.
         let quietHome = screen == .recordIdle || screen == .recordFirstRun
+        let emptyLibrary = screen == .meetingsEmptyXXL || screen == .insightsEmptyXXL
         PhoneStore.shared.applySnapshotFixture(recording: recording,
                                                elapsed: recording ? 23 * 60 + 14 : 0,
                                                level: recording ? 0.64 : 0,
                                                bookmarks: recording ? [4 * 60_000 + 12_000, 17 * 60_000 + 40_000] : [],
-                                               transcribingID: recording || quietHome ? nil : transcribingID,
-                                               progress: recording || quietHome ? 0 : 0.62,
-                                               freeUsed: freeUsed)
+                                               transcribingID: recording || quietHome || emptyLibrary ? nil : transcribingID,
+                                               progress: recording || quietHome || emptyLibrary ? 0 : 0.62,
+                                               freeUsed: freeUsed,
+                                               emptyLibrary: emptyLibrary)
 
         let navigation = PhoneNavigation.shared
         switch screen {
@@ -147,14 +152,14 @@ extension Snapshots {
                 .onboardingPermissions, .onboardingYou, .onboardingTry, .onboardingPro,
                 .paywall, .paywallLimit, .paywallMonthly:
             navigation.tab = .record
-        case .meetings:
+        case .meetings, .meetingsEmptyXXL:
             navigation.tab = .meetings
         case .meetingNotes, .meetingTranscript:
             // The UI test taps "Transcript" itself, the way you would.
             navigation.showMeeting(meetingID)
-        case .people:
+        case .people, .peopleOffXXL:
             navigation.tab = .people
-        case .insights:
+        case .insights, .insightsEmptyXXL:
             navigation.tab = .insights
         case .settings, .iCloudHelp:
             navigation.tab = .settings

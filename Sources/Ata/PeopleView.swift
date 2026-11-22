@@ -4,6 +4,7 @@ import SwiftUI
 struct PeopleView: View {
     @StateObject private var people = PeopleModel.shared
     @AppStorage(Pref.recogniseVoices) private var enabled = true
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var confirmForgetAll = false
     @State private var open: PeopleList.Row?
     @State private var query = ""
@@ -194,26 +195,49 @@ struct PeopleView: View {
     }
 
     private var off: some View {
-        VStack(spacing: 10) {
+        // At the largest text sizes the explanation fills the phone, so the
+        // button goes first. Otherwise it stays under the explanation.
+        let roomy = !dynamicTypeSize.isAccessibilitySize
+        let explanation = L("Ata can tell the other participants apart and learn their voices across meetings. You name a voice once; every transcript uses the name from then on.")
+        return VStack(spacing: 10) {
             EmptyState(icon: "person.wave.2.fill",
                        title: L("Know who said what"),
-                       message: L("Ata can tell the other participants apart and learn their voices across meetings. You name a voice once; every transcript uses the name from then on."))
+                       message: roomy ? explanation : "")
+            if !roomy { turnOn }
+            if !roomy {
+                Text(verbatim: explanation)
+                    .ataCallout()
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Text(Self.privacyLine)
                 .ataFont(10).ataFaint()
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            if Diarization.isSupported {
-                Button(L("Turn on voice recognition")) { enabled = true }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.regular)
-            } else {
-                Text(Self.unsupportedLine)
-                    .ataFont(11, weight: .semibold).foregroundStyle(Theme.warning)
-            }
+            if roomy { turnOn }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
         .padding(.horizontal, 6)
+    }
+
+    @ViewBuilder private var turnOn: some View {
+        if Diarization.isSupported {
+            Button { enabled = true } label: {
+                Text(verbatim: L("Turn on voice recognition"))
+                    .ataHeadline()
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .accessibilityLabel(Text("Turn on voice recognition"))
+        } else {
+            Text(Self.unsupportedLine)
+                .ataFont(11, weight: .semibold).foregroundStyle(Theme.warning)
+        }
     }
 
     /// What happens next, and — on a phone, where Ata can never learn your voice

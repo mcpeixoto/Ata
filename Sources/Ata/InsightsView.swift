@@ -228,10 +228,58 @@ struct InsightsView: View {
     }
 
     private var empty: some View {
-        EmptyState(icon: "chart.bar.xaxis",
-                   title: L("No meetings yet"),
-                   message: L("Record one and your history shows up here."))
-            .padding(.vertical, 30)
+        ZStack {
+            InsightsGhost()
+                .redacted(reason: .placeholder) // Shapes, not numbers someone could read as their own.
+                .opacity(0.3) // A preview of the charts, not data: the plan asks for 30%.
+                .accessibilityHidden(true)
+                .allowsHitTesting(false)
+            VStack(spacing: Theme.Space.m) {
+                EmptyState(icon: "chart.bar.xaxis",
+                           title: L("No meetings yet"),
+                           message: L("Record one and your history shows up here."))
+            }
+            .padding(Theme.Space.l)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous))
+            .accessibilityElement(children: .combine)
+        }
+        .padding(.vertical, Theme.Space.l)
+    }
+}
+
+/// The charts with made-up numbers, drawn behind the empty message.
+private struct InsightsGhost: View {
+    private struct Week: Identifiable {
+        let id: Int
+        let minutes: Double
+    }
+
+    private static let weeks = [18.0, 32, 14, 40, 22, 36, 16, 28].enumerated().map { Week(id: $0.offset, minutes: $0.element) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.m) {
+            Grid(horizontalSpacing: Theme.Space.s, verticalSpacing: Theme.Space.s) {
+                GridRow {
+                    Tile(symbol: "waveform", tint: Theme.meTint, title: L("Recorded"), value: L("%d min", 48))
+                    Tile(symbol: "rectangle.stack.fill", tint: Theme.othersTint, title: L("Meetings"), value: "6")
+                }
+                GridRow {
+                    Tile(symbol: "text.word.spacing", tint: Theme.accent, title: L("Words"), value: "12k")
+                    Tile(symbol: "calendar", tint: Theme.me, title: L("This month"), value: L("%d min", 30))
+                }
+            }
+            InsightCard(title: L("Last 8 weeks"), trailing: L("minutes recorded")) {
+                Chart(Self.weeks) { week in
+                    BarMark(x: .value("Week", week.id), y: .value("Minutes", week.minutes))
+                        .foregroundStyle(Theme.brand)
+                        .cornerRadius(Theme.Radius.small)
+                }
+                .chartXAxis(.hidden)
+                .chartYAxis(.hidden)
+                .frame(height: 72)
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 

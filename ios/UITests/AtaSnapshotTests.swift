@@ -18,6 +18,8 @@ final class AtaSnapshotTests: XCTestCase {
         "onboarding-you", "onboarding-try", "onboarding-pro",
         // The screens people pay on and the one that explains iCloud: reviewed like the rest.
         "paywall", "paywall-limit", "paywall-monthly", "icloud-help",
+        // Empty states, each at the XXL text size.
+        "meetings-empty-xxl", "insights-empty-xxl", "people-off-xxl",
     ]
 
     override func setUpWithError() throws {
@@ -56,14 +58,19 @@ final class AtaSnapshotTests: XCTestCase {
             }
 
             let app = XCUIApplication()
-            app.launchArguments = [
+            var arguments = [
                 "-AtaSnapshots", screen,
                 "-AtaSnapshotAppearance", appearance,
                 // Argument-domain preferences: they win over anything stored, for this launch only.
                 "-AppleLanguages", "(en)", "-AppleLocale", "en_US",
                 "-myName", "Alex", "-language", "auto", "-onboarded", "YES",
-                "-keepAudio", "YES", "-recogniseVoices", "YES", "-summarize", "YES",
+                "-keepAudio", "YES", "-recogniseVoices", screen.hasPrefix("people-off") ? "NO" : "YES",
+                "-summarize", "YES",
             ]
+            if screen.hasSuffix("-xxl") {
+                arguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXL"]
+            }
+            app.launchArguments = arguments
             app.launchEnvironment = [
                 "ATA_MEETINGS_DIR": folder.appendingPathComponent("meetings").path,
                 "ATA_SUPPORT_DIR": folder.appendingPathComponent("support").path,
@@ -122,6 +129,11 @@ final class AtaSnapshotTests: XCTestCase {
         case "onboarding-pro": return app.staticTexts["You're set"]
         case "paywall", "paywall-monthly": return app.staticTexts["Every meeting, written up."]
         case "paywall-limit": return app.staticTexts["This month's free minutes are used."]
+        case "meetings-empty-xxl": return app.buttons["Record your first meeting"]
+        case "insights-empty-xxl":
+            // The empty card is one VoiceOver element, so the title is part of its label.
+            return app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "No meetings yet")).firstMatch
+        case "people-off-xxl": return app.buttons["Turn on voice recognition"]
         default: return app.windows.firstMatch
         }
     }

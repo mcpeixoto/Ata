@@ -151,6 +151,12 @@ enum Pref {
     static let metricsPendingMeetings = "metricsPendingMeetings" // recorded since the last ping
     static let metricsPendingSeconds = "metricsPendingSeconds"
     static let metricsLastSent = "metricsLastSent" // UTC day of the last ping, yyyy-MM-dd
+    /// The example meeting was deleted. It is not put back on the next launch.
+    static let sampleDismissed = "sampleDismissed"
+    /// Successful transcripts on this iPhone, for the App Store review prompt.
+    static let reviewTranscripts = "reviewTranscripts"
+    /// The version that last asked for an App Store review. One ask per version.
+    static let reviewPromptedVersion = "reviewPromptedVersion"
 
     /// The languages Ata offers for transcription, by their own names: Settings on
     /// both platforms, and "Transcribe again in" on the iPhone. Endonyms, so they

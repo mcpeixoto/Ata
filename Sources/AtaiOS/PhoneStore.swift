@@ -98,6 +98,7 @@ final class PhoneStore: ObservableObject {
         recoverInterrupted()
         MeetingSharing.cleanUp()
         reload()
+        if SampleMeeting.installIfNeeded() { reload() }
         if Pref.d.bool(forKey: Pref.onboarded) == false {
             PhoneNavigation.shared.showOnboarding()
         }
@@ -458,6 +459,7 @@ final class PhoneStore: ObservableObject {
             reload()
             return false
         }
+        SampleMeeting.noteDeleted(m)
         deleteError = nil
         PeopleModel.shared.removeMeeting(m.id)
         reload()
@@ -646,6 +648,7 @@ final class PhoneStore: ObservableObject {
                     await handleAudio(of: m)
                     Notifier.shared.transcriptReady(m)
                     ProPromptCenter.shared.noteTranscript(m.id)
+                    noteSuccessfulTranscript()
                 }
                 background?.finish(success: true)
             } catch let error where Self.shouldRequeue(error) {
@@ -765,11 +768,12 @@ final class PhoneStore: ObservableObject {
     /// place of `bootstrap()`: the fixture meetings and a made-up recording, with
     /// no microphone, no queue and nothing written.
     func applySnapshotFixture(recording: Bool, elapsed: Double, level: Float, bookmarks: [Int],
-                              transcribingID: String?, progress: Double, freeUsed: Int) {
+                              transcribingID: String?, progress: Double, freeUsed: Int,
+                              emptyLibrary: Bool = false) {
         guard Snapshots.rendering else { return }
         self.freeUsed = freeUsed
         bootstrapped = true
-        meetings = Library.loadAll()
+        meetings = emptyLibrary ? [] : Library.loadAll()
         phase = recording ? .recording : .idle
         PhoneLive.shared.elapsed = elapsed
         PhoneLive.shared.level = level
@@ -787,6 +791,25 @@ final class PhoneStore: ObservableObject {
         let snapshot = WidgetSnapshot(lastTitle: last?.title, lastStartedAt: last?.startedAt,
                                       recordingSince: face.recordingSince, pausedSeconds: face.pausedSeconds)
         if snapshot.save() { WidgetCenter.shared.reloadAllTimelines() }
+    }
+
+    /// A transcript that landed. The third one may ask for a review: never while
+    /// recording, at most once for this version, and not on a day the Pro sheet
+    /// was already shown.
+    private func noteSuccessfulTranscript() {
+        let count = Pref.d.integer(forKey: Pref.reviewTranscripts) + 1
+        Pref.d.set(count, forKey: Pref.reviewTranscripts)
+        if count == 1 { Funnel.count(.firstTranscript) }
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        let lastShown = Pref.d.double(forKey: Pref.proPromptLastShown)
+        let proToday = lastShown > 0 && Calendar.current.isDateInToday(Date(timeIntervalSince1970: lastShown))
+        guard ReviewPrompt.shouldRequest(successfulTranscripts: count, isRecording: isRecording,
+                                         lastPromptedVersion: Pref.d.string(forKey: Pref.reviewPromptedVersion),
+                                         currentVersion: version, proSheetShownToday: proToday) else { return }
+        Pref.d.set(version, forKey: Pref.reviewPromptedVersion)
+        // The first-transcript sheet reads this so the two never share a day.
+        Pref.d.set(ProPrompt.dayID(Date()), forKey: ProPrompt.reviewPromptDayKey)
+        ReviewPrompt.requestReview()
     }
 
     /// Pause or resume the transcription queue. Cancelling the running job is

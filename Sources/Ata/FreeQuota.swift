@@ -54,6 +54,10 @@ enum FreeQuota {
         var charged = Set<String>()
         for (id, entry) in ledger {
             charged.insert(id)
+            // The example meeting is never an allowance, even if a line names it.
+            if id == SampleMeeting.folderID || meetings.first(where: { $0.id == id })?.isSample == true {
+                continue
+            }
             if let stored = entry.seconds {
                 if stored > 0 { seconds += stored }
             } else if let meeting = meetings.first(where: { $0.id == id }) {
@@ -126,8 +130,9 @@ enum FreeQuota {
     }
 
     /// A recording still going has no duration and uses none of the allowance.
+    /// The bundled example has a duration and still uses none.
     private static func countedSeconds(_ meeting: Meeting) -> Double {
-        guard let duration = meeting.duration, duration > 0 else { return 0 }
+        guard meeting.isSample != true, let duration = meeting.duration, duration > 0 else { return 0 }
         return duration
     }
 

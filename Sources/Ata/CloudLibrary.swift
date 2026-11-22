@@ -700,6 +700,8 @@ struct CloudMigration: Sendable {
 
     private func pending(in ledger: Ledger) -> [String] {
         sourceFolders().filter { name in
+            // The example never leaves this device.
+            guard !SampleMeeting.staysOnDevice(name) else { return false }
             guard let entry = ledger.meetings[name] else { return true }
             let stamps = Self.stamps(of: source.appendingPathComponent(name, isDirectory: true))
             // Unchanged: done, even if it has since been deleted in iCloud on purpose.
@@ -1014,6 +1016,7 @@ struct CloudMigration: Sendable {
     func removableOriginals(isUploaded: (URL) -> Bool = CloudFiles.isUploaded) -> [String] {
         let ledger = loadLedger()
         return sourceFolders().filter { name in
+            guard !SampleMeeting.staysOnDevice(name) else { return false }
             guard let entry = ledger.meetings[name] else { return false }
             let target = destination.appendingPathComponent(entry.target, isDirectory: true)
             guard CloudLibrary.isDirectory(target),
