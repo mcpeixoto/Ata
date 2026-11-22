@@ -334,7 +334,8 @@ final class WindowManager {
     }
 
     func showSettings() {
-        settings = present(settings, title: L("Ata Settings")) {
+        settings = present(settings, title: L("Ata Settings"),
+                           size: NSSize(width: SettingsView.width, height: SettingsView.height)) {
             SettingsView()
                 .environmentObject(AppStore.shared)
                 .environmentObject(AppStore.shared.setup)

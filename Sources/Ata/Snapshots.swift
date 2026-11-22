@@ -100,11 +100,14 @@ enum Snapshots {
                 write(frame(meeting, appearance), to: out, name: "meeting-\(name)-\(appearance.name)")
             }
 
-            // Taller than the real window so the README shows every section
-            // instead of a form cut off mid-scroll.
-            let settings = render(SettingsView(height: 2480).environmentObject(store).environmentObject(store.setup),
-                                  width: 540, height: 2480, appearance: appearance)
-            write(frame(settings, appearance), to: out, name: "settings-\(appearance.name)")
+            // One shot per pane. `settings` stays the General pane, which is
+            // what the README already links to.
+            for pane in SettingsPane.allCases {
+                let settings = render(SettingsView(pane: pane)
+                                        .environmentObject(store).environmentObject(store.setup),
+                                      width: SettingsView.width, height: SettingsView.height, appearance: appearance)
+                write(frame(settings, appearance), to: out, name: "\(pane.snapshotName)-\(appearance.name)")
+            }
 
             // One per step. Plain `onboarding` stays the last step, for the README's links.
             for (step, name) in [(OnboardingStep.welcome, "welcome"), (.permissions, "permissions"),

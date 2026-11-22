@@ -75,7 +75,8 @@ targets:
           - PopoverView.swift
           - Presence.swift
           - Recorder.swift
-          - SettingsView.swift
+          - Settings
+          - Settings/**
           - Snapshots.swift
           - SystemAudio.swift
           - Updater.swift
