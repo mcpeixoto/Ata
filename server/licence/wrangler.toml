@@ -1,0 +1,41 @@
+name = "ata-licence"
+main = "src/index.ts"
+compatibility_date = "2025-10-01"
+workers_dev = true
+
+# Request logs would hold IP addresses and licence keys: off.
+[observability]
+enabled = false
+
+# Secrets, set with `wrangler secret put`, never in this file:
+#   STRIPE_SECRET_KEY      sk_live_… / sk_test_…
+#   STRIPE_WEBHOOK_SECRET  whsec_… of the endpoint scripts/stripe-setup.ts registers
+[vars]
+# Filled from the output of scripts/stripe-setup.ts.
+PRICE_MONTHLY = ""
+PRICE_YEARLY = ""
+PRICE_LIFETIME = ""
+PORTAL_CONFIGURATION = ""
+# "true" only when Stripe Tax is active on the account (the setup script says).
+AUTOMATIC_TAX = "false"
+# Sender for /v1/recover; the domain must be onboarded to Cloudflare Email Sending.
+EMAIL_FROM = ""
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ata-licence"
+# Placeholder until `wrangler d1 create ata-licence` gives the real id.
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+# /v1/* per client IP. The IP is only the limiter's key; it is never stored.
+[[ratelimits]]
+name = "LIMITER"
+namespace_id = "2401"
+simple = { limit = 10, period = 60 }
+
+# The Email Sending binding is added at deploy time, once the sender domain is
+# onboarded:
+#   [[send_email]]
+#   name = "EMAIL"
+# Without it /v1/recover still answers 200 and sends nothing.
