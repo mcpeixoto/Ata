@@ -104,6 +104,7 @@ final class PhoneStore: ObservableObject {
         drainShareInbox()
         pump()
         Metrics.sendIfDue()
+        AttributionCapture.startIfNeeded()
     }
 
     /// Ata came to the front: pick up files changed in the meantime, and the queue.
@@ -120,6 +121,7 @@ final class PhoneStore: ObservableObject {
         reload()
         drainShareInbox()
         pump()
+        AttributionCapture.startIfNeeded()
     }
 
     /// Recordings cut short by a crash or a dead battery, and transcriptions iOS

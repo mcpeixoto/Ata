@@ -5,7 +5,7 @@ permalink: /privacy/
 
 # Privacy Policy
 
-_Last updated: 14 November 2026_
+_Last updated: 22 November 2026_
 
 Ata records meetings and turns them into transcripts. It is built so that
 your recordings belong to you and nobody else, including us.
@@ -21,15 +21,31 @@ versions. Each device sends:
   system version;
 - your language setting;
 - how many meetings were recorded on it since the last count, and how many
-  minutes they add up to.
+  minutes they add up to;
+- counts of what happened in the app since the last count: the furthest
+  onboarding step reached, how often the Pro screen was shown and what opened
+  it, a trial, a purchase, hitting the free limit, and the same kind of count
+  when a locked feature was tapped. These are numbers. They do not include a
+  recording, a transcript, a title or a name;
+- on iPhone, the Apple Search Ads campaign id for this install, or the word
+  "organic" when the install did not come from one of those ads. The id names
+  the campaign, not you. Ata asks Apple once, after setup, and only if this
+  count is turned on.
 
 Our server reads the country from the connection and keeps that, not your IP
 address. Turn it off in Settings with "Share anonymous usage stats"; the app
 then sends nothing more and forgets the id.
 
-That is all. Ata has no accounts, no advertising and no crash reporting
-service. We never receive your audio, your transcripts, your notes, meeting
-titles or the names of the people in them.
+In the App Store privacy label this is Usage Data, not linked to you and not
+used to track you. The privacy manifest lists it as product interaction (the
+funnel counts) and other usage data (the rest of the daily count, including
+the campaign id), both for analytics, with linked and tracking set to false.
+
+That is all. Ata has no accounts and no crash reporting service. The app
+does not show ads; the campaign id above only says which Search Ads campaign
+an install came from, when it came from one. We never receive your audio,
+your transcripts, your notes, meeting titles or the names of the people in
+them.
 
 ## Where your meetings live
 

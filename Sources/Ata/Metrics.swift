@@ -83,7 +83,7 @@ enum Funnel {
 }
 
 enum Metrics {
-    struct Payload: Codable, Equatable {
+    struct Payload: Equatable {
         let id: String
         let platform: String
         let version: String
@@ -94,7 +94,7 @@ enum Metrics {
         let minutes: Int
         /// Absent when there is nothing to report. Keys are `Funnel.knownNames` only.
         let funnel: [String: Int]?
-        /// Apple Search Ads campaign, once Track 11 has stored it. Absent until then.
+        /// Apple Search Ads campaign id, or "organic". Absent until attribution has stored one.
         let campaign: String?
     }
 
@@ -259,5 +259,41 @@ enum Metrics {
 
     private static func info(_ key: String) -> String {
         Bundle.main.object(forInfoDictionaryKey: key) as? String ?? "0"
+    }
+}
+
+extension Metrics.Payload: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case id, platform, version, build, os, locale, meetings, minutes, funnel, campaign
+    }
+
+    /// A nil funnel or campaign is left out. An old server rejects unknown keys,
+    /// and a null would be one; the privacy list is the keys that are present.
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(platform, forKey: .platform)
+        try c.encode(version, forKey: .version)
+        try c.encode(build, forKey: .build)
+        try c.encode(os, forKey: .os)
+        try c.encode(locale, forKey: .locale)
+        try c.encode(meetings, forKey: .meetings)
+        try c.encode(minutes, forKey: .minutes)
+        try c.encodeIfPresent(funnel, forKey: .funnel)
+        try c.encodeIfPresent(campaign, forKey: .campaign)
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        platform = try c.decode(String.self, forKey: .platform)
+        version = try c.decode(String.self, forKey: .version)
+        build = try c.decode(String.self, forKey: .build)
+        os = try c.decode(String.self, forKey: .os)
+        locale = try c.decode(String.self, forKey: .locale)
+        meetings = try c.decode(Int.self, forKey: .meetings)
+        minutes = try c.decode(Int.self, forKey: .minutes)
+        funnel = try c.decodeIfPresent([String: Int].self, forKey: .funnel)
+        campaign = try c.decodeIfPresent(String.self, forKey: .campaign)
     }
 }

@@ -34,3 +34,21 @@ GROUP BY p.app, week, c.key ORDER BY week DESC, p.app, c.key LIMIT 200;
 SELECT app, platform, os, COUNT(DISTINCT id) AS installs
 FROM pings WHERE day > date('now', '-30 days')
 GROUP BY app, platform, os ORDER BY app, installs DESC;
+
+-- Ata daily funnel: installs, then onboarded, paywall by trigger, trial, paid.
+-- By platform, version and campaign. installs and onboarded are devices;
+-- the other stages are event totals. (none) means the ping carried no campaign.
+-- Name each Search Ads campaign for its one ad set: the API returns the id, not the name.
+SELECT day, platform, version, campaign, stage, detail, n
+FROM funnel_daily
+ORDER BY day DESC, platform, version, campaign,
+  CASE stage
+    WHEN 'installs' THEN 0
+    WHEN 'onboarded' THEN 1
+    WHEN 'paywall' THEN 2
+    WHEN 'trial' THEN 3
+    WHEN 'paid' THEN 4
+    ELSE 5
+  END,
+  detail
+LIMIT 400;

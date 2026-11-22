@@ -14,6 +14,13 @@ The app sends exactly:
  "os": "26.1", "locale": "pt-PT", "meetings": 2, "minutes": 45}
 ```
 
+Ata 4.0 may also send two optional fields. `funnel` is a handful of named
+counters (0–10000), for example `{"onboardingStep": 4, "paywallShown.limit": 1}`.
+`onboardingStep` is the furthest step reached, so a second ping the same day
+keeps the higher one; every other counter adds. `campaign` is the Apple Search
+Ads campaign id, or `organic`. A key that is not one of those, or a value past
+the cap, is refused with the rest of the ping.
+
 That shape, with no `app`, is Ata's and always will be. Every other app sends:
 
 ```json
@@ -25,7 +32,7 @@ That shape, with no `app`, is Ata's and always will be. Every other app sends:
 integers (0–10000), how many times something happened, never what. A second ping
 the same day adds to the first, counter by counter.
 
-Anything else — another field, a missing one, free text — is refused with 400.
+Any other field, a missing required one, or free text is refused with 400.
 
 ## Numbers
 
@@ -34,7 +41,13 @@ Anything else — another field, a missing one, free text — is refused with 40
 ```
 
 Per app: installs active today / this week / this month, by version, by country,
-by OS; Ata's meetings and minutes per week; every other app's counters per week.
+by OS; Ata's meetings and minutes per week; every other app's counters per week;
+Ata's daily funnel (installs, onboarded, paywall by trigger, trial, paid) by
+version and campaign.
+
+Name each Apple Search Ads campaign for its one ad set. The attribution API
+returns `campaignId`, not the campaign's name, so the daily view stays readable
+only when that id means one ad set.
 
 A new app: add its id to `APPS`, deploy, and point its `MetricsURL` here.
 

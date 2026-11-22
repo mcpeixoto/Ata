@@ -1,5 +1,6 @@
 #!/bin/bash
 # Prints every query in queries.sql against the live database, one table each.
+# The last table is the Ata daily funnel (view funnel_daily).
 # Not `wrangler d1 execute --file`: that runs the file as an import, pauses the
 # database while it does, and prints only row counts.
 set -euo pipefail
