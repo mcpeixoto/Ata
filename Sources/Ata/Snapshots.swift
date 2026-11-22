@@ -19,6 +19,10 @@ enum Snapshots {
     /// True while snapshots are being drawn; see `AppSwitchStyle`.
     nonisolated(unsafe) static var rendering = false
 
+    /// The empty-menu shot hides the fixture meetings (and the voices chip that
+    /// those fixtures would otherwise put above the three steps).
+    nonisolated(unsafe) static var omitMeetings = false
+
     static func run() {
         guard let i = CommandLine.arguments.firstIndex(of: "--snapshots"),
               i + 1 < CommandLine.arguments.count else {
@@ -43,48 +47,51 @@ enum Snapshots {
         }
 
         for appearance in [Look.light, Look.dark] {
+            PeopleModel.shared.reload()
+            let menu = { (view: PopoverView) in
+                render(view.environmentObject(store).environmentObject(store.setup),
+                       width: PopoverHome.width, appearance: appearance)
+            }
+            let libraryWidth = LibraryWindow.opening.width
+            let libraryHeight = LibraryWindow.opening.height
+            let library = { (view: LibraryWindow) in
+                render(view.environmentObject(store).environmentObject(store.setup),
+                       width: libraryWidth, height: libraryHeight, appearance: appearance)
+            }
+
+            // No meetings: the three steps, instead of an empty list.
+            store.applySnapshotFixture(recordingApp: nil, elapsed: 0, mic: 0, system: 0,
+                                       transcribingID: nil, progress: 0)
+            omitMeetings = true
+            write(frame(menu(PopoverView()), appearance), to: out, name: "menu-empty-\(appearance.name)")
+            omitMeetings = false
+
             // Idle menu, with the queue transcribing in the background.
             store.applySnapshotFixture(recordingApp: nil, elapsed: 0, mic: 0, system: 0,
                                        transcribingID: Fixture.transcribingID, progress: 0.62)
-            let idle = render(PopoverView().environmentObject(store).environmentObject(store.setup),
-                              width: 350, appearance: appearance)
-            write(frame(idle, appearance), to: out, name: "menu-idle-\(appearance.name)")
+            write(frame(menu(PopoverView()), appearance), to: out, name: "menu-idle-\(appearance.name)")
 
-            // The Insights tab, with eight weeks of made-up history.
-            let insights = render(PopoverView(tab: .insights).environmentObject(store).environmentObject(store.setup),
-                                  width: 350, appearance: appearance)
-            write(frame(insights, appearance), to: out, name: "menu-insights-\(appearance.name)")
+            LibraryNavigation.shared.pane = .meetings
+            write(frame(library(LibraryWindow()), appearance), to: out, name: "library-meetings-\(appearance.name)")
 
-            // The People tab, with made-up voices.
-            let people = render(PopoverView(tab: .people).environmentObject(store).environmentObject(store.setup),
-                                width: 350, appearance: appearance)
-            write(frame(people, appearance), to: out, name: "menu-people-\(appearance.name)")
+            LibraryNavigation.shared.pane = .insights
+            write(frame(library(LibraryWindow()), appearance), to: out, name: "library-insights-\(appearance.name)")
 
-            // One voice open: a name to give it, and what else can be done to it.
-            PeopleModel.shared.reload()
+            LibraryNavigation.shared.pane = .people
+            write(frame(library(LibraryWindow()), appearance), to: out, name: "library-people-\(appearance.name)")
+
+            // One voice open, and choosing who that voice really is. Same names as
+            // before, now drawn in the library's People pane.
             let first = PeopleModel.shared.sections(query: "").first?.voices.first
-            let opened = render(PopoverView(tab: .people, openPerson: first.map { .voice($0.id) })
-                .environmentObject(store).environmentObject(store.setup),
-                                width: 350, appearance: appearance)
-            write(frame(opened, appearance), to: out, name: "menu-people-open-\(appearance.name)")
+            write(frame(library(LibraryWindow(openPerson: first.map { .voice($0.id) })), appearance),
+                  to: out, name: "menu-people-open-\(appearance.name)")
+            write(frame(library(LibraryWindow(mergingPerson: first)), appearance),
+                  to: out, name: "menu-people-merge-\(appearance.name)")
 
-            // Choosing who that voice really is.
-            let merging = render(PopoverView(tab: .people, mergingPerson: first)
-                .environmentObject(store).environmentObject(store.setup),
-                                 width: 350, appearance: appearance)
-            write(frame(merging, appearance), to: out, name: "menu-people-merge-\(appearance.name)")
-
-            // Ata's own window, where the list fills whatever size it is given.
-            let window = render(PopoverView(tab: .people, inWindow: true)
-                .environmentObject(store).environmentObject(store.setup),
-                                width: 520, height: 620, appearance: appearance)
-            write(frame(window, appearance), to: out, name: "window-people-\(appearance.name)")
-
-            // Mid-meeting.
+            // Mid-meeting. The recent list hides while Ata is recording.
             store.applySnapshotFixture(recordingApp: "Zoom", elapsed: 23 * 60 + 14, mic: 0.64, system: 0.47,
                                        transcribingID: nil, progress: 0)
-            let recording = render(PopoverView().environmentObject(store).environmentObject(store.setup),
-                                   width: 350, appearance: appearance)
+            let recording = menu(PopoverView())
             write(frame(recording, appearance), to: out, name: "menu-recording-\(appearance.name)")
 
             store.applySnapshotFixture(recordingApp: nil, elapsed: 0, mic: 0, system: 0,

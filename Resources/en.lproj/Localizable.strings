@@ -786,3 +786,15 @@
 "General" = "General";
 "Storage" = "Storage";
 "Agent" = "Agent";
+/* Track 7 */
+"%@ detected · tap to record" = "%@ detected · tap to record";
+"Next: %@ now" = "Next: %@ now";
+"Next: %@ in 1 min" = "Next: %@ in 1 min";
+"Next: %@ in %d min" = "Next: %@ in %d min";
+"Start a call" = "Start a call";
+"Ata offers to record" = "Ata offers to record";
+"Notes appear here" = "Notes appear here";
+"Today" = "Today";
+"Yesterday" = "Yesterday";
+"Earlier this month" = "Earlier this month";
+"No meetings match this search" = "No meetings match this search";
