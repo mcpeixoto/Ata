@@ -62,4 +62,29 @@ final class ProAccessTests: XCTestCase {
         XCTAssertFalse(access.isPro)
         XCTAssertTrue(access.sources.isEmpty)
     }
+
+    /// A licence is a third source. The Mac also re-reads the mirror when iCloud says it changed.
+    func testALicenceUnlocksAndTheMirrorUpdatesWheniCloudChanges() {
+        let access = ProAccess()
+        access.setLicence(active: true)
+        XCTAssertTrue(access.isPro)
+        XCTAssertEqual(access.sources, [.licence])
+        access.setLicence(active: false)
+        XCTAssertFalse(access.isPro)
+
+        ProMirror.epoch = { 0 }
+        access.start()
+        XCTAssertFalse(access.sources.contains(.iCloudMirror))
+
+        ProMirror.epoch = { 1_800_000_000 }
+        NotificationCenter.default.post(name: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+                                        object: NSUbiquitousKeyValueStore.default)
+        XCTAssertTrue(access.isPro)
+        XCTAssertTrue(access.sources.contains(.iCloudMirror))
+
+        ProMirror.epoch = { 0 }
+        NotificationCenter.default.post(name: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+                                        object: NSUbiquitousKeyValueStore.default)
+        XCTAssertFalse(access.isPro)
+    }
 }

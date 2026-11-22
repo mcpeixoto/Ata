@@ -187,10 +187,19 @@ final class AppStore: ObservableObject {
         }
     }
 
-    /// This month's 300 minutes are used, and the limit is being enforced.
-    /// While `FreeQuota.appliesOnMac` is false the Mac still writes the seconds
-    /// into the ledger and blocks nothing, until the limit can be unlocked.
-    var atFreeLimit: Bool { FreeQuota.appliesOnMac && freeUsed >= FreeQuota.limitMinutes }
+    /// This month's 300 minutes are used, and this Mac is not Pro.
+    var atFreeLimit: Bool { FreeQuota.blocks(isPro: ProAccess.shared.isPro, usedMinutes: freeUsed) }
+
+    /// The free minutes are gone. The menu keeps the banner, and the paywall opens.
+    @discardableResult
+    func enforceFreeLimit() -> Bool {
+        updateQuota()
+        guard atFreeLimit else { return false }
+        lastError = L("You have used this month's %d free minutes on this Mac.", FreeQuota.limitMinutes)
+        Funnel.count(.limitHit)
+        WindowManager.shared.showPro(trigger: .limit)
+        return true
+    }
 
     /// Counted from the library and the keychain. A meeting still recording
     /// has no duration and is not included.
@@ -284,11 +293,12 @@ final class AppStore: ObservableObject {
             Library.save(m)
         }
         guard phase == .idle else { return }
+        updateQuota()
         if Pref.d.bool(forKey: Pref.autoStart) && setup.ready {
             autoStarted = true
             startRecording(app: app)
         } else {
-            Notifier.shared.meetingDetected(app: app)
+            Notifier.shared.meetingDetected(app: app, atLimit: atFreeLimit)
         }
     }
 
@@ -339,9 +349,7 @@ final class AppStore: ObservableObject {
     func startRecording(app: String?, event: MeetingEvent? = nil,
                         started: (@MainActor (Bool) -> Void)? = nil) {
         guard phase == .idle else { started?(false); return }
-        updateQuota()
-        if atFreeLimit {
-            lastError = L("You have used this month's %d free minutes on this Mac.", FreeQuota.limitMinutes)
+        if enforceFreeLimit() {
             started?(false)
             return
         }
@@ -561,11 +569,7 @@ final class AppStore: ObservableObject {
             if !urls.isEmpty { lastError = L("Ata can only import audio files.") }
             return
         }
-        updateQuota()
-        if atFreeLimit {
-            lastError = L("You have used this month's %d free minutes on this Mac.", FreeQuota.limitMinutes)
-            return
-        }
+        if enforceFreeLimit() { return }
         importing += files.count
         Task {
             for url in files {
@@ -583,9 +587,7 @@ final class AppStore: ObservableObject {
                 importing -= 1
                 reload()
             }
-            if atFreeLimit {
-                lastError = L("You have used this month's %d free minutes on this Mac.", FreeQuota.limitMinutes)
-            }
+            if atFreeLimit { enforceFreeLimit() }
             pump()
         }
     }

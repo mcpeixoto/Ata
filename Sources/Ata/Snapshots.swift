@@ -102,8 +102,8 @@ enum Snapshots {
 
             // Taller than the real window so the README shows every section
             // instead of a form cut off mid-scroll.
-            let settings = render(SettingsView(height: 2280).environmentObject(store).environmentObject(store.setup),
-                                  width: 540, height: 2280, appearance: appearance)
+            let settings = render(SettingsView(height: 2480).environmentObject(store).environmentObject(store.setup),
+                                  width: 540, height: 2480, appearance: appearance)
             write(frame(settings, appearance), to: out, name: "settings-\(appearance.name)")
 
             // One per step. Plain `onboarding` stays the last step, for the README's links.
@@ -115,6 +115,13 @@ enum Snapshots {
                 write(frame(shot, appearance), to: out, name: "onboarding-\(name)-\(appearance.name)")
                 if step == .done { write(frame(shot, appearance), to: out, name: "onboarding-\(appearance.name)") }
             }
+
+            let proLimit = render(MacPaywall(fixture: .limit).environmentObject(store),
+                                  width: MacPaywall.width, height: MacPaywall.height, appearance: appearance)
+            write(frame(proLimit, appearance), to: out, name: "pro-limit-\(appearance.name)")
+            let proActive = render(MacPaywall(fixture: .active).environmentObject(store),
+                                   width: MacPaywall.width, height: MacPaywall.height, appearance: appearance)
+            write(frame(proActive, appearance), to: out, name: "pro-active-\(appearance.name)")
 
             if appearance == .dark {
                 // The hero banner, 2:1 so it doubles as the GitHub social preview.

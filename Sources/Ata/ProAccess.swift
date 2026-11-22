@@ -27,6 +27,7 @@ final class ProAccess: ObservableObject {
     enum Source: Hashable {
         case storeKit
         case iCloudMirror
+        case licence
     }
 
     @Published private(set) var isPro = false
@@ -43,7 +44,7 @@ final class ProAccess: ObservableObject {
             sources.remove(.storeKit)
             storeKitExpires = nil
         }
-        isPro = !sources.isEmpty
+        publish()
         #if os(iOS)
         // A launch that only has the cached flag calls this with no date. `0`
         // on the mirror means "not Pro", so that call must not publish it; the
@@ -59,8 +60,45 @@ final class ProAccess: ObservableObject {
         } else {
             sources.remove(.iCloudMirror)
         }
+        publish()
+    }
+
+    /// A Mac licence. The iPhone never calls this (App Review 3.1.1).
+    func setLicence(active: Bool) {
+        if active {
+            sources.insert(.licence)
+        } else {
+            sources.remove(.licence)
+        }
+        publish()
+    }
+
+    /// Any source is enough. On the Mac the ones that get set are the iCloud
+    /// mirror and the licence; StoreKit stays in the set so a source that was
+    /// recorded is not dropped.
+    private func publish() {
         isPro = !sources.isEmpty
     }
+
+    #if os(macOS)
+    private var mirrorObserver: NSObjectProtocol?
+
+    /// Reads `proUntil` now, and again whenever iCloud says another device wrote it.
+    /// An ad-hoc build has no ubiquity entitlement: the read is 0 and this stays off.
+    func start() {
+        setMirror(active: ProMirror.isActive())
+        guard mirrorObserver == nil else { return }
+        mirrorObserver = NotificationCenter.default.addObserver(
+            forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+            object: NSUbiquitousKeyValueStore.default,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.setMirror(active: ProMirror.isActive())
+            }
+        }
+    }
+    #endif
 }
 
 /// The iPhone writes `proUntil` (epoch seconds, or `0` when not Pro) into the

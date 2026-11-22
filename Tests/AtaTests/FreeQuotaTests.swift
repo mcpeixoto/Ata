@@ -176,6 +176,6 @@ final class FreeQuotaTests: XCTestCase {
     }
 
     func testTheMacLimitIsOffUntilProCanBeUnlocked() {
-        XCTAssertFalse(FreeQuota.appliesOnMac)
+        XCTAssertTrue(FreeQuota.appliesOnMac)
     }
 }

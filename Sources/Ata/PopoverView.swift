@@ -39,6 +39,7 @@ struct MenuBarLabel: View {
 struct PopoverView: View {
     @EnvironmentObject var store: AppStore
     @EnvironmentObject var setup: SetupModel
+    @ObservedObject private var access = ProAccess.shared
 
     enum Tab: Hashable { case record, insights, people }
     @State private var tab: Tab
@@ -160,11 +161,7 @@ struct PopoverView: View {
 
     /// Picks audio files to import, from the footer.
     private func chooseAudio() {
-        store.updateQuota()
-        if store.atFreeLimit {
-            store.lastError = L("You have used this month's %d free minutes on this Mac.", FreeQuota.limitMinutes)
-            return
-        }
+        if store.enforceFreeLimit() { return }
         let panel = NSOpenPanel()
         panel.allowedContentTypes = AudioImport.types
         panel.allowsMultipleSelection = true
@@ -275,14 +272,14 @@ struct PopoverView: View {
                         Text(L("Meeting in %@", app)).ataHeadline()
                     }
                     Text("Hit record to capture and transcribe it.").ataCaption().foregroundStyle(.secondary)
-                    if FreeQuota.appliesOnMac { freeMinutes }
+                    if FreeQuota.appliesOnMac, !access.isPro { freeMinutes }
                 } else {
                     Text(store.phase == .starting ? L("Getting ready…") : L("Record a meeting"))
                         .font(.system(size: 14, weight: .semibold))
                     Text("Your microphone and your Mac's audio. Works with any app.")
                         .ataCaption().foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    if FreeQuota.appliesOnMac {
+                    if FreeQuota.appliesOnMac, !access.isPro {
                         freeMinutes
                             .fixedSize(horizontal: false, vertical: true)
                     }

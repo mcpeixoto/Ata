@@ -72,6 +72,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Before anything reads a setting: the shortcut below has a default.
         Pref.registerDefaults()
         Notifier.shared.setUp()
+        ProAccess.shared.start()
+        LicenceStore.shared.applySaved()
+        Task { await LicenceStore.shared.revalidateIfDue() }
+        NSAppleEventManager.shared().setEventHandler(
+            self,
+            andSelector: #selector(handleGetURL(_:withReplyEvent:)),
+            forEventClass: AEEventClass(kInternetEventClass),
+            andEventID: AEEventID(kAEGetURL))
         // Before the Dock policy: an older install may have the Dock icon on,
         // which is what made closing a window look like it did nothing and
         // made Quit take the menu bar icon with it.
@@ -126,6 +134,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         for item in items where item.action == #selector(NSApplication.terminate(_:)) {
             item.keyEquivalent = ""
             item.keyEquivalentModifierMask = []
+        }
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls { openLicence(url) }
+    }
+
+    /// `ata://licence?key=` from the page shown after Stripe checkout. The Apple
+    /// event and `application(_:open:)` can both arrive for one click.
+    @objc private func handleGetURL(_ event: NSAppleEventDescriptor, withReplyEvent: NSAppleEventDescriptor) {
+        guard let raw = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue,
+              let url = URL(string: raw) else { return }
+        openLicence(url)
+    }
+
+    private var lastLicenceURL = ""
+    private var lastLicenceAt = Date.distantPast
+
+    private func openLicence(_ url: URL) {
+        guard url.scheme?.lowercased() == "ata", url.host?.lowercased() == "licence" else { return }
+        let stamp = url.absoluteString
+        if stamp == lastLicenceURL, Date().timeIntervalSince(lastLicenceAt) < 2 { return }
+        lastLicenceURL = stamp
+        lastLicenceAt = Date()
+        Task { @MainActor in
+            WindowManager.shared.showPro(trigger: .settings, enterKey: true)
+            await LicenceStore.shared.activate(url: url)
         }
     }
 
@@ -197,6 +232,7 @@ final class WindowManager {
     private var onboarding: NSWindow?
     private var settings: NSWindow?
     private var main: NSWindow?
+    private var pro: NSWindow?
     private var meetings: [String: (window: NSWindow, model: MeetingModel, closing: NSObjectProtocol)] = [:]
 
     func showOnboarding() {
@@ -252,7 +288,37 @@ final class WindowManager {
     }
 
     private var allWindows: [NSWindow] {
-        [onboarding, settings, main].compactMap { $0 } + meetings.values.map(\.window)
+        [onboarding, settings, main, pro].compactMap { $0 } + meetings.values.map(\.window)
+    }
+
+    /// The Mac paywall. `enterKey` opens the licence field; it stays hidden
+    /// until `AtaLicenceURL` is set, whatever this asks.
+    func showPro(trigger: Funnel.Trigger, enterKey: Bool = false) {
+        Funnel.count(.paywallShown(trigger))
+        LicenceStore.shared.revealKeyField = enterKey
+        if let pro {
+            comeForward(pro)
+            return
+        }
+        let window = present(nil, title: L("Ata Pro"), size: NSSize(width: MacPaywall.width, height: MacPaywall.height)) {
+            MacPaywall()
+                .environmentObject(AppStore.shared)
+        }
+        pro = window
+        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window,
+                                               queue: .main) { _ in
+            MainActor.assumeIsolated { WindowManager.shared.forgetPro() }
+        }
+    }
+
+    func closePro() {
+        pro?.close()
+    }
+
+    private func forgetPro() {
+        guard let window = pro else { return }
+        pro = nil
+        window.contentView = nil
     }
 
     /// Ata's own window: the same thing the menu bar shows, in a window you can

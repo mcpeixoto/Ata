@@ -40,6 +40,8 @@ struct SettingsView: View {
     @State private var agentCopied = false
     @State private var showingAcknowledgements = false
     @State private var acknowledgementsText = ""
+    @ObservedObject private var access = ProAccess.shared
+    @ObservedObject private var licence = LicenceStore.shared
 
     /// The window's height. Only the snapshot renderer asks for a taller one.
     var height: CGFloat = 660
@@ -48,6 +50,7 @@ struct SettingsView: View {
         VStack(spacing: 0) {
             header
             Form {
+                proSection
                 recordingSection
                 calendarSection
                 categorySection
@@ -90,6 +93,30 @@ struct SettingsView: View {
     }
 
     // MARK: Sections
+
+    private var proSection: some View {
+        Section("Ata Pro") {
+            Text(verbatim: ProStatus.line(
+                licenceActive: licence.isActive,
+                licenceExpires: licence.expiresAt,
+                viaPhone: access.sources.contains(.iCloudMirror) || access.sources.contains(.storeKit),
+                used: store.freeUsed,
+                limit: FreeQuota.limitMinutes))
+                .ataBody()
+                .fixedSize(horizontal: false, vertical: true)
+            if !access.isPro {
+                Button("Upgrade") { WindowManager.shared.showPro(trigger: .settings) }
+            }
+            if MacProOffer.isConfigured && !licence.isActive {
+                Button("Enter licence key") {
+                    WindowManager.shared.showPro(trigger: .settings, enterKey: true)
+                }
+            }
+            if licence.isActive {
+                Button("Deactivate") { Task { await licence.deactivate() } }
+            }
+        }
+    }
 
     private var recordingSection: some View {
         Section("Recording") {

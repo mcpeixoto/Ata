@@ -16,6 +16,26 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sen
         static let open = "OPEN"
         static let update = "UPDATE_AVAILABLE"
         static let install = "INSTALL"
+        static let limit = "MEETING_LIMIT"
+        static let pro = "PRO"
+    }
+
+    /// What the meeting-detected banner says. At the free limit it does not offer Record.
+    struct DetectedNotice: Equatable {
+        var title: String
+        var body: String
+        var offersRecord: Bool
+    }
+
+    static func detectedNotice(app: String, atLimit: Bool) -> DetectedNotice {
+        if atLimit {
+            return DetectedNotice(title: L("Meeting in %@", app),
+                                 body: L("You've used this month's free minutes"),
+                                 offersRecord: false)
+        }
+        return DetectedNotice(title: L("Meeting in %@", app),
+                             body: L("Record and transcribe this meeting?"),
+                             offersRecord: true)
     }
 
     private var center: UNUserNotificationCenter { .current() }
@@ -23,11 +43,13 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sen
     func setUp() {
         center.delegate = self
         let record = UNNotificationAction(identifier: ID.record, title: L("Record"), options: [])
+        let seePro = UNNotificationAction(identifier: ID.pro, title: L("See Ata Pro"), options: [.foreground])
         let stop = UNNotificationAction(identifier: ID.stop, title: L("Stop and transcribe"), options: [])
         let open = UNNotificationAction(identifier: ID.open, title: L("Open"), options: [.foreground])
         let install = UNNotificationAction(identifier: ID.install, title: L("Update"), options: [.foreground])
         center.setNotificationCategories([
             UNNotificationCategory(identifier: ID.detected, actions: [record], intentIdentifiers: [], options: []),
+            UNNotificationCategory(identifier: ID.limit, actions: [seePro], intentIdentifiers: [], options: []),
             UNNotificationCategory(identifier: ID.soon, actions: [record], intentIdentifiers: [], options: []),
             UNNotificationCategory(identifier: ID.recording, actions: [stop], intentIdentifiers: [], options: []),
             UNNotificationCategory(identifier: ID.ready, actions: [open], intentIdentifiers: [], options: []),
@@ -35,9 +57,10 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sen
         ])
     }
 
-    func meetingDetected(app: String) {
-        post(id: "detected", category: ID.detected, title: L("Meeting in %@", app),
-             body: L("Record and transcribe this meeting?"), info: ["app": app])
+    func meetingDetected(app: String, atLimit: Bool = false) {
+        let notice = Self.detectedNotice(app: app, atLimit: atLimit)
+        post(id: "detected", category: notice.offersRecord ? ID.detected : ID.limit,
+             title: notice.title, body: notice.body, info: ["app": app])
     }
 
     /// The same sentence the screen is showing, for when the phone is locked.
@@ -147,6 +170,8 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sen
                 // calendar, and its store has no such entry point.
                 case (ID.soon, ID.record):
                     store.startRecording(event: MeetingEventCoding.event(info["event"] as? String))
+                case (ID.limit, ID.pro), (ID.limit, UNNotificationDefaultActionIdentifier):
+                    WindowManager.shared.showPro(trigger: .limit)
                 case (ID.soon, UNNotificationDefaultActionIdentifier),
                      (ID.detected, UNNotificationDefaultActionIdentifier):
                     // Clicking the banner to look at it must not start recording people.

@@ -25,9 +25,15 @@ enum FreeQuota {
     /// Five hours, as a round number of minutes.
     static let limitMinutes = 300
 
-    /// The Mac has no way to buy Ata Pro yet, so the 300-minute limit is off
-    /// there until it can be unlocked.
-    static let appliesOnMac = false
+    /// The Mac enforces the same 300 minutes. Ata Pro — the iPhone subscription
+    /// mirrored through iCloud, or a licence — is what lifts it.
+    static let appliesOnMac = true
+
+    /// The limit stops a new recording or import only when it is being enforced
+    /// and this device is not Pro.
+    static func blocks(isPro: Bool, usedMinutes: Int) -> Bool {
+        appliesOnMac && !isPro && usedMinutes >= limitMinutes
+    }
 
     /// One stored meeting. `seconds` is nil on a line written before durations
     /// were kept: an id alone.
