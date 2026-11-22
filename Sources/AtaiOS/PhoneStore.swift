@@ -40,7 +40,7 @@ final class PhoneStore: ObservableObject {
     @Published private(set) var inboxWaiting = 0
 
     /// No free minute left this month, and no Ata Pro.
-    var needsPro: Bool { !ProStore.shared.isPro && freeUsed >= FreeQuota.limitMinutes }
+    var needsPro: Bool { !ProAccess.shared.isPro && freeUsed >= FreeQuota.limitMinutes }
 
     var isRecording: Bool { phase == .recording || phase == .interrupted }
     /// Seconds of audio recorded so far, kept current in the background too (unlike `elapsed`).
