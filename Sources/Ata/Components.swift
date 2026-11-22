@@ -325,6 +325,62 @@ extension Banner where Trailing == EmptyView {
     }
 }
 
+/// A banner shrunk to a capsule: symbol, one line, chevron. Setup and errors
+/// stay full `Banner`s; a voice to name, an update and Apple Intelligence do not
+/// need a paragraph in the menu.
+struct BannerChip: View {
+    var systemImage: String
+    var title: Text
+    var help: String? = nil
+    var action: () -> Void
+    var dismiss: (() -> Void)? = nil
+    /// Spoken name of the dismiss control. Already localized by the caller.
+    var dismissLabel: String? = nil
+
+    var body: some View {
+        HStack(spacing: Theme.Space.xs) {
+            Button(action: action) {
+                HStack(spacing: Theme.Space.xs) {
+                    Image(systemName: systemImage)
+                    title.lineLimit(1)
+                    Image(systemName: "chevron.right")
+                        .ataFont(9, weight: .semibold)
+                }
+                .ataCaption()
+                .foregroundStyle(Theme.accent)
+                .padding(.horizontal, Theme.Space.s)
+                .padding(.vertical, Theme.Space.xs)
+                .background(Capsule().fill(Theme.accent.opacity(0.12)))
+            }
+            .buttonStyle(.plain)
+            .modifier(ChipHelp(text: help))
+            if let dismiss {
+                Button(action: dismiss) {
+                    Image(systemName: "xmark")
+                        .ataFont(9, weight: .bold)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(Text(verbatim: dismissLabel ?? L("Dismiss")))
+                .accessibilityLabel(Text(verbatim: dismissLabel ?? L("Dismiss")))
+            }
+        }
+    }
+}
+
+/// `help(_:)` only when there is something to say. An empty tooltip is a blank bubble.
+private struct ChipHelp: ViewModifier {
+    var text: String?
+
+    func body(content: Content) -> some View {
+        if let text, !text.isEmpty {
+            content.help(Text(verbatim: text))
+        } else {
+            content
+        }
+    }
+}
+
 /// Uppercase section title. The string is already localized.
 struct SectionLabel: View {
     let text: String

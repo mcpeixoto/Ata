@@ -36,8 +36,8 @@ All of it on your Mac: Whisper for the words, Apple Intelligence for the summary
 </td>
 <td width="50%" align="center">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/menu-insights-dark.png">
-  <img src="docs/images/menu-insights-light.png" alt="Ata's Insights tab: hours recorded, meetings per week, who talks" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/library-insights-dark.png">
+  <img src="docs/images/library-insights-light.png" alt="Insights in the library window: hours recorded, meetings per week, who talks" width="100%">
 </picture>
 <br><sub><b>Insights.</b> What you've recorded, and who did the talking.</sub>
 </td>
@@ -177,12 +177,12 @@ with or without the timer; pulsing or still.
 
 <p align="center">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/menu-people-dark.png">
-  <img src="docs/images/menu-people-light.png" alt="The People tab: two unknown voices to name, three named people" width="400">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/library-people-dark.png">
+  <img src="docs/images/library-people-light.png" alt="People in the library window: voices to name and people already named" width="640">
 </picture>
 </p>
 
-Turn on voice recognition in the **People** tab and Ata splits the other participants apart —
+Turn on voice recognition in **People** and Ata splits the other participants apart —
 "Others" becomes Voice 1, Voice 2… — and learns each voice across meetings. Once it has heard
 a voice in two meetings it asks who it is: play a few seconds, type a name. From then on that
 person is named in every transcript, including the ones already written.

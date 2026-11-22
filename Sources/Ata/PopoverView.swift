@@ -36,93 +36,86 @@ struct MenuBarLabel: View {
     }
 }
 
+/// The menu's fixed width, and how many meetings it lists before "See all".
+enum PopoverHome {
+    static let width: CGFloat = 350
+    static let recentLimit = 5
+}
+
+/// The line under "Record a meeting": a call Ata can already hear, otherwise the
+/// next calendar meeting inside the next 12 hours. Further out is just noise
+/// in a menu that is only open for a moment.
+enum RecordCue: Equatable {
+    case detected(app: String)
+    case next(title: String, minutes: Int)
+    case idle
+
+    struct Upcoming: Equatable {
+        var title: String
+        var startsAt: Date
+    }
+
+    /// A stand-up later today, not tomorrow's first meeting.
+    static let horizon: TimeInterval = 12 * 3600
+
+    static func choose(detectedApp: String?, upcoming: [Upcoming], now: Date,
+                       horizon: TimeInterval = horizon) -> RecordCue {
+        if let app = detectedApp?.trimmingCharacters(in: .whitespacesAndNewlines), !app.isEmpty {
+            return .detected(app: app)
+        }
+        let next = upcoming.filter { candidate in
+            let delta = candidate.startsAt.timeIntervalSince(now)
+            return delta <= horizon && -delta <= CalendarSchedule.grace
+        }.min { $0.startsAt < $1.startsAt }
+        guard let next else { return .idle }
+        let delta = next.startsAt.timeIntervalSince(now)
+        let minutes = delta <= 0 ? 0 : max(1, Int((delta / 60).rounded()))
+        return .next(title: next.title, minutes: minutes)
+    }
+
+    var line: String {
+        switch self {
+        case .detected(let app):
+            return L("%@ detected · tap to record", app)
+        case .next(let title, 0):
+            return L("Next: %@ now", title)
+        case .next(let title, 1):
+            return L("Next: %@ in 1 min", title)
+        case .next(let title, let minutes):
+            return L("Next: %@ in %d min", title, minutes)
+        case .idle:
+            return L("Your microphone and your Mac's audio. Works with any app.")
+        }
+    }
+}
+
 struct PopoverView: View {
     @EnvironmentObject var store: AppStore
     @EnvironmentObject var setup: SetupModel
-    @ObservedObject private var access = ProAccess.shared
-
-    enum Tab: Hashable { case record, insights, people }
-    @State private var tab: Tab
     @State private var dropping = false
     @AppStorage(Pref.categoryFilter) private var categoryFilter = ""
     @AppStorage(Pref.summarize) private var summarize = true
     @AppStorage(Pref.appleBannerDismissed) private var appleBannerDismissed = false
 
-    /// True in Ata's own window, which has no reason to offer opening itself.
-    private let inWindow: Bool
-    /// A row of the People tab already open, for the screenshots.
-    private let openPerson: PeopleList.Row?
-    /// The voice "Same person as" is choosing for, for the screenshots.
-    private let mergingPerson: Voice?
-
-    init(tab: Tab = .record, inWindow: Bool = false, openPerson: PeopleList.Row? = nil, mergingPerson: Voice? = nil) {
-        _tab = State(initialValue: tab)
-        self.inWindow = inWindow
-        self.openPerson = openPerson
-        self.mergingPerson = mergingPerson
-    }
-
-    /// The menu is as tall as its content. The window is whatever size it was
-    /// given, with the footer staying at the bottom. Two real frames: one frame
-    /// with nil sizes in the menu's case would still change how it measures.
-    private struct Sizing: ViewModifier {
-        let inWindow: Bool
-
-        func body(content: Content) -> some View {
-            if inWindow {
-                content.frame(minWidth: MainWindow.minWidth, maxWidth: .infinity,
-                              minHeight: MainWindow.minHeight, maxHeight: .infinity, alignment: .topLeading)
-            } else {
-                content.frame(width: 350)
-            }
-        }
-    }
-
-    /// A tab's content: in the window it scrolls, so a small window can't push the
-    /// footer off. The menu sizes itself to the content instead.
-    @ViewBuilder private func pane<C: View>(@ViewBuilder content: () -> C) -> some View {
-        if inWindow {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) { content() }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        } else {
-            content()
-        }
+    private var meetings: [Meeting] {
+        Snapshots.omitMeetings ? [] : store.meetings
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: Theme.Space.m) {
             header
             if let missing = setup.missingSummary { setupBanner(missing) }
-            if showsAppleBanner { appleBanner }
-            UpdateBanner()
-            if tab != .people { NameVoicesBanner { tab = .people } }
+            UpdateBanner(style: .banner)
             if let err = store.lastError { errorBanner(err) }
-            Picker("", selection: $tab) {
-                Text("Record").tag(Tab.record)
-                Text("Insights").tag(Tab.insights)
-                Text("People").tag(Tab.people)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            switch tab {
-            case .record:
-                pane {
-                    recordCard
-                    if !store.meetings.isEmpty { recent }
-                }
-            case .insights:
-                pane { InsightsView() }
-            case .people:
-                PeopleView(open: openPerson, merging: mergingPerson, fills: inWindow)
-            }
+            recordCard
+            chips
+            if store.phase != .recording && store.phase != .stopping { recent }
+            FreeQuotaFooter(layout: .inline)
             Divider().opacity(0.5)
             footer
         }
-        .padding(14)
-        .modifier(Sizing(inWindow: inWindow))
+        .padding(Theme.Space.l)
+        .frame(width: PopoverHome.width)
         .onAppear { setup.refresh(); store.reload(); store.writeOwedSummaries() }
         // Audio files dropped on the menu become meetings.
         .dropDestination(for: URL.self) { urls, _ in
@@ -150,15 +143,6 @@ struct PopoverView: View {
         .tint(Theme.accent)
     }
 
-    private var freeMinutes: some View {
-        let left = FreeQuota.remaining(used: store.freeUsed)
-        return Text(left == 1
-                    ? L("1 free minute left this month")
-                    : L("%d free minutes left this month", left))
-            .ataCaption()
-            .foregroundStyle(left == 0 ? Theme.warning : Color.secondary)
-    }
-
     /// Picks audio files to import, from the footer.
     private func chooseAudio() {
         if store.enforceFreeLimit() { return }
@@ -183,17 +167,17 @@ struct PopoverView: View {
                 Text(statusLine).ataCaption().foregroundStyle(.secondary)
             }
             Spacer()
-            if !inWindow {
-                Button { WindowManager.shared.showMain() } label: {
-                    Image(systemName: "macwindow").font(.system(size: 14))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help(L("Open in a window"))
-                .accessibilityLabel(L("Open in a window"))
+            Button { WindowManager.shared.showMain() } label: {
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .ataFont(14, weight: .semibold)
             }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help(L("Open in a window"))
+            .accessibilityLabel(L("Open in a window"))
             Button { WindowManager.shared.showSettings() } label: {
-                Image(systemName: "gearshape").font(.system(size: 14))
+                Image(systemName: "gearshape")
+                    .ataFont(14, weight: .medium)
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
@@ -222,13 +206,22 @@ struct PopoverView: View {
         summarize && !appleBannerDismissed && AppleModel.state == .off && !Snapshots.rendering
     }
 
-    private var appleBanner: some View {
-        Banner(kind: .info, mark: .symbol("sparkles"),
-               title: Text("Turn on Apple Intelligence"),
-               detail: Text("It writes your summaries, on this Mac."),
-               action: { SetupModel.openAppleIntelligence() },
-               dismiss: { appleBannerDismissed = true },
-               dismissLabel: L("Don't show this again"))
+    @ViewBuilder private var chips: some View {
+        HStack(spacing: Theme.Space.s) {
+            NameVoicesBanner { WindowManager.shared.showMain(pane: .people) }
+            UpdateBanner(style: .chip)
+            if showsAppleBanner { appleChip }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var appleChip: some View {
+        BannerChip(systemImage: "sparkles",
+                   title: Text("Turn on Apple Intelligence"),
+                   help: L("It writes your summaries, on this Mac."),
+                   action: { SetupModel.openAppleIntelligence() },
+                   dismiss: { appleBannerDismissed = true },
+                   dismissLabel: L("Don't show this again"))
     }
 
     private func setupBanner(_ text: String) -> some View {
@@ -260,63 +253,112 @@ struct PopoverView: View {
         }
     }
 
-    private var idleContent: some View {
-        HStack(spacing: 14) {
-            RecordButton { store.toggleRecording() }
-                .disabled(store.phase == .starting)
-                .opacity(store.phase == .starting ? 0.6 : 1)
-            VStack(alignment: .leading, spacing: 4) {
-                if let app = store.detectedApp {
-                    HStack(spacing: 6) {
-                        PulsingDot(color: .green)
-                        Text(L("Meeting in %@", app)).ataHeadline()
-                    }
-                    Text("Hit record to capture and transcribe it.").ataCaption().foregroundStyle(.secondary)
-                    if FreeQuota.appliesOnMac, !access.isPro { freeMinutes }
-                } else {
-                    Text(store.phase == .starting ? L("Getting ready…") : L("Record a meeting"))
-                        .font(.system(size: 14, weight: .semibold))
-                    Text("Your microphone and your Mac's audio. Works with any app.")
-                        .ataCaption().foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if FreeQuota.appliesOnMac, !access.isPro {
-                        freeMinutes
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-            Spacer(minLength: 0)
+    /// The calendar is the user's. Snapshots must not read it, or a README image
+    /// could show a real meeting title.
+    private var cue: RecordCue {
+        let now = Date()
+        guard !Snapshots.rendering else {
+            return RecordCue.choose(detectedApp: store.detectedApp, upcoming: [], now: now)
         }
+        let lead = TimeInterval(max(0, Pref.d.integer(forKey: Pref.calendarLeadMinutes))) * 60
+        let peopleOnly = Pref.d.bool(forKey: Pref.calendarPeopleOnly)
+        let upcoming = CalendarSchedule.occurrences(
+            in: CalendarStore.shared.upcoming(now: now), now: now, lead: lead, peopleOnly: peopleOnly
+        ).map { RecordCue.Upcoming(title: $0.event.title, startsAt: $0.event.startsAt) }
+        return RecordCue.choose(detectedApp: store.detectedApp, upcoming: upcoming, now: now)
+    }
+
+    private var idleContent: some View {
+        HStack(alignment: .center, spacing: Theme.Space.m) {
+            HeroRecordButton(size: 56, state: store.phase == .starting ? .busy : .idle) {
+                store.toggleRecording()
+            }
+            .disabled(store.phase == .starting)
+            .opacity(store.phase == .starting ? 0.6 : 1)
+            .accessibilityLabel(L("Record a meeting"))
+            VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
+                    Text(store.phase == .starting ? "Getting ready…" : "Record a meeting")
+                        .ataHeadline()
+                    Spacer(minLength: Theme.Space.s)
+                    Text(verbatim: "⌘R")
+                        .ataCaption()
+                        .foregroundStyle(.secondary)
+                }
+                Text(verbatim: cue.line)
+                    .ataCaption()
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .help(cueHelp)
         .background(
             Button("") { store.toggleRecording() }
                 .keyboardShortcut("r", modifiers: .command)
                 .opacity(0)
+                .accessibilityHidden(true)
         )
+    }
+
+    /// The old sentence stays available on hover when a call is already detected.
+    private var cueHelp: String {
+        switch cue {
+        case .detected: return L("Hit record to capture and transcribe it.")
+        default: return L("Start recording (⌘R)")
+        }
     }
 
     // MARK: Recent
 
     private var recent: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
+        VStack(alignment: .leading, spacing: Theme.Space.xs) {
+            HStack(spacing: Theme.Space.s) {
                 SectionLabel(L("RECENT"))
-                    .padding(.leading, 4)
-                Spacer()
-                CategoryFilterPicker(selection: $categoryFilter)
-                    .controlSize(.mini)
-                    .frame(width: 170)
+                Spacer(minLength: Theme.Space.s)
+                if !meetings.isEmpty { categoryMenu }
+                Button("See all") { WindowManager.shared.showMain(pane: .meetings) }
+                    .buttonStyle(.plain)
+                    .ataCaption()
+                    .foregroundStyle(Theme.accent)
             }
-            let shown = store.meetings.filter { MeetingCategory.matches($0, filter: categoryFilter) }
-            VStack(spacing: 2) {
-                ForEach(shown.prefix(6)) { m in
-                    MeetingRow(meeting: m)
-                }
-                if shown.isEmpty {
-                    EmptyState(icon: "tag", title: L("No meetings here yet"), message: "")
-                        .padding(.vertical, 10)
+            if meetings.isEmpty {
+                FirstMeetingsCard()
+            } else {
+                let shown = meetings.filter { MeetingCategory.matches($0, filter: categoryFilter) }
+                VStack(spacing: 2) {
+                    ForEach(shown.prefix(PopoverHome.recentLimit)) { m in
+                        MeetingRow(meeting: m)
+                    }
+                    if shown.isEmpty {
+                        EmptyState(icon: "tag", title: L("No meetings here yet"), message: "")
+                            .padding(.vertical, Theme.Space.s)
+                    }
                 }
             }
         }
+    }
+
+    private var categoryMenu: some View {
+        Menu {
+            Button("All") { categoryFilter = "" }
+            ForEach(MeetingCategory.allCases) { category in
+                Button { categoryFilter = category.rawValue } label: {
+                    Text(verbatim: category.name)
+                }
+            }
+        } label: {
+            HStack(spacing: 2) {
+                Text(verbatim: MeetingCategory(rawValue: categoryFilter)?.name ?? L("All"))
+                Image(systemName: "chevron.down")
+                    .ataFont(9, weight: .semibold)
+            }
+            .ataCaption()
+            .foregroundStyle(Theme.accent)
+        }
+        .menuStyle(.button)
+        .buttonStyle(.borderless)
+        .menuIndicator(.hidden)
+        .fixedSize()
     }
 
     // MARK: Footer
@@ -479,8 +521,11 @@ private struct RecordingContent: View {
 
 /// One meeting in the recent list.
 struct MeetingRow: View {
+    enum Activation { case singleTap, doubleClick }
+
     @EnvironmentObject var store: AppStore
     let meeting: Meeting
+    var activation: Activation = .singleTap
     @State private var hover = false
 
     var body: some View {
@@ -501,7 +546,7 @@ struct MeetingRow: View {
             .fill(Color.primary.opacity(hover ? 0.06 : 0)))
         .contentShape(Rectangle())
         .onHover { hover = $0 }
-        .onTapGesture { open() }
+        .modifier(MeetingOpen(activation: activation, action: { open() }))
         .contextMenu { menu }
     }
 
@@ -577,17 +622,71 @@ struct MeetingRow: View {
 }
 
 
+/// One meeting, opened with a single tap in the menu and a double-click in the library.
+private struct MeetingOpen: ViewModifier {
+    var activation: MeetingRow.Activation
+    var action: () -> Void
+
+    func body(content: Content) -> some View {
+        switch activation {
+        case .singleTap:
+            content.onTapGesture(perform: action)
+        case .doubleClick:
+            content
+                .onTapGesture(count: 2, perform: action)
+                .accessibilityAction(named: Text("Open meeting"), action)
+        }
+    }
+}
+
+/// What an empty library says, in the menu and in the window. Three steps, not a blank.
+struct FirstMeetingsCard: View {
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: Theme.Space.s) {
+                step(1, Text("Start a call"))
+                step(2, Text("Ata offers to record"))
+                step(3, Text("Notes appear here"))
+            }
+        }
+    }
+
+    private func step(_ number: Int, _ title: Text) -> some View {
+        HStack(spacing: Theme.Space.s) {
+            Text(verbatim: "\(number)")
+                .ataCaption()
+                .foregroundStyle(Theme.accentInk)
+                .frame(width: 18, height: 18)
+                .background(Circle().fill(Theme.accent))
+            title.ataCallout()
+        }
+    }
+}
+
 /// Offers the new version at the top of the menu once a check has found one.
+/// A version that is ready is a chip; downloading, installing and a failure
+/// stay banners, because a chip has no room for progress or an error.
 struct UpdateBanner: View {
+    enum Style { case banner, chip }
+    var style: Style = .banner
     @StateObject private var updater = Updater.shared
 
     var body: some View {
+        switch style {
+        case .chip:
+            if case .available(let version, _) = updater.state {
+                BannerChip(systemImage: "arrow.down.circle.fill",
+                           title: Text("Update"),
+                           help: L("Ata %@ is available", version) + "\n" + L("Click to download and restart."),
+                           action: { updater.installUpdate() })
+            }
+        case .banner:
+            banner
+        }
+    }
+
+    @ViewBuilder private var banner: some View {
         switch updater.state {
-        case .available(let version, _):
-            Banner(kind: .info, mark: .symbol("arrow.down.circle.fill"),
-                   title: Text(verbatim: L("Ata %@ is available", version)),
-                   detail: Text("Click to download and restart."),
-                   action: { updater.installUpdate() })
         case .downloading(let p):
             Banner(kind: .info, mark: .progress(p),
                    title: Text(verbatim: L("Downloading the update… %d%%", Int(p * 100))))
@@ -613,12 +712,11 @@ struct NameVoicesBanner: View {
 
     var body: some View {
         let count = people.enabled ? people.worthAsking.count : 0
-        if count > 0 {
-            Banner(kind: .info, mark: .symbol("person.crop.circle.badge.questionmark"),
-                   title: Text(verbatim: count == 1 ? L("1 voice to name") : L("%d voices to name", count)),
-                   detail: Text("Name them once; every transcript uses the name."),
-                   action: open,
-                   showsChevron: true)
+        if count > 0, !Snapshots.omitMeetings {
+            BannerChip(systemImage: "person.crop.circle.badge.questionmark",
+                       title: Text(verbatim: count == 1 ? L("1 voice to name") : L("%d voices to name", count)),
+                       help: L("Name them once; every transcript uses the name."),
+                       action: open)
                 .onAppear { people.reload() }
         }
     }

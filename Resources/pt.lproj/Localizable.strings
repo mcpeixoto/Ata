@@ -786,3 +786,15 @@
 "General" = "Geral";
 "Storage" = "Armazenamento";
 "Agent" = "Agente";
+/* Track 7 */
+"%@ detected · tap to record" = "%@ detetado · toca para gravar";
+"Next: %@ now" = "A seguir: %@ agora";
+"Next: %@ in 1 min" = "A seguir: %@ daqui a 1 min";
+"Next: %@ in %d min" = "A seguir: %@ daqui a %d min";
+"Start a call" = "Começa uma chamada";
+"Ata offers to record" = "A Ata oferece-se para gravar";
+"Notes appear here" = "As notas aparecem aqui";
+"Today" = "Hoje";
+"Yesterday" = "Ontem";
+"Earlier this month" = "Mais cedo este mês";
+"No meetings match this search" = "Nenhuma reunião corresponde a esta pesquisa";

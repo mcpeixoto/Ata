@@ -163,6 +163,18 @@ struct Meeting: Codable, Identifiable, Equatable {
         return parts.joined(separator: " · ")
     }
 
+    /// Whether `query` appears in the title, the subtitle, the category name or
+    /// `transcript`. A blank query matches, so clearing the field shows the list.
+    /// Same fields the iPhone joins in `PhoneStore.searchText`, without the file
+    /// read: the transcript is passed in, and this never touches disk.
+    func matches(_ query: String, transcript: String = "") -> Bool {
+        let wanted = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !wanted.isEmpty else { return true }
+        let category = categoryValue?.name ?? ""
+        let haystack = [title, subtitle, category, transcript].joined(separator: "\n").lowercased()
+        return haystack.contains(wanted)
+    }
+
     static let dayFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = .autoupdatingCurrent

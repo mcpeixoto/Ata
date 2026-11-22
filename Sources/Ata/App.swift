@@ -321,16 +321,16 @@ final class WindowManager {
         window.contentView = nil
     }
 
-    /// Ata's own window: the same thing the menu bar shows, in a window you can
-    /// reach from the Dock, from ⌘-Tab and from Spotlight. Resizable, and its
-    /// tabs scroll inside it, so a long list can't grow it past the screen.
-    func showMain() {
-        let screen = NSScreen.main?.visibleFrame.height ?? 900
-        main = present(main, title: L("Ata"), size: MainWindow.opening(screenHeight: screen), resizable: true) {
-            PopoverView(inWindow: true)
+    /// The library window. `pane` selects Meetings, Insights or People, including
+    /// when the window is already open. 900×620, and never smaller than 720×480.
+    func showMain(pane: LibraryWindow.Pane? = nil) {
+        if let pane { LibraryNavigation.shared.pane = pane }
+        main = present(main, title: L("Ata"), size: LibraryWindow.opening, resizable: true) {
+            LibraryWindow()
                 .environmentObject(AppStore.shared)
                 .environmentObject(AppStore.shared.setup)
         }
+        main?.minSize = LibraryWindow.minSize
     }
 
     func showSettings() {
