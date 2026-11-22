@@ -498,13 +498,13 @@
 /* Ata Pro (iPhone) */
 "Ata Pro" = "Ata Pro";
 "You have Ata Pro. Thank you!" = "Tens a Ata Pro. Obrigado!";
-"%d of %d free meetings left this month" = "Restam %d de %d reuniões gratuitas este mês";
+"%d of %d free minutes left this month" = "Restam %d de %d minutos gratuitos este mês";
 "Unlimited meetings on iPhone" = "Reuniões ilimitadas no iPhone";
-"Record and import as many as you like. Without Pro, %d new meetings a month are free." = "Grava e importa quantas quiseres. Sem a Pro, %d reuniões novas por mês são gratuitas.";
+"Record and import as many as you like. Without Pro, %d minutes a month are free." = "Grava e importa à vontade. Sem a Pro, %d minutos por mês são gratuitos.";
 "Transcribed on your iPhone" = "Transcrito no teu iPhone";
 "Transcripts and voices are made on the device, with or without Pro." = "As transcrições e as vozes são feitas no dispositivo, com ou sem a Pro.";
-"Ata for Mac stays free" = "A Ata para Mac continua gratuita";
-"Meetings recorded on your Mac never count, and the Mac app needs no subscription." = "As reuniões gravadas no Mac nunca contam, e a app para Mac não precisa de subscrição.";
+"The same free minutes on Mac" = "Os mesmos minutos grátis no Mac";
+"The Mac has %d free minutes a month too. A meeting counts only on the device that recorded it." = "O Mac também tem %d minutos grátis por mês. Uma reunião só conta no dispositivo que a gravou.";
 "Terms of Use" = "Termos de Utilização";
 "Privacy Policy" = "Política de Privacidade";
 "Subscribe for %@" = "Subscrever por %@";
@@ -523,13 +523,15 @@
 "%d years" = "%d anos";
 "%d weeks" = "%d semanas";
 "%d days" = "%d dias";
-"1 free meeting left this month" = "Resta 1 reunião gratuita este mês";
-"%d free meetings left this month" = "Restam %d reuniões gratuitas este mês";
+"1 free minute left this month" = "Resta 1 minuto gratuito este mês";
+"%d free minutes left this month" = "Restam %d minutos gratuitos este mês";
 "Active" = "Ativa";
 "Manage subscription" = "Gerir subscrição";
 "Upgrade to Ata Pro" = "Passar para a Ata Pro";
-"Unlimited meetings on this iPhone. Ata for Mac is free and stays free." = "Reuniões ilimitadas neste iPhone. A Ata para Mac é gratuita e continua gratuita.";
-"You have used this month's %d free meetings on iPhone. Ata Pro records without a limit." = "Já usaste as %d reuniões gratuitas deste mês no iPhone. A Ata Pro grava sem limite.";
+"Unlimited recording on this iPhone. The Mac has its own %d free minutes a month." = "Gravação ilimitada neste iPhone. O Mac tem os seus %d minutos grátis por mês.";
+"Free minutes" = "Minutos grátis";
+"You have used this month's %d free minutes on this Mac." = "Já usaste os %d minutos gratuitos deste mês neste Mac.";
+"You have used this month's %d free minutes on iPhone. Ata Pro records without a limit." = "Já usaste os %d minutos gratuitos deste mês no iPhone. A Ata Pro grava sem limite.";
 
 /* Feedback and accessibility labels */
 "Transcript copied." = "Transcrição copiada.";
@@ -639,7 +641,7 @@
 "Two questions" = "Duas perguntas";
 "Language of your meetings" = "Idioma das tuas reuniões";
 "Automatic chooses among your iPhone's languages. Pick one if your meetings are in another." = "Automático escolhe entre os idiomas do teu iPhone. Escolhe um se as tuas reuniões forem noutro.";
-"%d meetings a month are free. Ata Pro removes the limit." = "%d reuniões por mês são gratuitas. A Ata Pro acaba com o limite.";
+"%d minutes a month are free. Ata Pro removes the limit." = "%d minutos por mês são gratuitos. A Ata Pro acaba com o limite.";
 "This iPhone's storage is full, so the recording stopped growing." = "O armazenamento deste iPhone está cheio, por isso a gravação deixou de crescer.";
 "This iPhone's storage is almost full. Free some up and try again." = "O armazenamento deste iPhone está quase cheio. Liberta algum espaço e tenta outra vez.";
 "Recording paused. Open Ata to resume." = "Gravação em pausa. Abre a Ata para continuar.";

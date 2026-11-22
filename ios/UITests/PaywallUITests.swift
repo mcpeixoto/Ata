@@ -1,6 +1,6 @@
 import XCTest
 
-/// The Ata Pro paywall as it shows when the free meetings run out: the price
+/// The Ata Pro paywall as it shows when the free minutes run out: the price
 /// with its period, the renewal terms, Restore Purchases and the two links the
 /// App Store requires. Photographed in light and dark like the other screens.
 final class PaywallUITests: XCTestCase {
@@ -14,7 +14,7 @@ final class PaywallUITests: XCTestCase {
             XCTAssertEqual(price.label, "Subscribe for €2.99 / month")
             XCTAssertTrue(price.isEnabled)
             XCTAssertTrue(app.buttons["Restore Purchases"].exists)
-            XCTAssertTrue(app.staticTexts["0 of 5 free meetings left this month"].exists)
+            XCTAssertTrue(app.staticTexts["0 of 300 free minutes left this month"].exists)
             XCTAssertTrue(app.staticTexts["Renews monthly until cancelled. Cancel any time in Settings."].exists)
             XCTAssertTrue(app.links["Terms of Use"].exists || app.buttons["Terms of Use"].exists)
             XCTAssertTrue(app.links["Privacy Policy"].exists || app.buttons["Privacy Policy"].exists)

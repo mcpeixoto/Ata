@@ -110,8 +110,8 @@ struct PhoneSettings: View {
                 Section {
                     LabeledContent("Status", value: pro.isPro
                                    ? L("Active")
-                                   : L("%d of %d free meetings left this month",
-                                       FreeQuota.remaining(used: store.freeUsed), FreeQuota.limit))
+                                   : L("%d of %d free minutes left this month",
+                                       FreeQuota.remaining(used: store.freeUsed), FreeQuota.limitMinutes))
                     if pro.isPro {
                         Button("Manage subscription") { managingSubscription = true }
                     } else {
@@ -122,7 +122,7 @@ struct PhoneSettings: View {
                 } header: {
                     Text("Ata Pro")
                 } footer: {
-                    Text(pro.message ?? L("Unlimited meetings on this iPhone. Ata for Mac is free and stays free."))
+                    Text(pro.message ?? L("Unlimited recording on this iPhone. The Mac has its own %d free minutes a month.", FreeQuota.limitMinutes))
                 }
 
                 Section {

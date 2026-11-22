@@ -93,6 +93,9 @@ struct SettingsView: View {
 
     private var recordingSection: some View {
         Section("Recording") {
+            LabeledContent("Free minutes", value: L("%d of %d free minutes left this month",
+                                                     FreeQuota.remaining(used: store.freeUsed),
+                                                     FreeQuota.limitMinutes))
             Toggle("Detect meetings automatically", isOn: Binding(
                 get: { autoDetect }, set: { store.setAutoDetect($0); autoDetect = $0 }))
             Picker("When a meeting is detected", selection: $autoStart) {

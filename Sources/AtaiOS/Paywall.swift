@@ -2,7 +2,7 @@ import StoreKit
 import SwiftUI
 
 /// Ata Pro: what it adds, what it costs and how it renews, with Restore and the
-/// two links the App Store asks for. Shown when the free meetings run out, and
+/// two links the App Store asks for. Shown when the free minutes run out, and
 /// from Settings.
 struct Paywall: View {
     @EnvironmentObject var store: PhoneStore
@@ -25,18 +25,18 @@ struct Paywall: View {
                             .font(.largeTitle.bold())
                         Text(pro.isPro
                              ? L("You have Ata Pro. Thank you!")
-                             : L("%d of %d free meetings left this month", remaining, FreeQuota.limit))
+                             : L("%d of %d free minutes left this month", remaining, FreeQuota.limitMinutes))
                             .font(.subheadline)
                             .foregroundStyle(remaining == 0 && !pro.isPro ? Theme.warning : Color.secondary)
                     }
 
                     VStack(alignment: .leading, spacing: 16) {
                         Feature(symbol: "infinity", title: L("Unlimited meetings on iPhone"),
-                                detail: L("Record and import as many as you like. Without Pro, %d new meetings a month are free.", FreeQuota.limit))
+                                detail: L("Record and import as many as you like. Without Pro, %d minutes a month are free.", FreeQuota.limitMinutes))
                         Feature(symbol: "iphone", title: L("Transcribed on your iPhone"),
                                 detail: L("Transcripts and voices are made on the device, with or without Pro."))
-                        Feature(symbol: "laptopcomputer", title: L("Ata for Mac stays free"),
-                                detail: L("Meetings recorded on your Mac never count, and the Mac app needs no subscription."))
+                        Feature(symbol: "laptopcomputer", title: L("The same free minutes on Mac"),
+                                detail: L("The Mac has %d free minutes a month too. A meeting counts only on the device that recorded it.", FreeQuota.limitMinutes))
                     }
                     .padding(18)
                     .frame(maxWidth: .infinity, alignment: .leading)

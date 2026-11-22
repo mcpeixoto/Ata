@@ -1,6 +1,6 @@
 import Foundation
 
-/// Why a new recording did not start: this month's free meetings are used.
+/// Why a new recording did not start: this month's free minutes are used.
 /// The words Siri speaks are `errorDescription`, added where the app can see `L()`.
 enum FreeQuotaError: Error, Equatable {
     case limitReached

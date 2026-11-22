@@ -94,8 +94,8 @@ struct MeetingsList: View {
             // Audio recorded elsewhere: Voice Memos, a recorder, a file someone sent.
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    // Past the free meetings, Pro comes first. Files already on
-                    // their way in (shared, opened in Ata) are never refused.
+                    // Past the free minutes, Pro comes first. A file already shared
+                    // in is refused too, once the month is used; see PhoneStore.
                     Button {
                         store.updateQuota()
                         if store.needsPro { PhoneNavigation.shared.showPaywall() } else { choosingAudio = true }
