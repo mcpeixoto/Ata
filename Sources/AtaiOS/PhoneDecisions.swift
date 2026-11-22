@@ -57,6 +57,75 @@ enum MeetingsPlaceholder {
     }
 }
 
+/// The iPhone's first-run steps, in the order the dots show them.
+/// Raw values are stored in `Pref.onboardingStep`, so the order is the storage.
+enum OnboardingFlow {
+    enum Step: Int, CaseIterable, Equatable {
+        case welcome, useCase, permissions, you, tryIt, pro
+    }
+
+    /// The step after `from`, or nil when onboarding is over.
+    ///
+    /// Saying a sentence is skipped until the microphone is granted: there is
+    /// nothing to record. A product that failed to load does not skip the last
+    /// step; that step just has nothing to sell.
+    static func next(from step: Step, micGranted: Bool, productLoaded: Bool) -> Step? {
+        switch step {
+        case .welcome: return .useCase
+        case .useCase: return .permissions
+        case .permissions: return .you
+        case .you: return micGranted ? .tryIt : .pro
+        case .tryIt: return .pro
+        case .pro:
+            if productLoaded { return nil }
+            return nil
+        }
+    }
+
+    /// Back, skipping the try-it step the same way `next` does.
+    static func previous(from step: Step, micGranted: Bool) -> Step? {
+        switch step {
+        case .welcome: return nil
+        case .useCase: return .welcome
+        case .permissions: return .useCase
+        case .you: return .permissions
+        case .tryIt: return .you
+        case .pro: return micGranted ? .tryIt : .you
+        }
+    }
+}
+
+/// What someone said they record most, and the defaults that choice writes.
+/// Work and interviews leave the recording mode alone, so call mode stays off.
+enum UseCase: String, CaseIterable, Equatable {
+    case work, classes, interviews, personal
+
+    struct Defaults: Equatable {
+        /// `MeetingCategory.rawValue`.
+        var category: String
+        /// `RecordingMode.rawValue`. Nil does not change the mode.
+        var mode: String?
+    }
+
+    var defaults: Defaults {
+        switch self {
+        case .work, .interviews:
+            return Defaults(category: "work", mode: nil)
+        case .classes, .personal:
+            return Defaults(category: "personal", mode: "inPerson")
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .work: return "briefcase.fill"
+        case .classes: return "graduationcap.fill"
+        case .interviews: return "mic.fill"
+        case .personal: return "house.fill"
+        }
+    }
+}
+
 enum BlockedStart {
     static func presentation(appIsActive: Bool, becomingForeground: Bool) -> BlockedStartPresentation {
         if appIsActive || becomingForeground { return .showNow }

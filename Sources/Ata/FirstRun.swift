@@ -1,5 +1,25 @@
-#if os(macOS)
 import Foundation
+
+/// Whether a ten-second trial heard each side, from the loudest sample.
+/// The iPhone has no system-audio track, so it passes `peakMac` as 0.
+struct TrialResult: Equatable {
+    var heardMic: Bool
+    var heardMac: Bool
+
+    init(heardMic: Bool, heardMac: Bool) {
+        self.heardMic = heardMic
+        self.heardMac = heardMac
+    }
+
+    /// The microphone counts from 0.05: below that is room tone. System audio
+    /// is quieter, so a call in the speakers still counts from 0.01. Same
+    /// lines the Mac trial used before this was shared.
+    init(peakMic: Float, peakMac: Float) {
+        self.init(heardMic: peakMic >= 0.05, heardMac: peakMac >= 0.01)
+    }
+}
+
+#if os(macOS)
 
 /// Which step of the welcome window to show, decided from what is true now, so
 /// the restart that system audio needs lands on the right one by itself.

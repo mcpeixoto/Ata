@@ -14,7 +14,8 @@ final class AtaSnapshotTests: XCTestCase {
     /// The same names as `Snapshots.Screen` in the app.
     private static let screens = [
         "record-idle", "record-recording", "meetings", "meeting-notes", "meeting-transcript",
-        "people", "insights", "settings", "onboarding", "onboarding-permissions", "onboarding-you",
+        "people", "insights", "settings", "onboarding", "onboarding-usecase", "onboarding-permissions",
+        "onboarding-you", "onboarding-try", "onboarding-pro",
         // The screens people pay on and the one that explains iCloud: reviewed like the rest.
         "paywall", "icloud-help",
     ]
@@ -106,8 +107,11 @@ final class AtaSnapshotTests: XCTestCase {
         case "insights": return app.navigationBars["Insights"]
         case "settings": return app.navigationBars["Settings"]
         case "onboarding": return app.staticTexts["Record it. Ata writes it up."]
+        case "onboarding-usecase": return app.staticTexts["What will you record most?"]
         case "onboarding-permissions": return app.staticTexts["Let Ata hear the room"]
         case "onboarding-you": return app.staticTexts["Two questions"]
+        case "onboarding-try": return app.staticTexts["Try it: say a sentence"]
+        case "onboarding-pro": return app.staticTexts["You're set"]
         default: return app.windows.firstMatch
         }
     }

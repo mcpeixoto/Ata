@@ -23,8 +23,11 @@ extension Snapshots {
         case settings
         case iCloudHelp = "icloud-help"
         case onboarding
+        case onboardingUseCase = "onboarding-usecase"
         case onboardingPermissions = "onboarding-permissions"
         case onboardingYou = "onboarding-you"
+        case onboardingTry = "onboarding-try"
+        case onboardingPro = "onboarding-pro"
         case paywall
     }
 
@@ -75,16 +78,23 @@ extension Snapshots {
         switch screen {
         case .onboarding:
             navigation.showOnboarding(at: .welcome)
+        case .onboardingUseCase:
+            navigation.showOnboarding(at: .useCase)
         case .onboardingPermissions:
             navigation.showOnboarding(at: .permissions)
         case .onboardingYou:
             navigation.showOnboarding(at: .you)
+        case .onboardingTry:
+            navigation.showOnboarding(at: .tryIt)
+        case .onboardingPro:
+            navigation.showOnboarding(at: .pro)
         default:
             break
         }
         navigation.showingPaywall = screen == .paywall
         switch screen {
-        case .recordIdle, .recordRecording, .onboarding, .onboardingPermissions, .onboardingYou, .paywall:
+        case .recordIdle, .recordRecording, .onboarding, .onboardingUseCase, .onboardingPermissions,
+                .onboardingYou, .onboardingTry, .onboardingPro, .paywall:
             navigation.tab = .record
         case .meetings:
             navigation.tab = .meetings

@@ -92,6 +92,39 @@ final class PhoneRecorder {
         return staged.meeting
     }
 
+    /// Records into a WAV the caller owns. No meeting folder is created, so the
+    /// clip cannot be recovered into the library and is never counted. The
+    /// onboarding try-out passes a file in the temporary directory and deletes it.
+    func startClip(at url: URL) throws {
+        guard !state.isActive else { throw PhoneRecorderError.alreadyRecording }
+        do {
+            writer = try WavWriter(url: url, startHostSeconds: 0)
+            mode = .inPerson
+            meeting = nil
+            folder = nil
+            try apply(state.handle(.start))
+        } catch {
+            stopEngine()
+            writer?.close()
+            writer = nil
+            meeting = nil
+            folder = nil
+            state = RecorderState()
+            throw error
+        }
+        installObservers()
+        onPhaseChange?(state.phase)
+    }
+
+    /// Closes a clip started with `startClip`. The file stays where the caller put it.
+    func stopClip() {
+        guard state.isActive else { return }
+        removeObservers()
+        try? apply(state.handle(.stop))
+        writer = nil
+        onPhaseChange?(state.phase)
+    }
+
     /// Stops, closes the file, saves meeting.json with `bookmarks` and moves the
     /// recording into the meetings folder, queued for transcription. Nil when
     /// nothing was recording. If the move fails (`moved` is false), the folder

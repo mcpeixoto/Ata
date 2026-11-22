@@ -596,6 +596,7 @@ final class TrialRecording: ObservableObject {
             peakMac = max(peakMac, store.systemLevel)
         }
         store.discardRecording()
-        phase = .finished(heardMic: peakMic >= 0.05, heardMac: peakMac >= 0.01)
+        let heard = TrialResult(peakMic: peakMic, peakMac: peakMac)
+        phase = .finished(heardMic: heard.heardMic, heardMac: heard.heardMac)
     }
 }

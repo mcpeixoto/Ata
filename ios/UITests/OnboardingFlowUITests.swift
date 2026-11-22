@@ -1,13 +1,16 @@
 import XCTest
 
-/// Welcome, then the microphone, then name and language. Snapshot launches
-/// never show the system permission prompt, so this does not tap those buttons.
+/// Welcome, what you record, the microphone, your name, a sentence, then Pro.
+/// Snapshot launches never show the system permission prompt, so this does not
+/// tap those buttons. `-AtaOnboardingMicGranted` walks the try-it step, which
+/// a launch without the microphone would skip.
 final class OnboardingFlowUITests: XCTestCase {
     @MainActor
-    func testWalksThreeStepsAndFinishes() throws {
+    func testWalksSixStepsAndFinishes() throws {
         let app = XCUIApplication()
         app.launchArguments = [
             "-AtaSnapshots", "onboarding",
+            "-AtaOnboardingMicGranted",
             "-AppleLanguages", "(en)", "-AppleLocale", "en_US",
             "-onboarded", "YES",
         ]
@@ -21,14 +24,23 @@ final class OnboardingFlowUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["Record it. Ata writes it up."].waitForExistence(timeout: 30),
                       "the onboarding did not come up")
-        tapNext(in: app)
+        tap("onboarding-next", in: app)
+
+        XCTAssertTrue(app.staticTexts["What will you record most?"].waitForExistence(timeout: 10))
+        tap("onboarding-usecase-work", in: app)
 
         XCTAssertTrue(app.staticTexts["Let Ata hear the room"].waitForExistence(timeout: 10))
-        tapNext(in: app)
+        tap("onboarding-next", in: app)
 
         XCTAssertTrue(app.staticTexts["Two questions"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.textFields["onboarding-name"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any)["onboarding-language"].waitForExistence(timeout: 10))
+        tap("onboarding-next", in: app)
+
+        XCTAssertTrue(app.staticTexts["Try it: say a sentence"].waitForExistence(timeout: 10))
+        tap("onboarding-next", in: app)
+
+        XCTAssertTrue(app.staticTexts["You're set"].waitForExistence(timeout: 10))
         let finish = app.buttons["onboarding-finish"]
         XCTAssertTrue(finish.waitForExistence(timeout: 10))
         finish.tap()
@@ -41,11 +53,11 @@ final class OnboardingFlowUITests: XCTestCase {
     }
 
     @MainActor
-    private func tapNext(in app: XCUIApplication) {
-        let next = app.buttons["onboarding-next"]
-        XCTAssertTrue(next.waitForExistence(timeout: 10))
-        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: next)
+    private func tap(_ identifier: String, in app: XCUIApplication) {
+        let button = app.buttons[identifier]
+        XCTAssertTrue(button.waitForExistence(timeout: 10))
+        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: button)
         XCTAssertEqual(XCTWaiter().wait(for: [hittable], timeout: 5), .completed)
-        next.tap()
+        button.tap()
     }
 }

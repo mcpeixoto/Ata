@@ -74,6 +74,40 @@ final class PhoneDecisionsTests: XCTestCase {
         XCTAssertFalse(MeetingsPlaceholder.shown(meetings: 0, importing: 0, waitingForEngine: true))
         XCTAssertFalse(MeetingsPlaceholder.shown(meetings: 2, importing: 0, waitingForEngine: false))
     }
+
+    func testOnboardingWalksSixStepsWhenTheMicrophoneIsGranted() {
+        XCTAssertEqual(OnboardingFlow.Step.allCases.map(\.rawValue), [0, 1, 2, 3, 4, 5])
+        var step: OnboardingFlow.Step? = .welcome
+        var seen: [OnboardingFlow.Step] = []
+        while let current = step {
+            seen.append(current)
+            step = OnboardingFlow.next(from: current, micGranted: true, productLoaded: true)
+        }
+        XCTAssertEqual(seen, [.welcome, .useCase, .permissions, .you, .tryIt, .pro])
+    }
+
+    func testTheTryItStepIsSkippedUntilTheMicrophoneIsGranted() {
+        XCTAssertEqual(OnboardingFlow.next(from: .you, micGranted: false, productLoaded: true), .pro)
+        XCTAssertEqual(OnboardingFlow.next(from: .you, micGranted: false, productLoaded: false), .pro)
+        XCTAssertEqual(OnboardingFlow.next(from: .you, micGranted: true, productLoaded: false), .tryIt)
+        XCTAssertEqual(OnboardingFlow.previous(from: .pro, micGranted: false), .you)
+        XCTAssertEqual(OnboardingFlow.previous(from: .pro, micGranted: true), .tryIt)
+    }
+
+    func testAMissingProductDoesNotSkipTheLastStep() {
+        XCTAssertEqual(OnboardingFlow.next(from: .tryIt, micGranted: true, productLoaded: false), .pro)
+        XCTAssertEqual(OnboardingFlow.next(from: .tryIt, micGranted: true, productLoaded: true), .pro)
+        XCTAssertNil(OnboardingFlow.next(from: .pro, micGranted: true, productLoaded: false))
+        XCTAssertNil(OnboardingFlow.next(from: .pro, micGranted: false, productLoaded: true))
+        XCTAssertNil(OnboardingFlow.previous(from: .welcome, micGranted: true))
+    }
+
+    func testAUseCasePicksTheCategoryAndLeavesCallModeOffForWork() {
+        XCTAssertEqual(UseCase.work.defaults, UseCase.Defaults(category: "work", mode: nil))
+        XCTAssertEqual(UseCase.interviews.defaults, UseCase.work.defaults)
+        XCTAssertEqual(UseCase.classes.defaults, UseCase.Defaults(category: "personal", mode: "inPerson"))
+        XCTAssertEqual(UseCase.personal.defaults, UseCase.classes.defaults)
+    }
 }
 
 final class WidgetRecordingFaceTests: XCTestCase {
