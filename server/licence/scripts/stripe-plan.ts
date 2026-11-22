@@ -84,9 +84,10 @@ export function priceMatches(p: any, spec: PriceSpec): boolean {
     p.product === PRODUCT_ID &&
     p.currency === "usd" &&
     p.unit_amount === spec.amount &&
-    p.tax_behavior === "inclusive" &&
+    p.tax_behavior === "exclusive" &&
     (spec.interval ? p.type === "recurring" && p.recurring?.interval === spec.interval && p.recurring?.interval_count === 1 : p.type === "one_time") &&
-    p.currency_options?.eur?.unit_amount === spec.amount
+    p.currency_options?.eur?.unit_amount === spec.amount &&
+    p.currency_options?.eur?.tax_behavior === "inclusive"
   );
 }
 
@@ -95,8 +96,9 @@ export function priceParams(spec: PriceSpec, transfer: boolean): Record<string, 
     product: PRODUCT_ID,
     currency: "usd",
     unit_amount: spec.amount,
-    // The price on the page is the price paid; Stripe Tax, when on, takes its share out of it.
-    tax_behavior: "inclusive",
+    // US prices are before sales tax, as US shoppers expect; euro prices include VAT, as EU law
+    // requires for consumers. Stripe Tax, when on, adds US tax on top and takes VAT out of the euro price.
+    tax_behavior: "exclusive",
     currency_options: { eur: { unit_amount: spec.amount, tax_behavior: "inclusive" } },
     recurring: spec.interval ? { interval: spec.interval, interval_count: 1 } : undefined,
     lookup_key: spec.lookup_key,
@@ -150,8 +152,8 @@ export async function plan(call: StripeCall, opts: Options): Promise<Result> {
   const taxActive = tax.status === 200 && tax.body?.status === "active";
   vars.AUTOMATIC_TAX = taxActive ? "true" : "false";
   notes.push(taxActive
-    ? "Stripe Tax is active: Checkout collects tax out of the tax-inclusive prices."
-    : "Stripe Tax is not active: prices are tax-inclusive in EUR and USD, and no tax is calculated.");
+    ? "Stripe Tax is active: Checkout adds US sales tax on top and takes VAT out of the euro prices."
+    : "Stripe Tax is not active: no tax is calculated; euro prices are tax-inclusive, dollar prices exclusive.");
 
   // Prices, by lookup_key.
   const listed = await must(call, "GET", "/prices", {

@@ -14,6 +14,9 @@ export default defineConfig({
           PRICE_MONTHLY: "price_monthly",
           PRICE_YEARLY: "price_yearly",
           PRICE_LIFETIME: "price_lifetime",
+          // wrangler.toml carries the live deploy values; tests pin their own.
+          AUTOMATIC_TAX: "false",
+          PORTAL_CONFIGURATION: "",
           EMAIL_FROM: "licence@ata.test",
         },
       },
