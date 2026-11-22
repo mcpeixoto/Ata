@@ -50,6 +50,9 @@ struct Meeting: Codable, Identifiable, Equatable {
     /// `MeetingCategory`. Nil on every meeting from before Ata 3.1, and on any
     /// meeting nothing pointed either way for.
     var category: CategoryTag? = nil
+    /// The bundled example. It never counts toward the free minutes and is not
+    /// copied into iCloud. Nil on every meeting a person actually recorded.
+    var isSample: Bool? = nil
 
     var isPlaceholder: Bool { cloudPlaceholder == true }
 
@@ -386,7 +389,14 @@ enum Library {
         let dirs = (try? fm.contentsOfDirectory(at: Paths.meetingsDir, includingPropertiesForKeys: nil,
                                                 options: [.skipsHiddenFiles])) ?? []
         // A folder in both places is a move that didn't finish: the staged one is in use.
-        let ids = staged + dirs.map(\.lastPathComponent).filter { !staged.contains($0) }
+        var ids = staged + dirs.map(\.lastPathComponent).filter { !staged.contains($0) }
+        // The example stays in this device's folder even when the library is in iCloud.
+        if !ids.contains(SampleMeeting.folderID) {
+            let local = Paths.localMeetingsDir.appendingPathComponent(SampleMeeting.folderID, isDirectory: true)
+            if fm.fileExists(atPath: local.appendingPathComponent("meeting.json").path) {
+                ids.append(SampleMeeting.folderID)
+            }
+        }
         return ids.compactMap { load($0) }.sorted { $0.startedAt > $1.startedAt }
     }
 
@@ -449,6 +459,10 @@ enum Library {
     static func folder(for id: String) -> URL {
         let staged = Device.stagingDir.appendingPathComponent(id, isDirectory: true)
         if FileManager.default.fileExists(atPath: staged.path) { return staged }
+        // Always this device's folder, never the iCloud container.
+        if id == SampleMeeting.folderID {
+            return Paths.localMeetingsDir.appendingPathComponent(id, isDirectory: true)
+        }
         return Paths.meetingsDir.appendingPathComponent(id, isDirectory: true)
     }
 

@@ -85,6 +85,7 @@ final class AppStore: ObservableObject {
         if Pref.d.bool(forKey: Pref.autoDetect) { detector.start() }
 
         recoverInterrupted()
+        if SampleMeeting.installIfNeeded() { reload() }
         removeLeftoverLanguagePieces()
         repairCorruptedSystemTracks()
         pruneOldAudio()
@@ -634,6 +635,7 @@ final class AppStore: ObservableObject {
         guard canDelete(m) else { return false }
         // Its voices go only with it: a meeting still there keeps them.
         if Library.trash(m) {
+            SampleMeeting.noteDeleted(m)
             PeopleModel.shared.removeMeeting(m.id)
         } else {
             lastError = L("Could not delete this meeting.")
@@ -948,6 +950,12 @@ extension AppStore {
         warning = nil
         lastError = nil
         meetings = Library.loadAll()
+    }
+
+    /// An empty library, for the empty-state screenshots. Ignored outside that run.
+    func applySnapshotMeetings(_ meetings: [Meeting]) {
+        guard Snapshots.rendering else { return }
+        self.meetings = meetings
     }
 }
 

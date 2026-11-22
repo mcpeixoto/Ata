@@ -51,7 +51,6 @@ final class ProPromptCenter: ObservableObject {
                     == .firstTranscript else { return }
             self.recordModal()
             Pref.d.set(true, forKey: Pref.firstTranscriptCelebrated)
-            Funnel.count(.firstTranscript)
             self.firstTranscript = FirstTranscriptInvite(id: meetingID)
         }
     }

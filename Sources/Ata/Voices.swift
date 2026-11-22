@@ -70,6 +70,9 @@ struct MeetingSpeaker: Codable, Equatable {
     var embedding: [Float]
     var seconds: Double
     var voiceID: UUID?
+    /// A name written with the meeting, for the bundled example. A real meeting
+    /// leaves this nil and takes the name from the voice library.
+    var name: String? = nil
 }
 
 /// The local library of known voices, and the rules for matching against it.

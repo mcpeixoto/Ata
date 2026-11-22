@@ -178,4 +178,24 @@ final class FreeQuotaTests: XCTestCase {
     func testTheMacLimitIsOffUntilProCanBeUnlocked() {
         XCTAssertTrue(FreeQuota.appliesOnMac)
     }
+
+    /// The bundled example has a duration and a ledger line, and still uses none of the month.
+    func testTheExampleMeetingUsesNoFreeMinutes() {
+        let now = date(2026, 10, 20)
+        var sample = meeting(SampleMeeting.folderID, at: date(2026, 10, 2), origin: phone, seconds: SampleMeeting.seconds)
+        sample.isSample = true
+        var copy = meeting("example-copy", at: date(2026, 10, 4), origin: phone, seconds: 3600)
+        copy.isSample = true
+        let real = meeting("real", at: date(2026, 10, 3), origin: phone, seconds: 60)
+        let ledger = [
+            SampleMeeting.folderID: FreeQuota.Entry(seconds: SampleMeeting.seconds),
+            "example-copy": FreeQuota.Entry(seconds: 3600),
+        ]
+        XCTAssertEqual(FreeQuota.used(meetings: [sample], ledger: [:], now: now, calendar: calendar, kind: DeviceRef.iPhone), 0)
+        XCTAssertEqual(FreeQuota.used(meetings: [sample, copy], ledger: ledger, now: now, calendar: calendar, kind: DeviceRef.iPhone), 0)
+        XCTAssertEqual(FreeQuota.used(meetings: [sample, copy, real], ledger: ledger, now: now, calendar: calendar, kind: DeviceRef.iPhone), 1)
+        // Deleted, with only the ledger left: the example's id still adds nothing.
+        XCTAssertEqual(FreeQuota.used(meetings: [], ledger: [SampleMeeting.folderID: FreeQuota.Entry(seconds: 3600)],
+                                      now: now, calendar: calendar, kind: DeviceRef.iPhone), 0)
+    }
 }

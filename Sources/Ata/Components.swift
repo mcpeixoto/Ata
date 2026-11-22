@@ -444,6 +444,15 @@ struct MeetingRowContent<Detail: View>: View {
                         .ataFont(12, weight: .semibold)
                         #endif
                         .lineLimit(1)
+                    if meeting.isSample == true {
+                        Text("Example")
+                            .ataCaption()
+                            .foregroundStyle(Theme.accent)
+                            .padding(.horizontal, Theme.Space.s)
+                            .padding(.vertical, Theme.Space.xs)
+                            .background(Capsule().fill(Theme.accent.opacity(0.14)))
+                            .layoutPriority(1)
+                    }
                     CategoryTagView(category: meeting.categoryValue)
                 }
                 detail()

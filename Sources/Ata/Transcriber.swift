@@ -206,14 +206,16 @@ enum Speakers {
             case me: return myName
             case others: return L("Others")
             default:
-                if let id = map?.speakers.first(where: { $0.label == label })?.voiceID,
-                   let voice = library?.voice(id) {
-                    // Not `myName` for a voice you marked as yourself: in the very
-                    // meeting where that mark matters, the "me" label is the guess
-                    // that got you wrong, and two labels would read as one person.
-                    // Marking a voice fixes the meetings after it; "Transcribe
-                    // again" fixes this one, now that Ata knows your voice.
-                    return voice.displayName
+                if let speaker = map?.speakers.first(where: { $0.label == label }) {
+                    if let id = speaker.voiceID, let voice = library?.voice(id) {
+                        // Not `myName` for a voice you marked as yourself: in the very
+                        // meeting where that mark matters, the "me" label is the guess
+                        // that got you wrong, and two labels would read as one person.
+                        // Marking a voice fixes the meetings after it; "Transcribe
+                        // again" fixes this one, now that Ata knows your voice.
+                        return voice.displayName
+                    }
+                    if let name = speaker.name, !name.isEmpty { return name }
                 }
                 return L("Speaker %@", String(label.drop { !$0.isNumber }))
             }

@@ -42,13 +42,28 @@ struct MeetingsList: View {
                     }
                 }
                 ForEach(shown) { meeting in
-                    NavigationLink(value: meeting.id) {
-                        PhoneMeetingRow(meeting: meeting,
-                                        progress: store.transcribingID == meeting.id ? store.transcribeProgress : nil,
-                                        stage: store.transcribingID == meeting.id ? store.transcribeStage : nil)
+                    ZStack(alignment: .trailing) {
+                        NavigationLink(value: meeting.id) {
+                            PhoneMeetingRow(meeting: meeting,
+                                            progress: store.transcribingID == meeting.id ? store.transcribeProgress : nil,
+                                            stage: store.transcribingID == meeting.id ? store.transcribeStage : nil)
+                                .padding(.trailing, meeting.isSample == true ? Theme.Space.xl + Theme.Space.m : 0)
+                        }
+                        if meeting.isSample == true {
+                            Button { store.delete(meeting) } label: {
+                                Image(systemName: "trash")
+                                    .ataHeadline()
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 44, height: 44) // Minimum control size on iPhone.
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel(Text("Delete"))
+                        }
                     }
                     .swipeActions {
-                        Button(role: .destructive) { pendingDelete = meeting } label: {
+                        Button(role: .destructive) {
+                            if meeting.isSample == true { store.delete(meeting) } else { pendingDelete = meeting }
+                        } label: {
                             Label("Delete", systemImage: "trash")
                         }
                         .disabled(!store.canDelete(meeting))
@@ -58,8 +73,7 @@ struct MeetingsList: View {
             .overlay {
                 if MeetingsPlaceholder.shown(meetings: store.meetings.count, importing: store.importing,
                                              waitingForEngine: store.waitingForEngine) {
-                    ContentUnavailableView("No meetings yet", systemImage: "waveform",
-                                           description: Text("Record one and your history shows up here."))
+                    MeetingsEmpty { navigation.tab = .record }
                 } else if shown.isEmpty, !query.isEmpty {
                     ContentUnavailableView.search(text: query)
                 } else if shown.isEmpty {
@@ -153,6 +167,27 @@ struct MeetingsList: View {
 
     private var deleting: Binding<Bool> {
         Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } })
+    }
+}
+
+/// Nothing recorded yet: the way in is the Record tab, one tap.
+private struct MeetingsEmpty: View {
+    let record: () -> Void
+
+    var body: some View {
+        VStack(spacing: Theme.Space.l) {
+            EmptyState(icon: "waveform",
+                       title: L("No meetings yet"),
+                       message: L("Record one and your history shows up here."))
+            Button(action: record) {
+                Text("Record your first meeting")
+                    .ataHeadline()
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .accessibilityHint(Text("Opens the Record tab"))
+        }
+        .padding(.horizontal, Theme.Space.xl)
+        .accessibilityElement(children: .contain)
     }
 }
 
