@@ -120,10 +120,11 @@ struct FreeQuotaFooter: View {
 
     private var proButton: some View {
         Button { WindowManager.shared.showPro(trigger: .recordHome) } label: {
-            HStack(spacing: 2) {
+            HStack(spacing: 2) { // 2 pt before the chevron; Space.xs is 4
                 Text("Ata Pro")
                 Image(systemName: "chevron.right")
-                    .ataFont(10, weight: .semibold)
+                    .ataFont(10, weight: .semibold) // 10 pt chevron; ataLabel is tracked for words
+                    .accessibilityHidden(true)
             }
             .ataCaption()
         }
@@ -208,7 +209,7 @@ struct LibraryWindow: View {
     /// sidebar in a plain split.
     @ViewBuilder private var columnsView: some View {
         if Snapshots.rendering {
-            HStack(spacing: 0) {
+            HStack(spacing: 0) { // flush columns; a Space token would inset the split
                 sidebar
                     .frame(width: Self.sidebarWidth)
                     .background(Color(nsColor: .windowBackgroundColor))
@@ -229,7 +230,7 @@ struct LibraryWindow: View {
     // MARK: Sidebar
 
     private var sidebar: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 0) { // flush sidebar; the list supplies its own rows
             recordButton
                 .padding(.horizontal, Theme.Space.s)
                 .padding(.top, Theme.Space.m)
@@ -260,6 +261,7 @@ struct LibraryWindow: View {
 
     private var recordButton: some View {
         let recording = store.phase == .recording || store.phase == .stopping
+        let starting = store.phase == .starting
         return Button { store.toggleRecording() } label: {
             HStack(spacing: Theme.Space.s) {
                 if recording {
@@ -281,7 +283,7 @@ struct LibraryWindow: View {
         .buttonStyle(.plain)
         .disabled(store.phase == .starting || store.phase == .stopping)
         .help(recording ? L("Stop and transcribe") : L("Start recording (⌘R)"))
-        .accessibilityLabel(recording ? L("Stop and transcribe") : L("Record"))
+        .accessibilityLabel(recording ? L("Stop and transcribe") : (starting ? L("Starting") : L("Record")))
     }
 
     // MARK: Detail
@@ -314,11 +316,12 @@ struct LibraryWindow: View {
     }
 
     private var meetingsDetail: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) { // flush detail; the search bar has its own padding
             HStack(spacing: Theme.Space.m) {
                 HStack(spacing: Theme.Space.s) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
                     TextField("Search meetings", text: $query, prompt: Text("Search meetings"))
                         .textFieldStyle(.plain)
                         .focused($searchFocused)

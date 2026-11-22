@@ -838,3 +838,8 @@
 "Your own templates are part of Ata Pro." = "Your own templates are part of Ata Pro.";
 "Unlock with Ata Pro" = "Unlock with Ata Pro";
 "No templates yet. Add one to use it from any meeting's summary." = "No templates yet. Add one to use it from any meeting's summary.";
+
+/* Track 9 — names for icon-only controls */
+"Starting" = "Starting";
+"Granted" = "Granted";
+"Locked" = "Locked";

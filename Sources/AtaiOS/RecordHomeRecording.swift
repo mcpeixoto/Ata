@@ -30,8 +30,8 @@ struct RecordHomeRecording: View {
     private var content: some View {
         VStack(spacing: Theme.Space.xl) {
             Text(verbatim: Transcriber.timestamp(Int(live.elapsed * 1000)))
-                // Not an ataFont: the timer is display type, scaled by @ScaledMetric above.
-                .font(.system(size: timerSize, weight: .semibold, design: .rounded))
+                // Not an ataFont: the timer is display type, scaled by @ScaledMetric above, and ataFont would scale it again.
+                .font(.system(size: timerSize, weight: .semibold, design: .rounded)) // 56 pt clock; ataLargeTitle is 20 pt
                 .monospacedDigit()
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)
@@ -47,7 +47,7 @@ struct RecordHomeRecording: View {
             VStack(spacing: Theme.Space.m) {
                 HeroRecordButton(size: 132, state: stopping ? .busy : .recording) { store.toggleRecording() }
                     .disabled(stopping)
-                    .accessibilityLabel(L("Stop recording"))
+                    .accessibilityLabel(stopping ? L("Saving…") : L("Stop recording"))
                     .sensoryFeedback(.impact, trigger: store.isRecording)
                 if stopping {
                     Text("Saving…")
@@ -78,9 +78,10 @@ struct RecordHomeRecording: View {
                 }
                 Label(store.mode.title, systemImage: store.mode.symbol)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .font(.subheadline)
+        .ataFont(15) // 15 pt; ataTitle is bold rounded
         .foregroundStyle(paused ? Theme.warning : Theme.recordingSolid)
         .padding(.horizontal, Theme.Space.m)
         .padding(.vertical, Theme.Space.s)
@@ -103,14 +104,15 @@ struct RecordHomeRecording: View {
     private var statusDot: some View {
         Circle()
             .fill(paused ? Theme.warning : Theme.recordingSolid)
-            .frame(width: 8, height: 8)
+            .frame(width: 8, height: 8) // status dot, thinner than Radius.small
+            .accessibilityHidden(true)
     }
 
     private var bookmarkButton: some View {
         VStack(spacing: Theme.Space.s) {
             Button { store.addBookmark() } label: {
                 Label("Mark this moment", systemImage: "bookmark.fill")
-                    .font(.body.weight(.semibold))
+                    .font(.body.weight(.semibold)) // 17 pt semibold; ataHeadline is 13 pt
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -121,7 +123,7 @@ struct RecordHomeRecording: View {
             .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
             if !store.bookmarks.isEmpty {
                 Text(L("Moments marked: %d", store.bookmarks.count))
-                    .font(.footnote)
+                    .ataBody()
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -137,8 +139,9 @@ struct RecordHomeRecording: View {
                     .fixedSize(horizontal: false, vertical: true)
             } icon: {
                 Image(systemName: "pause.circle.fill")
+                    .accessibilityHidden(true)
             }
-            .font(.subheadline)
+            .ataFont(15) // 15 pt; ataTitle is bold rounded
             .foregroundStyle(Theme.warning)
             Button("Resume") { store.resumeRecording() }
                 .buttonStyle(.borderedProminent)
@@ -149,7 +152,7 @@ struct RecordHomeRecording: View {
     private var messages: some View {
         if let warning = store.warning {
             Text(warning)
-                .font(.footnote)
+                .ataBody()
                 .foregroundStyle(Theme.warning)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -157,11 +160,12 @@ struct RecordHomeRecording: View {
         if let error = store.lastError {
             HStack(alignment: .top, spacing: Theme.Space.s) {
                 Image(systemName: "exclamationmark.triangle.fill")
+                    .accessibilityHidden(true)
                 Text(error)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .font(.footnote)
+            .ataBody()
             .foregroundStyle(Theme.danger)
         }
     }

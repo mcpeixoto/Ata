@@ -12,9 +12,15 @@ struct MenuBarLabel: View {
     @AppStorage(Pref.menuIconProgress) private var progress = true
 
     var body: some View {
+        statusIcon
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(statusLabel)
+    }
+
+    @ViewBuilder private var statusIcon: some View {
         switch store.phase {
         case .recording, .stopping:
-            HStack(spacing: 4) {
+            HStack(spacing: Theme.Space.xs) {
                 RecordingMenuIcon(style: MenuIcon.Style(symbol: symbol, tint: tint, timer: timer, pulse: pulse),
                                   date: store.now)
                 if timer { Text(store.elapsedText).monospacedDigit() }
@@ -23,7 +29,7 @@ struct MenuBarLabel: View {
             Image(systemName: "record.circle")
         case .idle:
             if store.transcribingID != nil {
-                HStack(spacing: 4) {
+                HStack(spacing: Theme.Space.xs) {
                     Image(systemName: "text.bubble")
                     if progress { Text("\(Int(store.transcribeProgress * 100))%").monospacedDigit() }
                 }
@@ -32,6 +38,26 @@ struct MenuBarLabel: View {
             } else {
                 Image(systemName: "waveform")
             }
+        }
+    }
+
+    /// The menu-bar glyph is icon-only. The timer, when shown, is part of the name.
+    private var statusLabel: String {
+        switch store.phase {
+        case .recording, .stopping:
+            return timer ? "\(L("Recording")), \(store.elapsedText)" : L("Recording")
+        case .starting:
+            return L("Starting")
+        case .idle:
+            if store.transcribingID != nil {
+                return progress
+                    ? "\(L("Transcribing")), \(Int(store.transcribeProgress * 100))%"
+                    : L("Transcribing")
+            }
+            if let app = store.detectedApp {
+                return L("Meeting detected in %@", app)
+            }
+            return L("Ata")
         }
     }
 }
@@ -128,15 +154,15 @@ struct PopoverView: View {
         }
         .overlay {
             if dropping {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous) // 12 pt; 2 pt from Radius.medium and Radius.large
                     .strokeBorder(Theme.accent, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
-                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous) // 12 pt; 2 pt from Radius.medium and Radius.large
                         .fill(.regularMaterial))
                     .overlay {
                         Label("Drop audio to transcribe it", systemImage: "square.and.arrow.down")
                             .ataHeadline()
                     }
-                    .padding(6)
+                    .padding(6) // 6 pt inset; 2 pt from Space.xs and Space.s
                     .allowsHitTesting(false)
             }
         }
@@ -160,16 +186,16 @@ struct PopoverView: View {
     // MARK: Header
 
     private var header: some View {
-        HStack(spacing: 10) {
-            AppGlyph(size: 30)
-            VStack(alignment: .leading, spacing: 1) {
+        HStack(spacing: 10) { // 10 pt; 2 pt from Space.s and Space.m
+            AppGlyph(size: 30) // 30 pt mark; ataLargeTitle is 20 pt type, not a glyph
+            VStack(alignment: .leading, spacing: 1) { // 1 pt between name and status; Space.xs is 4
                 Text("Ata").ataTitle()
                 Text(statusLine).ataCaption().foregroundStyle(.secondary)
             }
             Spacer()
             Button { WindowManager.shared.showMain() } label: {
                 Image(systemName: "arrow.up.left.and.arrow.down.right")
-                    .ataFont(14, weight: .semibold)
+                    .ataFont(14, weight: .semibold) // 14 pt, paired with the gear; ataHeadline is 13
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
@@ -177,7 +203,7 @@ struct PopoverView: View {
             .accessibilityLabel(L("Open in a window"))
             Button { WindowManager.shared.showSettings() } label: {
                 Image(systemName: "gearshape")
-                    .ataFont(14, weight: .medium)
+                    .ataFont(14, weight: .medium) // 14 pt medium; no medium token within 1 pt
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
@@ -275,10 +301,10 @@ struct PopoverView: View {
             }
             .disabled(store.phase == .starting)
             .opacity(store.phase == .starting ? 0.6 : 1)
-            .accessibilityLabel(L("Record a meeting"))
+            .accessibilityLabel(store.phase == .starting ? L("Starting") : L("Record"))
             VStack(alignment: .leading, spacing: Theme.Space.xs) {
                 HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
-                    Text(store.phase == .starting ? "Getting ready…" : "Record a meeting")
+                    Text(verbatim: store.phase == .starting ? L("Getting ready…") : L("Record a meeting"))
                         .ataHeadline()
                     Spacer(minLength: Theme.Space.s)
                     Text(verbatim: "⌘R")
@@ -325,7 +351,7 @@ struct PopoverView: View {
                 FirstMeetingsCard()
             } else {
                 let shown = meetings.filter { MeetingCategory.matches($0, filter: categoryFilter) }
-                VStack(spacing: 2) {
+                VStack(spacing: 2) { // 2 pt between rows; Space.xs is 4
                     ForEach(shown.prefix(PopoverHome.recentLimit)) { m in
                         MeetingRow(meeting: m)
                     }
@@ -347,10 +373,11 @@ struct PopoverView: View {
                 }
             }
         } label: {
-            HStack(spacing: 2) {
+            HStack(spacing: 2) { // 2 pt before the chevron; Space.xs is 4
                 Text(verbatim: MeetingCategory(rawValue: categoryFilter)?.name ?? L("All"))
                 Image(systemName: "chevron.down")
-                    .ataFont(9, weight: .semibold)
+                    .ataFont(9, weight: .semibold) // 9 pt; ataLabel is 10 pt and tracked for words
+                    .accessibilityHidden(true)
             }
             .ataCaption()
             .foregroundStyle(Theme.accent)
@@ -381,7 +408,7 @@ struct PopoverView: View {
     private var footer: some View {
         // One line at the menu's width. "Importar áudio…" wraps if a button is
         // allowed to shrink, and the meeting window is simply wider.
-        HStack(spacing: 0) {
+        HStack(spacing: 0) { // flush footer; a Space token would split the buttons
             GhostButton(title: L("Folder"), systemImage: "folder") {
                 NSWorkspace.shared.open(Paths.meetingsDir)
             }
@@ -401,9 +428,9 @@ private struct RecordingContent: View {
     @State private var confirmDiscard = false
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: Theme.Space.m) {
             HStack(alignment: .firstTextBaseline) {
-                HStack(spacing: 6) {
+                HStack(spacing: 6) { // 6 pt; 2 pt from Space.xs and Space.s
                     PulsingDot(color: Theme.recordingSolid)
                     Text(store.phase == .stopping ? L("WRAPPING UP") : L("RECORDING"))
                         .ataLabel()
@@ -411,7 +438,7 @@ private struct RecordingContent: View {
                 }
                 Spacer()
                 Text(store.elapsedText)
-                    .font(.system(size: 30, weight: .semibold, design: .rounded))
+                    .ataFont(30, weight: .semibold, design: .rounded) // 30 pt clock; ataLargeTitle is 20 pt
                     .monospacedDigit()
             }
 
@@ -432,7 +459,7 @@ private struct RecordingContent: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             if let w = store.warning {
-                HStack(spacing: 6) {
+                HStack(spacing: 6) { // 6 pt; 2 pt from Space.xs and Space.s
                     // Only while Ata is trying again. A full disk or a silent side
                     // is not something a spinner can fix.
                     if Recorder.warningIsRetry(w) {
@@ -443,16 +470,16 @@ private struct RecordingContent: View {
                 }
             }
 
-            HStack(spacing: 8) {
+            HStack(spacing: Theme.Space.s) {
                 Button {
                     store.stopRecording()
                 } label: {
                     Label("Stop and transcribe", systemImage: "stop.fill")
                         .ataHeadline()
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
+                        .padding(.vertical, Theme.Space.s)
                         .background(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous).fill(Theme.record))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.white) // white on the red fill; accentInk is near-black in dark mode
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -462,15 +489,15 @@ private struct RecordingContent: View {
                 Button {
                     store.addBookmark()
                 } label: {
-                    HStack(spacing: 3) {
+                    HStack(spacing: Theme.Space.xs) {
                         Image(systemName: store.bookmarkCount > 0 ? "bookmark.fill" : "bookmark")
                         if store.bookmarkCount > 0 {
                             Text(verbatim: "\(store.bookmarkCount)").monospacedDigit()
                         }
                     }
                     .ataCallout()
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 10) // 10 pt; 2 pt from Space.s and Space.m
+                    .padding(.vertical, Theme.Space.s)
                     .background(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous).fill(Color.primary.opacity(0.06)))
                     .foregroundStyle(store.bookmarkCount > 0 ? Theme.moment : Color.secondary)
                     .contentShape(Rectangle())
@@ -491,11 +518,11 @@ private struct RecordingContent: View {
                 } label: {
                     Text(confirmDiscard ? L("Delete?") : L("Discard"))
                         .ataCallout()
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 10) // 10 pt; 2 pt from Space.s and Space.m
+                        .padding(.vertical, Theme.Space.s)
                         .background(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
-                            .fill(confirmDiscard ? Color.red.opacity(0.15) : Color.primary.opacity(0.06)))
-                        .foregroundStyle(confirmDiscard ? Color.red : Color.secondary)
+                            .fill(confirmDiscard ? Theme.danger.opacity(0.15) : Color.primary.opacity(0.06)))
+                        .foregroundStyle(confirmDiscard ? Theme.danger : Color.secondary)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -506,9 +533,10 @@ private struct RecordingContent: View {
 
     private func meterIcon(_ name: String, _ tint: Color) -> some View {
         Image(systemName: name)
-            .font(.system(size: 10))
+            .ataFont(10) // 10 pt glyph; ataLabel is tracked for words
             .foregroundStyle(tint)
-            .frame(width: 14)
+            .frame(width: 14) // column for the glyph; Space.l is 16 and would shift the meters
+            .accessibilityHidden(true)
     }
 
     private func meterLabel(_ label: String) -> some View {
@@ -529,7 +557,7 @@ struct MeetingRow: View {
     @State private var hover = false
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 10) { // 10 pt; 2 pt from Space.s and Space.m
             MeetingRowContent(meeting: meeting) {
                 if isTranscribing {
                     TranscribeStatus().ataCaption()
@@ -537,12 +565,12 @@ struct MeetingRow: View {
                     Text(verbatim: detail).ataCaption().foregroundStyle(detailColor).lineLimit(1)
                 }
             }
-            Spacer(minLength: 4)
+            Spacer(minLength: Theme.Space.xs)
             trailing
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+        .padding(.horizontal, Theme.Space.s)
+        .padding(.vertical, 6) // 6 pt; 2 pt from Space.xs and Space.s
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous) // 8 pt; 2 pt from Radius.small and Radius.medium
             .fill(Color.primary.opacity(hover ? 0.06 : 0)))
         .contentShape(Rectangle())
         .onHover { hover = $0 }
@@ -577,6 +605,7 @@ struct MeetingRow: View {
                 .savingAudioHelp(store.isSavingAudio(meeting.id))
         } else if meeting.status != .recording && hover {
             Image(systemName: "arrow.up.forward.square").foregroundStyle(.secondary)
+                .accessibilityHidden(true)
         }
     }
 
@@ -728,13 +757,14 @@ private struct RowProgress: View {
     @ObservedObject private var live = LiveValues.shared
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 6) { // 6 pt; 2 pt from Space.xs and Space.s
             ProgressView(value: live.transcribeProgress)
                 .progressViewStyle(.linear)
-                .frame(width: 60)
+                .frame(width: 60) // bar length, not a Space step
                 .animation(.easeOut(duration: 0.4), value: live.transcribeProgress)
             Text("\(Int(live.transcribeProgress * 100))%")
-                .font(.system(size: 10, weight: .medium)).monospacedDigit().foregroundStyle(.secondary)
+                .ataFont(10, weight: .medium) // 10 pt medium; ataLabel is semibold and tracked
+                .monospacedDigit().foregroundStyle(.secondary)
                 .frame(width: 28, alignment: .trailing)
         }
     }

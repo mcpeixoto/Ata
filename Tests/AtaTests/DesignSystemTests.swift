@@ -18,11 +18,11 @@ final class DesignSystemTests: XCTestCase {
         "MeetingView.swift": 3,
         "PeopleView.swift": 1,
         "InsightsView.swift": 1,
-        "Components.swift": 3,
-        "Sources/AtaiOS/RecordView.swift": 1,
+        "Components.swift": 2,
+        "Sources/AtaiOS/RecordView.swift": 0,
         "Sources/AtaiOS/PhoneOnboarding.swift": 0,
         "Sources/AtaiOS/Paywall.swift": 0,
-        "Sources/Ata/OnboardingView.swift": 19,
+        "Sources/Ata/OnboardingView.swift": 0,
     ]
 
     func testSharedViewsAddNoLiteralFontSizes() throws {
@@ -57,7 +57,7 @@ final class DesignSystemTests: XCTestCase {
         "Components.swift": 2,
         "Sources/AtaiOS/RecordView.swift": 0,
         "Sources/AtaiOS/PhoneOnboarding.swift": 0,
-        "Sources/AtaiOS/Paywall.swift": 1,
-        "Sources/Ata/OnboardingView.swift": 1,
+        "Sources/AtaiOS/Paywall.swift": 0,
+        "Sources/Ata/OnboardingView.swift": 0,
     ]
 }

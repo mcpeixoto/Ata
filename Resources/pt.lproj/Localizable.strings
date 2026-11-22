@@ -838,3 +838,8 @@
 "Your own templates are part of Ata Pro." = "Os teus próprios modelos fazem parte da Ata Pro.";
 "Unlock with Ata Pro" = "Desbloquear com a Ata Pro";
 "No templates yet. Add one to use it from any meeting's summary." = "Ainda não tens modelos. Adiciona um para o usares no resumo de qualquer reunião.";
+
+/* Track 9 — names for icon-only controls */
+"Starting" = "A iniciar";
+"Granted" = "Concedido";
+"Locked" = "Bloqueado";

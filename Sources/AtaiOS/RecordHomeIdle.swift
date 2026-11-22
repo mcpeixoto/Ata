@@ -53,10 +53,12 @@ struct RecordHomeIdle: View {
         VStack(alignment: .leading, spacing: Theme.Space.xs) {
             Text(verbatim: greeting(now: now))
                 .ataLargeTitle()
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
             Text(verbatim: summary(library: library, now: now))
                 .ataCallout()
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -119,7 +121,7 @@ struct RecordHomeIdle: View {
         return VStack(spacing: Theme.Space.m) {
             HeroRecordButton(size: 132, state: caption == .starting ? .busy : .idle) { store.toggleRecording() }
                 .disabled(store.phase == .starting)
-                .accessibilityLabel(L("Record a conversation"))
+                .accessibilityLabel(heroLabel(caption))
                 .sensoryFeedback(.impact, trigger: store.isRecording)
                 .padding(.vertical, Theme.Space.s)
             Group {
@@ -138,6 +140,14 @@ struct RecordHomeIdle: View {
         .frame(maxWidth: .infinity)
     }
 
+    private func heroLabel(_ caption: RecordHomeModel.ButtonCaption) -> String {
+        switch caption {
+        case .starting: return L("Starting")
+        case .saving: return L("Saving…")
+        case .tapToRecord, .none: return L("Record")
+        }
+    }
+
     private var modePicker: some View {
         VStack(spacing: Theme.Space.s) {
             Picker("Mode", selection: $store.mode) {
@@ -149,7 +159,7 @@ struct RecordHomeIdle: View {
             Text(store.mode == .inPerson
                  ? L("For a conversation in the room. Put the iPhone between you.")
                  : L("For a call on another phone or computer's speaker, with this iPhone next to it."))
-                .font(.footnote)
+                .ataBody()
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -176,13 +186,16 @@ struct RecordHomeIdle: View {
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
                         Image(systemName: "chevron.right")
-                            .ataFont(11, weight: .semibold)
+                            .ataFont(11, weight: .semibold) // 11 pt semibold; ataCaption is regular
                             .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
                     }
-                    Text(verbatim: meeting.title)
-                        .ataCallout()
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    ViewThatFits(in: .horizontal) {
+                        Text(verbatim: meeting.title).lineLimit(1)
+                        Text(verbatim: meeting.title).fixedSize(horizontal: false, vertical: true)
+                    }
+                    .ataCallout()
+                    .foregroundStyle(.secondary)
                     ProgressView(value: min(max(store.transcribeProgress, 0), 1))
                         .tint(Theme.accent)
                 }
@@ -207,21 +220,24 @@ struct RecordHomeIdle: View {
                     .tint(Theme.accent)
             }
             Card(padding: Theme.Space.m) {
-                VStack(spacing: 0) {
+                VStack(spacing: 0) { // flush rows; the dividers carry the gap
                     ForEach(Array(meetings.enumerated()), id: \.element.id) { index, meeting in
                         if index > 0 { Divider().padding(.vertical, Theme.Space.s) }
                         Button { navigation.showMeeting(meeting.id) } label: {
                             HStack {
                                 MeetingRowContent(meeting: meeting) {
-                                    Text(verbatim: meeting.subtitle)
-                                        .ataCallout()
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
+                                    ViewThatFits(in: .horizontal) {
+                                        Text(verbatim: meeting.subtitle).lineLimit(1)
+                                        Text(verbatim: meeting.subtitle).fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    .ataCallout()
+                                    .foregroundStyle(.secondary)
                                 }
                                 Spacer(minLength: Theme.Space.s)
                                 Image(systemName: "chevron.right")
-                                    .ataFont(11, weight: .semibold)
+                                    .ataFont(11, weight: .semibold) // 11 pt semibold; ataCaption is regular
                                     .foregroundStyle(.secondary)
+                                    .accessibilityHidden(true)
                             }
                             .contentShape(Rectangle())
                         }
@@ -256,8 +272,9 @@ struct RecordHomeIdle: View {
                             .foregroundStyle(Theme.accent)
                         Spacer(minLength: Theme.Space.s)
                         Image(systemName: "chevron.right")
-                            .ataFont(11, weight: .semibold)
+                            .ataFont(11, weight: .semibold) // 11 pt semibold; ataCaption is regular
                             .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

@@ -77,7 +77,7 @@ struct MacPaywall: View {
 
     private var header: some View {
         VStack(spacing: Theme.Space.s) {
-            AppGlyph(size: 56)
+            AppGlyph(size: 56) // hero mark; not a type size
             Text("Ata Pro")
                 .ataLargeTitle()
             Text("Unlimited meetings on Mac and iPhone")
@@ -109,6 +109,7 @@ struct MacPaywall: View {
             Image(systemName: "checkmark")
                 .ataHeadline()
                 .foregroundStyle(Theme.accent)
+                .accessibilityHidden(true)
             title()
                 .ataBody()
                 .fixedSize(horizontal: false, vertical: true)

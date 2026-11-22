@@ -17,6 +17,7 @@ struct PhoneOnboarding: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ObservedObject private var pro = ProStore.shared
     @AppStorage(Pref.myName) private var myName = ""
     @AppStorage(Pref.language) private var language = "auto"
@@ -112,7 +113,7 @@ struct PhoneOnboarding: View {
         VStack(spacing: Theme.Space.xl) {
             WelcomeStory()
             Text("Record it. Ata writes it up.")
-                .font(.largeTitle.bold())
+                .font(.largeTitle.bold()) // 34 pt bold; ataLargeTitle is 20 pt
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
             VStack(alignment: .leading, spacing: Theme.Space.l) {
@@ -128,7 +129,7 @@ struct PhoneOnboarding: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Text("Ask the people you record first. In many places it is the law.")
-                .font(.footnote)
+                .ataBody()
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -138,7 +139,7 @@ struct PhoneOnboarding: View {
     private var useCase: some View {
         VStack(alignment: .leading, spacing: Theme.Space.l) {
             Text("What will you record most?")
-                .font(.title.bold())
+                .font(.title.bold()) // 28 pt bold; ataLargeTitle is 20 pt
                 .fixedSize(horizontal: false, vertical: true)
             VStack(spacing: Theme.Space.s) {
                 ForEach(UseCase.allCases, id: \.self) { item in
@@ -147,13 +148,16 @@ struct PhoneOnboarding: View {
                             HStack(spacing: Theme.Space.m) {
                                 Image(systemName: item.symbol)
                                     .foregroundStyle(Theme.accent)
-                                    .frame(width: 28)
+                                    .frame(width: 28) // icon column, not a Space step
+                                    .accessibilityHidden(true)
                                 Text(verbatim: useCaseTitle(item))
-                                    .font(.headline)
+                                    .font(.headline) // 17 pt semibold; ataHeadline is 13 pt
                                     .foregroundStyle(.primary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
+                                    .fixedSize(horizontal: false, vertical: true)
                                 Image(systemName: "chevron.right")
                                     .foregroundStyle(.secondary)
+                                    .accessibilityHidden(true)
                             }
                         }
                     }
@@ -168,7 +172,7 @@ struct PhoneOnboarding: View {
     private var permissions: some View {
         VStack(alignment: .leading, spacing: Theme.Space.xl) {
             Text("Let Ata hear the room")
-                .font(.title.bold())
+                .font(.title.bold()) // 28 pt bold; ataLargeTitle is 20 pt
                 .fixedSize(horizontal: false, vertical: true)
             VStack(spacing: Theme.Space.m) {
                 PermissionCard(ok: micGranted, title: L("Microphone"),
@@ -192,48 +196,38 @@ struct PhoneOnboarding: View {
     }
 
     private var you: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: 22) { // 22 pt; 2 pt under Space.xl
             Text("Two questions")
-                .font(.title.bold())
+                .font(.title.bold()) // 28 pt bold; ataLargeTitle is 20 pt
                 .fixedSize(horizontal: false, vertical: true)
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 6) { // 6 pt; 2 pt from Space.xs and Space.s
                 Text("Your name")
-                    .font(.subheadline.weight(.semibold))
+                    .ataFont(15, weight: .semibold) // 15 pt semibold; ataTitle is bold rounded
                 TextField("Your name in the transcript", text: $myName, prompt: Text("Me"))
                     .textContentType(.givenName)
                     .textFieldStyle(.roundedBorder)
                     .accessibilityIdentifier("onboarding-name")
                 Text("Your lines are marked with this name. Ata also tells the other people in the room apart, and you name each voice once in People.")
-                    .font(.footnote)
+                    .ataBody()
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 6) { // 6 pt; 2 pt from Space.xs and Space.s
                 // A menu picker draws only its value: the question is written out.
-                HStack {
-                    Text("Language of your meetings")
-                        .font(.subheadline.weight(.semibold))
-                    Spacer(minLength: 8)
-                    Picker("Language of your meetings", selection: $language) {
-                        Text("Automatic").tag("auto")
-                        ForEach(Pref.languageChoices, id: \.code) { choice in
-                            Text(choice.name).tag(choice.code)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .accessibilityIdentifier("onboarding-language")
-                }
+                languageQuestion
                 Text("Automatic chooses among your iPhone's languages. Pick one if your meetings are in another.")
-                    .font(.footnote)
+                    .ataBody()
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            VStack(alignment: .leading, spacing: 4) {
-                Toggle("Share anonymous usage stats", isOn: $shareUsage)
-                    .font(.subheadline.weight(.semibold))
+            VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                Toggle(isOn: $shareUsage) {
+                    Text("Share anonymous usage stats")
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .ataFont(15, weight: .semibold) // 15 pt semibold; ataTitle is bold rounded
                 Text("Once a day: the app version, your country and how many minutes you recorded. Never your audio, transcripts or names.")
-                    .font(.footnote)
+                    .ataBody()
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -241,17 +235,48 @@ struct PhoneOnboarding: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// At the largest sizes the picker drops under the question instead of clipping it.
+    private var languageQuestion: some View {
+        let label = Text("Language of your meetings")
+            .ataFont(15, weight: .semibold) // 15 pt semibold; ataTitle is bold rounded
+            .fixedSize(horizontal: false, vertical: true)
+        let picker = Picker("Language of your meetings", selection: $language) {
+            Text("Automatic").tag("auto")
+            ForEach(Pref.languageChoices, id: \.code) { choice in
+                Text(choice.name).tag(choice.code)
+            }
+        }
+        .pickerStyle(.menu)
+        .labelsHidden()
+        .accessibilityIdentifier("onboarding-language")
+        return Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                    label
+                    picker.frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else {
+                HStack {
+                    label
+                    Spacer(minLength: Theme.Space.s)
+                    picker
+                }
+            }
+        }
+    }
+
     private var tryIt: some View {
         VStack(alignment: .leading, spacing: Theme.Space.l) {
             Text("Try it: say a sentence")
-                .font(.title.bold())
+                .font(.title.bold()) // 28 pt bold; ataLargeTitle is 20 pt
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: Theme.Space.s) {
                 Circle()
                     .fill(trial.phase == .recording ? Theme.recordingSolid : Theme.accent)
-                    .frame(width: 8, height: 8)
+                    .frame(width: 8, height: 8) // status dot, thinner than Radius.small
+                    .accessibilityHidden(true)
                 Text(verbatim: clock(trial.seconds))
-                    .font(.headline.monospacedDigit())
+                    .font(.headline.monospacedDigit()) // 17 pt semibold digits; no ata style is monospaced
             }
             .frame(maxWidth: .infinity)
             LevelMeter(level: trial.level, tint: Theme.recordingSolid)
@@ -273,7 +298,7 @@ struct PhoneOnboarding: View {
     private var proStep: some View {
         VStack(alignment: .leading, spacing: Theme.Space.l) {
             Text("You're set")
-                .font(.title.bold())
+                .font(.title.bold()) // 28 pt bold; ataLargeTitle is 20 pt
                 .fixedSize(horizontal: false, vertical: true)
             Text(L("%d minutes a month are free. Ata Pro removes the limit.", FreeQuota.limitMinutes))
                 .ataCallout()
@@ -307,26 +332,13 @@ struct PhoneOnboarding: View {
         case .you:
             bottomButton(L("Continue"), prominent: true, identifier: "onboarding-next") { advance() }
         case .tryIt:
-            HStack(spacing: Theme.Space.s) {
-                Button {
-                    if trial.confirm(language: language) { advance() }
-                } label: {
-                    Text(L("Continue"))
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
+            // Side by side until the two titles no longer fit, then stacked.
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(spacing: Theme.Space.s) { tryContinue; trySkip }
+                } else {
+                    HStack(spacing: Theme.Space.s) { tryContinue; trySkip }
                 }
-                .buttonStyle(PrimaryButtonStyle())
-                .accessibilityIdentifier("onboarding-next")
-                Button {
-                    trial.abandon()
-                    advance()
-                } label: {
-                    Text("Skip")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(SecondaryButtonStyle())
-                .accessibilityIdentifier("onboarding-skip")
             }
         case .pro:
             if let plan = proPlan {
@@ -335,14 +347,18 @@ struct PhoneOnboarding: View {
                         Text(verbatim: plan.offersTrial
                              ? L("Try 7 days free")
                              : L("Subscribe for %@", plan.price))
-                            .font(.headline)
+                            .font(.headline) // 17 pt semibold; ataHeadline is 13 pt
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     .buttonStyle(PrimaryButtonStyle())
                     .disabled(pro.purchasing)
                     .accessibilityIdentifier("onboarding-trial")
                     Button { finish() } label: {
                         Text("Continue free")
-                            .font(.headline)
+                            .font(.headline) // 17 pt semibold; ataHeadline is 13 pt
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     .buttonStyle(SecondaryButtonStyle())
                     .accessibilityIdentifier("onboarding-finish")
@@ -355,12 +371,42 @@ struct PhoneOnboarding: View {
         }
     }
 
+    private var tryContinue: some View {
+        Button {
+            if trial.confirm(language: language) { advance() }
+        } label: {
+            Text(L("Continue"))
+                .font(.headline) // 17 pt semibold; ataHeadline is 13 pt
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(PrimaryButtonStyle())
+        .accessibilityIdentifier("onboarding-next")
+    }
+
+    private var trySkip: some View {
+        Button {
+            trial.abandon()
+            advance()
+        } label: {
+            Text("Skip")
+                .font(.headline) // 17 pt semibold; ataHeadline is 13 pt
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(SecondaryButtonStyle())
+        .accessibilityIdentifier("onboarding-skip")
+    }
+
     private func bottomButton(_ title: String, prominent: Bool, identifier: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(verbatim: title)
-                .font(.headline)
+                .font(.headline) // 17 pt semibold; ataHeadline is 13 pt
                 .frame(maxWidth: .infinity)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .modifier(FinishStyle(primary: prominent))
         .accessibilityIdentifier(identifier)
@@ -691,10 +737,10 @@ private struct WelcomeStory: View {
         }
     }
 
-    /// Width is below Space.xs so twenty bars read as one waveform, not a row of pills.
+    /// Gaps stay under Space.xs so twenty bars read as one waveform, not a row of pills.
     private var waveform: some View {
         Card {
-            HStack(alignment: .center, spacing: 3) {
+            HStack(alignment: .center, spacing: 3) { // 3 pt; Space.xs (4) would split the bars apart
                 ForEach(Array(Self.bars.enumerated()), id: \.offset) { _, height in
                     Capsule()
                         .fill(Theme.recordingSolid)
@@ -756,7 +802,7 @@ private struct PermissionCard<Trailing: View>: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var tint: Color {
-        if ok { return .green }
+        if ok { return .green } // no success colour in Theme; system green is the granted state
         return optional ? Color.secondary : Theme.warning
     }
 
@@ -766,7 +812,7 @@ private struct PermissionCard<Trailing: View>: View {
     }
 
     private var circleFill: Color {
-        if ok { return Color.green.opacity(0.15) }
+        if ok { return Color.green.opacity(0.15) } // same granted green as the glyph
         if optional { return Color.secondary.opacity(0.12) }
         return Theme.warning.opacity(0.15)
     }
@@ -796,16 +842,18 @@ private struct PermissionCard<Trailing: View>: View {
     private var summary: some View {
         HStack(alignment: .top, spacing: Theme.Space.m) {
             Image(systemName: symbol)
-                .font(.body.weight(.bold))
+                .font(.body.weight(.bold)) // 17 pt bold; ataTitle is 15 pt rounded
                 .foregroundStyle(tint)
                 .padding(Theme.Space.m)
                 .background(Circle().fill(circleFill))
+                .accessibilityLabel(L("Granted"))
+                .accessibilityHidden(!ok)
             VStack(alignment: .leading, spacing: Theme.Space.xs) {
                 Text(title)
-                    .font(.headline)
+                    .font(.headline) // 17 pt semibold; ataHeadline is 13 pt
                     .fixedSize(horizontal: false, vertical: true)
                 Text(detail)
-                    .font(.subheadline)
+                    .ataFont(15) // 15 pt; ataTitle is bold rounded
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

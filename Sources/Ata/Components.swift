@@ -178,15 +178,18 @@ struct Feature: View {
     let detail: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
+        HStack(alignment: .top, spacing: 14) { // 14 pt; 2 pt from Space.m and Space.l
             Image(systemName: symbol)
-                .font(.title3.weight(.semibold))
+                .font(.title3.weight(.semibold)) // 20 pt semibold; ataLargeTitle is bold rounded
                 .foregroundStyle(Theme.meTint)
-                .frame(width: 28)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(verbatim: title).font(.headline)
+                .frame(width: 28) // icon column, not a Space step
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) { // 3 pt; Space.xs (4) would open the title from its detail
+                Text(verbatim: title)
+                    .font(.headline) // 17 pt semibold; ataHeadline is 13 pt
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(verbatim: detail)
-                    .font(.subheadline)
+                    .ataFont(15) // 15 pt; ataTitle is bold rounded
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
