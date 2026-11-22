@@ -572,10 +572,8 @@
 "The transcription stopped making progress and was stopped. Your audio is safe. Try again." = "A transcrição deixou de avançar e foi interrompida. O áudio está seguro. Tente de novo.";
 "The transcription stopped unexpectedly. Your audio is safe. Try again." = "A transcrição parou inesperadamente. O áudio está seguro. Tente de novo.";
 "Apple Intelligence could not write notes for this meeting. Try again." = "O Apple Intelligence não conseguiu escrever notas desta reunião. Tente de novo.";
-"Allow recording" = "Permitir a gravação";
 "Ata records your microphone and the sound your Mac plays, never your screen." = "A Ata grava o microfone e o som que o Mac reproduz, nunca o ecrã.";
 "Turn on Ata under Microphone in the settings that open." = "Ative a Ata em Microfone, nas definições que se abrem.";
-"macOS asks three times: microphone, notifications, system audio. After the last one Ata restarts itself once, and comes back here." = "O macOS pergunta três vezes: microfone, notificações e áudio do sistema. Depois da última, a Ata reinicia-se uma vez e volta aqui.";
 "Apple Intelligence is still getting ready. Your summaries will be written once it is." = "O Apple Intelligence ainda se está a preparar. Os resumos são escritos quando estiver pronto.";
 "Turn it on in System Settings. Meetings you record before then get their summary afterwards." = "Ative-o nas Definições do Sistema. As reuniões que gravar até lá recebem o resumo depois.";
 "Later" = "Mais tarde";
@@ -589,7 +587,6 @@
 "Ata heard you and your Mac. The test was not saved." = "A Ata ouviu-o a si e ao Mac. O teste não foi guardado.";
 "Ata heard you. Nothing was playing on your Mac. The test was not saved." = "A Ata ouviu-o. O Mac não estava a reproduzir nada. O teste não foi guardado.";
 "Ata didn't hear your microphone. Check it isn't muted, and try again." = "A Ata não ouviu o microfone. Verifique se não está sem som e tente de novo.";
-"Step %d of 3" = "Passo %d de 3";
 "Ata needs to be in Applications to open at login and to update itself." = "A Ata tem de estar em Aplicações para abrir ao iniciar sessão e para se atualizar.";
 "Move to Applications" = "Mover para Aplicações";
 "There is already an Ata in Applications. Open that one, or replace it in the Finder." = "Já existe uma Ata em Aplicações. Abra essa ou substitua-a no Finder.";
@@ -665,3 +662,22 @@
 
 /* Track 1 */
 "%d of %d free minutes" = "%d de %d minutos gratuitos";
+
+/* Track 6 */
+"Meet Ata" = "Conheça a Ata";
+"Records your calls and writes them up, on this Mac." = "Grava as suas chamadas e passa-as a escrito, neste Mac.";
+"Zoom, Meet, Teams or any other app" = "Zoom, Meet, Teams ou qualquer outra app";
+"Tells you and the others apart" = "Distingue a sua voz da dos outros";
+"Transcribed on this Mac, not on a server" = "Transcrito neste Mac, não num servidor";
+"Get started" = "Começar";
+"Let Ata record your meetings" = "Deixe a Ata gravar as suas reuniões";
+"Your side of the call." = "O seu lado da chamada.";
+"Mac audio" = "Áudio do Mac";
+"The others, from whichever app the call is in." = "Os outros, seja qual for a app da chamada.";
+"Optional. Ata tells you when it notices a meeting." = "Opcional. A Ata avisa quando deteta uma reunião.";
+"Ata restarts once after you allow Mac audio. That is expected." = "A Ata reinicia uma vez depois de permitir o áudio do Mac. É normal.";
+"Continue without Mac audio" = "Continuar sem áudio do Mac";
+"A few choices" = "Algumas escolhas";
+"Allow calendar" = "Permitir calendário";
+"Say a few words and play something on your Mac. Nothing is saved." = "Diga algumas palavras e reproduza algo no Mac. Nada é guardado.";
+"Skip" = "Saltar";

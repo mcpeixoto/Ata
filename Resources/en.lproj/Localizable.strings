@@ -572,10 +572,8 @@
 "The transcription stopped making progress and was stopped. Your audio is safe. Try again." = "The transcription stopped making progress and was stopped. Your audio is safe. Try again.";
 "The transcription stopped unexpectedly. Your audio is safe. Try again." = "The transcription stopped unexpectedly. Your audio is safe. Try again.";
 "Apple Intelligence could not write notes for this meeting. Try again." = "Apple Intelligence could not write notes for this meeting. Try again.";
-"Allow recording" = "Allow recording";
 "Ata records your microphone and the sound your Mac plays, never your screen." = "Ata records your microphone and the sound your Mac plays, never your screen.";
 "Turn on Ata under Microphone in the settings that open." = "Turn on Ata under Microphone in the settings that open.";
-"macOS asks three times: microphone, notifications, system audio. After the last one Ata restarts itself once, and comes back here." = "macOS asks three times: microphone, notifications, system audio. After the last one Ata restarts itself once, and comes back here.";
 "Apple Intelligence is still getting ready. Your summaries will be written once it is." = "Apple Intelligence is still getting ready. Your summaries will be written once it is.";
 "Turn it on in System Settings. Meetings you record before then get their summary afterwards." = "Turn it on in System Settings. Meetings you record before then get their summary afterwards.";
 "Later" = "Later";
@@ -589,7 +587,6 @@
 "Ata heard you and your Mac. The test was not saved." = "Ata heard you and your Mac. The test was not saved.";
 "Ata heard you. Nothing was playing on your Mac. The test was not saved." = "Ata heard you. Nothing was playing on your Mac. The test was not saved.";
 "Ata didn't hear your microphone. Check it isn't muted, and try again." = "Ata didn't hear your microphone. Check it isn't muted, and try again.";
-"Step %d of 3" = "Step %d of 3";
 "Ata needs to be in Applications to open at login and to update itself." = "Ata needs to be in Applications to open at login and to update itself.";
 "Move to Applications" = "Move to Applications";
 "There is already an Ata in Applications. Open that one, or replace it in the Finder." = "There is already an Ata in Applications. Open that one, or replace it in the Finder.";
@@ -665,3 +662,22 @@
 
 /* Track 1 */
 "%d of %d free minutes" = "%d of %d free minutes";
+
+/* Track 6 */
+"Meet Ata" = "Meet Ata";
+"Records your calls and writes them up, on this Mac." = "Records your calls and writes them up, on this Mac.";
+"Zoom, Meet, Teams or any other app" = "Zoom, Meet, Teams or any other app";
+"Tells you and the others apart" = "Tells you and the others apart";
+"Transcribed on this Mac, not on a server" = "Transcribed on this Mac, not on a server";
+"Get started" = "Get started";
+"Let Ata record your meetings" = "Let Ata record your meetings";
+"Your side of the call." = "Your side of the call.";
+"Mac audio" = "Mac audio";
+"The others, from whichever app the call is in." = "The others, from whichever app the call is in.";
+"Optional. Ata tells you when it notices a meeting." = "Optional. Ata tells you when it notices a meeting.";
+"Ata restarts once after you allow Mac audio. That is expected." = "Ata restarts once after you allow Mac audio. That is expected.";
+"Continue without Mac audio" = "Continue without Mac audio";
+"A few choices" = "A few choices";
+"Allow calendar" = "Allow calendar";
+"Say a few words and play something on your Mac. Nothing is saved." = "Say a few words and play something on your Mac. Nothing is saved.";
+"Skip" = "Skip";

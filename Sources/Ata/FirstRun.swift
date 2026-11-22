@@ -15,6 +15,56 @@ enum SetupStep: Int {
     }
 }
 
+/// The steps of the welcome window, in order. The raw value is what
+/// `Pref.onboardingStep` stores and what `Funnel` counts, so never renumber.
+enum OnboardingStep: Int, CaseIterable, Comparable {
+    case welcome = 0, permissions, summaries, you, test, done
+
+    static func < (a: OnboardingStep, b: OnboardingStep) -> Bool { a.rawValue < b.rawValue }
+
+    /// Summaries only for a Mac where Apple Intelligence can still be turned on.
+    static func sequence(apple: AppleIntelligenceState) -> [OnboardingStep] {
+        let asks = apple == .off || apple == .preparing
+        return allCases.filter { $0 != .summaries || asks }
+    }
+
+    /// The first step that is still owed: the welcome until it has been passed,
+    /// then permissions while the microphone or Mac audio is missing.
+    static func firstUnmet(persisted: Int?, mic: Bool, systemAudioMissing: Bool) -> OnboardingStep? {
+        if (persisted ?? -1) < OnboardingStep.permissions.rawValue { return .welcome }
+        return !mic || systemAudioMissing ? .permissions : nil
+    }
+
+    /// Where the window opens. A first run resumes at the furthest step reached,
+    /// so the restart after the Mac audio grant comes back to `permissions`
+    /// with its ticks. Reopened after setup was closed ("Finish setting up"), it
+    /// goes to what is missing, or straight to the end.
+    static func shown(persisted: Int?, onboarded: Bool, mic: Bool, systemAudioMissing: Bool,
+                      apple: AppleIntelligenceState) -> OnboardingStep {
+        // Someone who finished setup has seen the welcome, whatever was stored.
+        if onboarded { return !mic || systemAudioMissing ? .permissions : .done }
+        let unmet = firstUnmet(persisted: persisted, mic: mic, systemAudioMissing: systemAudioMissing)
+        let saved = resolve(persisted ?? 0, apple: apple)
+        return max(saved, unmet ?? saved)
+    }
+
+    /// A stored step that this Mac does not show (summaries, once Apple
+    /// Intelligence is on) becomes the next one it does.
+    static func resolve(_ raw: Int, apple: AppleIntelligenceState) -> OnboardingStep {
+        let steps = sequence(apple: apple)
+        return steps.first { $0.rawValue >= raw } ?? .done
+    }
+
+    func next(apple: AppleIntelligenceState) -> OnboardingStep {
+        let steps = Self.sequence(apple: apple)
+        return steps.first { $0 > self } ?? .done
+    }
+
+    func previous(apple: AppleIntelligenceState) -> OnboardingStep? {
+        Self.sequence(apple: apple).last { $0 < self }
+    }
+}
+
 /// Room for the model, with a margin so the download can't fill the disk.
 enum DiskCheck {
     static let margin: Int64 = 500_000_000
