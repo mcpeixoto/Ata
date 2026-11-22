@@ -40,7 +40,7 @@ final class PhoneStore: ObservableObject {
     @Published private(set) var inboxWaiting = 0
 
     /// No free minute left this month, and no Ata Pro.
-    var needsPro: Bool { !ProStore.shared.isPro && freeUsed >= FreeQuota.limitMinutes }
+    var needsPro: Bool { !ProAccess.shared.isPro && freeUsed >= FreeQuota.limitMinutes }
 
     var isRecording: Bool { phase == .recording || phase == .interrupted }
     /// Seconds of audio recorded so far, kept current in the background too (unlike `elapsed`).
@@ -224,7 +224,7 @@ final class PhoneStore: ObservableObject {
         // At the limit, record nothing. From an intent the sheet is armed only
         // after Ata is in front; see `presentBlockedStart`.
         do {
-            try RecordingStart.begin(usedMinutes: freeUsed, isPro: ProStore.shared.isPro,
+            try RecordingStart.begin(usedMinutes: freeUsed, isPro: ProAccess.shared.isPro,
                                      limitMinutes: FreeQuota.limitMinutes, record: {})
         } catch {
             if !fromIntent { PhoneNavigation.shared.showPaywall() }

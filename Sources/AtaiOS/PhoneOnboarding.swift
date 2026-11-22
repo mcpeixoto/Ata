@@ -343,30 +343,23 @@ private struct PermissionCard<Trailing: View>: View {
     }
 
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: Theme.Space.m) {
-                    summary
-                    if !ok {
-                        trailing.frame(maxWidth: .infinity, alignment: .trailing)
+        Card(padding: Theme.Space.l) {
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: Theme.Space.m) {
+                        summary
+                        if !ok {
+                            trailing.frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                    }
+                } else {
+                    HStack(alignment: .center, spacing: Theme.Space.m) {
+                        summary
+                        if !ok { trailing.fixedSize() }
                     }
                 }
-            } else {
-                HStack(alignment: .center, spacing: Theme.Space.m) {
-                    summary
-                    if !ok { trailing.fixedSize() }
-                }
             }
-        }
-        .padding(Theme.Space.l)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous)
-                .fill(Color.primary.opacity(0.045))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.06))
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .animation(.easeInOut(duration: 0.2), value: ok)
     }

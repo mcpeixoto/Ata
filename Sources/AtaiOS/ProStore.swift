@@ -16,7 +16,7 @@ final class ProStore: ObservableObject {
     private static let cacheKey = "proActive"
 
     @Published private(set) var product: Product?
-    @Published private(set) var isPro: Bool = UserDefaults.standard.bool(forKey: ProStore.cacheKey)
+    @Published private(set) var isPro: Bool
     @Published private(set) var loading = false
     /// The product did not load: no network, or not in the App Store yet.
     @Published private(set) var unavailable = false
@@ -25,7 +25,12 @@ final class ProStore: ObservableObject {
 
     private var updates: Task<Void, Never>?
 
-    private init() {}
+    private init() {
+        // The cache is what an offline phone keeps. No expiration yet, so this
+        // does not write the mirror: `0` there means not Pro.
+        isPro = UserDefaults.standard.bool(forKey: Self.cacheKey)
+        ProAccess.shared.setStoreKit(active: isPro, expires: nil)
+    }
 
     /// At launch: listen for renewals, refunds and purchases made elsewhere
     /// (another device, Ask to Buy, a code), then load the product and the entitlement.
@@ -60,13 +65,20 @@ final class ProStore: ObservableObject {
     /// Whether a verified, unrevoked, unexpired Ata Pro transaction exists now.
     func refresh() async {
         var active = false
+        var expires: Date?
         for await result in Transaction.currentEntitlements {
             guard case .verified(let t) = result, t.productID == Self.productID,
                   t.revocationDate == nil else { continue }
-            if let expires = t.expirationDate, expires < Date() { continue }
+            if let end = t.expirationDate, end < Date() { continue }
             active = true
+            if let end = t.expirationDate, end > (expires ?? .distantPast) {
+                expires = end
+            }
         }
-        setPro(active)
+        // A verified entitlement with no end still has to mirror as Pro. `0`
+        // is reserved for not Pro; the monthly subscription always has a date.
+        let mirrored = active ? (expires ?? .distantFuture) : nil
+        setPro(active, expires: mirrored)
     }
 
     func purchase() async {
@@ -112,10 +124,11 @@ final class ProStore: ObservableObject {
         }
     }
 
-    private func setPro(_ active: Bool) {
+    private func setPro(_ active: Bool, expires: Date?) {
         guard !Snapshots.rendering else { return }
         isPro = active
         UserDefaults.standard.set(active, forKey: Self.cacheKey)
+        ProAccess.shared.setStoreKit(active: active, expires: expires)
     }
 
     /// "€2.99 / month", or nil until the product loads.

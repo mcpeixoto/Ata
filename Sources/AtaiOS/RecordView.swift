@@ -80,20 +80,12 @@ struct RecordView: View {
     private var paused: Bool { store.phase == .interrupted }
 
     private var idleCard: some View {
-        VStack(spacing: Theme.Space.m) {
-            modePicker
-            messages
-            if !pro.isPro { freeMeetings }
-        }
-        .padding(Theme.Space.l)
-        .frame(maxWidth: .infinity)
-        .background {
-            RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous)
-                .fill(Color.primary.opacity(0.045))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.06))
+        Card(padding: Theme.Space.l) {
+            VStack(spacing: Theme.Space.m) {
+                modePicker
+                messages
+                if !pro.isPro { freeMeetings }
+            }
         }
     }
 
@@ -137,27 +129,18 @@ struct RecordView: View {
     }
 
     private var recordButton: some View {
-        Button { store.toggleRecording() } label: {
-            ZStack {
-                Circle()
-                    .fill(Theme.recording)
-                    .frame(width: 120, height: 120)
-                    .shadow(color: Theme.recordingSolid.opacity(0.35), radius: 16, y: 6)
-                if store.isRecording {
-                    RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous)
-                        .fill(.white)
-                        .frame(width: 40, height: 40)
-                } else {
-                    Image(systemName: "mic.fill")
-                        .font(.largeTitle.weight(.semibold))
-                        .foregroundStyle(.white)
-                }
-            }
-        }
-        .buttonStyle(.plain)
-        .disabled(store.phase == .starting || store.phase == .stopping)
-        .accessibilityLabel(store.isRecording ? L("Stop recording") : L("Record a conversation"))
-        .sensoryFeedback(.impact, trigger: store.isRecording)
+        HeroRecordButton(size: 120, state: recordState) { store.toggleRecording() }
+            .disabled(store.phase == .starting || store.phase == .stopping)
+            .accessibilityLabel(store.isRecording ? L("Stop recording") : L("Record a conversation"))
+            .sensoryFeedback(.impact, trigger: store.isRecording)
+    }
+
+    /// Starting and stopping keep the microphone glyph and skip the idle ring.
+    /// Recording, including a pause, is the white stop mark.
+    private var recordState: HeroRecordButton.Phase {
+        if store.phase == .starting || store.phase == .stopping { return .busy }
+        if store.isRecording { return .recording }
+        return .idle
     }
 
     private var modePicker: some View {

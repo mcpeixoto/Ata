@@ -141,6 +141,12 @@ enum Pref {
     static let fixedSystemWriterSince = "fixedSystemWriterSince" // first launch of a build whose system-audio writer is fixed
     static let agentAccess = "agentAccess"  // let agents on this Mac read meetings over MCP
     static let shareUsage = "shareUsage"     // send the daily anonymous ping (Metrics)
+    static let onboardingStep = "onboardingStep" // Int, furthest step reached; absent until the new flow
+    static let proPromptLastShown = "proPromptLastShown" // TimeInterval since 1970 of the last modal Pro prompt
+    static let proPromptCount = "proPromptCount" // how many modal Pro prompts have been shown
+    static let firstTranscriptCelebrated = "firstTranscriptCelebrated" // the one-time first-transcript sheet has been shown
+    static let useCase = "useCase"           // what the person said they record most, during onboarding
+    static let attributionCampaign = "attributionCampaign" // Apple Search Ads campaign id, written by Track 11; absent until then
     static let metricsID = "metricsID"       // random, metrics only; never Device.id
     static let metricsPendingMeetings = "metricsPendingMeetings" // recorded since the last ping
     static let metricsPendingSeconds = "metricsPendingSeconds"
