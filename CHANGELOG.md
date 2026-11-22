@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.0.0
+
+A redesign of both apps, a proper welcome, and Ata Pro on the Mac.
+
+- **A real first run.** The Mac walks you through six short steps: what Ata does, one permission at a time, your name and language, a ten-second test recording, and where to find Ata in the menu bar. The iPhone does the same in six steps, including a short clip to check that Ata can hear you. Nothing you record in the test is kept.
+- **The iPhone Record tab is a home now**: a greeting, your week in numbers, the record button, what is being transcribed, your last three meetings, and how many free minutes are left.
+- **The Mac menu leads with Record.** Recent meetings sit under it, and a new library window (⤢ or See all) has search across titles and transcripts, meetings grouped by day, Insights and People.
+- **Settings on the Mac has a sidebar**: General, Recording, Transcription, Storage, Ata Pro, Agent, Advanced and About.
+- **An example meeting** shows what a finished transcript and summary look like until you record your own. Delete it with one tap; it never comes back and never counts toward your minutes.
+- **The Mac has the same 300 free minutes a month as the iPhone.** An Ata Pro subscription on your iPhone unlocks the Mac too, through iCloud. If you only use the Mac, you can buy Ata Pro for Mac in the app: monthly, yearly, or once for good.
+- **Ata Pro, yearly with a 7-day free trial**, or monthly. If you already subscribe, your price does not change.
+- **New in Ata Pro**: your own summary formats, asking a question across all your meetings (Apple Intelligence), and exporting a meeting to PDF or Word. Everything that was free before is still free.
+
 ## 3.10.0
 
 - **300 free minutes a month on iPhone**, instead of 5 meetings. The counter shows whole minutes, rounded up. A recording already going finishes even past 300; the next one asks for Ata Pro. The Mac stays free with no limit for now.
