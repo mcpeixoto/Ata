@@ -798,3 +798,11 @@
 "Yesterday" = "Ontem";
 "Earlier this month" = "Mais cedo este mês";
 "No meetings match this search" = "Nenhuma reunião corresponde a esta pesquisa";
+
+/* Track 10 */
+"Export PDF…" = "Exportar PDF…";
+"Export Word…" = "Exportar Word…";
+"PDF saved." = "PDF guardado.";
+"Word document saved." = "Documento Word guardado.";
+"Could not save the PDF: %@" = "Não foi possível guardar o PDF: %@";
+"Could not save the Word document: %@" = "Não foi possível guardar o documento Word: %@";
