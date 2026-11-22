@@ -31,7 +31,7 @@ function account(opts: { tax?: boolean } = {}) {
         id: `price_${++n}`, active: true, product: p.product, currency: p.currency, unit_amount: p.unit_amount,
         tax_behavior: p.tax_behavior, lookup_key: p.lookup_key,
         type: p.recurring ? "recurring" : "one_time", recurring: p.recurring ?? null,
-        currency_options: { eur: { unit_amount: p.currency_options.eur.unit_amount } },
+        currency_options: { eur: { unit_amount: p.currency_options.eur.unit_amount, tax_behavior: p.currency_options.eur.tax_behavior } },
       };
       prices.push(price);
       return { status: 200, body: price };
@@ -71,7 +71,7 @@ describe("stripe-setup", () => {
     expect(a.products.get(PRODUCT_ID)).toMatchObject({ name: "Ata Pro for Mac" });
     expect(a.prices.map((p) => [p.lookup_key, p.unit_amount, p.currency_options.eur.unit_amount, p.recurring?.interval ?? null]))
       .toEqual([["ata_mac_monthly", 699, 699, "month"], ["ata_mac_yearly", 4499, 4499, "year"], ["ata_mac_lifetime", 9900, 9900, null]]);
-    expect(a.prices.every((p) => p.tax_behavior === "inclusive")).toBe(true);
+    expect(a.prices.every((p) => p.tax_behavior === "exclusive" && p.currency_options.eur.tax_behavior === "inclusive")).toBe(true);
     expect(a.portals[0].features).toMatchObject({ subscription_cancel: { enabled: true, mode: "at_period_end" }, payment_method_update: { enabled: true } });
     expect(a.hooks[0]).toMatchObject({ url: URL, enabled_events: WEBHOOK_EVENTS });
     expect(secrets).toEqual(["whsec_new"]);
