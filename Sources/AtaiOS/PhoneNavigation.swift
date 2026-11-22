@@ -18,9 +18,19 @@ final class PhoneNavigation: ObservableObject {
     @Published var onboardingStep: PhoneOnboarding.Step = .welcome
     /// Ata Pro; see `Paywall`.
     @Published var showingPaywall = false
+    /// A citation opened this meeting at a time. The meeting screen consumes it once.
+    @Published var pendingSeek: PendingSeek?
 
-    func showMeeting(_ id: String) {
+    struct PendingSeek: Equatable {
+        var meetingID: String
+        var milliseconds: Int
+    }
+
+    func showMeeting(_ id: String, atMs: Int? = nil) {
         tab = .meetings
+        if let atMs {
+            pendingSeek = PendingSeek(meetingID: id, milliseconds: atMs)
+        }
         meetingPath = [id]
     }
 

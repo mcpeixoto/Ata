@@ -133,6 +133,25 @@ enum Snapshots {
                                    width: MacPaywall.width, height: MacPaywall.height, appearance: appearance)
             write(frame(proActive, appearance), to: out, name: "pro-active-\(appearance.name)")
 
+            let ask = render(AskView(fixture: AskView.Fixture(
+                question: "What did we decide about pricing?",
+                answer: "The team agreed on €40 a month [Pricing · 12:04].",
+                meetings: [AskSource(id: "pricing", title: "Pricing", transcript: "")]
+            )), width: 640, height: 520, appearance: appearance)
+            write(frame(ask, appearance), to: out, name: "ask-meetings-\(appearance.name)")
+
+            let editorTemplate = CustomTemplate(
+                name: "Sprint review",
+                instructions: "List what shipped and what slipped. Keep each point to one line.",
+                sections: ["Shipped", "Slipped", "Next"])
+            let editor = render(TemplateEditorSheet(template: editorTemplate),
+                                width: 480, height: 560, appearance: appearance)
+            write(frame(editor, appearance), to: out, name: "template-editor-\(appearance.name)")
+
+            let locked = render(TemplateListView(fixtureTemplates: [editorTemplate], fixturePro: false),
+                                width: 440, height: 480, appearance: appearance)
+            write(frame(locked, appearance), to: out, name: "template-list-locked-\(appearance.name)")
+
             // Empty Insights: the ghost charts, and People with recognition off
             // so the primary button is what's on screen. XXL once, in the light set.
             store.applySnapshotMeetings([])

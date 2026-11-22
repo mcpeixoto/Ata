@@ -17,6 +17,7 @@ struct PhoneSettings: View {
     @State private var showingICloudHelp = Snapshots.rendering && Snapshots.screen == .iCloudHelp
     @State private var showingAcknowledgements = false
     @State private var acknowledgementsText = ""
+    @State private var showingTemplates = false
 
     /// Why no summary will appear, when none will. Summaries are on by default on
     /// the iPhone (`Pref.platformDefaults`), and before this they could silently
@@ -95,6 +96,7 @@ struct PhoneSettings: View {
 
                 Section {
                     Toggle("Add an AI summary", isOn: $summarize)
+                    Button("Your templates") { showingTemplates = true }
                 } footer: {
                     Text(summaryFootnote)
                 }
@@ -189,6 +191,9 @@ struct PhoneSettings: View {
             }
             .sheet(isPresented: $showingAcknowledgements) {
                 AcknowledgementsView(text: acknowledgementsText)
+            }
+            .sheet(isPresented: $showingTemplates) {
+                TemplateListView()
             }
         }
     }

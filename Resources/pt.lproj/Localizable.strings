@@ -806,3 +806,35 @@
 "Word document saved." = "Documento Word guardado.";
 "Could not save the PDF: %@" = "Não foi possível guardar o PDF: %@";
 "Could not save the Word document: %@" = "Não foi possível guardar o documento Word: %@";
+/* Track 10B */
+"Your templates" = "Os teus modelos";
+"Add template" = "Adicionar modelo";
+"Example: Client call" = "Exemplo: chamada com um cliente";
+"A call with a client. Write what they need, what concerns them, and the next step that was agreed. Leave out small talk." = "Uma chamada com um cliente. Escreve o que precisam, o que os preocupa e o passo seguinte que ficou combinado. Deixa de fora a conversa de circunstância.";
+"What they need" = "O que precisam";
+"Concerns" = "Preocupações";
+"Next step" = "Passo seguinte";
+"Delete this template?" = "Apagar este modelo?";
+"Instructions" = "Instruções";
+"Sections" = "Secções";
+"Heading" = "Título";
+"Add a section" = "Adicionar uma secção";
+"New template" = "Novo modelo";
+"Edit template" = "Editar modelo";
+"Rewrite summary with" = "Reescrever o resumo com";
+"Ask" = "Perguntar";
+"Ask your meetings" = "Pergunta às tuas reuniões";
+"Ask about your meetings" = "Pergunta sobre as tuas reuniões";
+"What did we decide about pricing?" = "O que decidimos sobre o preço?";
+"What are my open action items?" = "Que tarefas tenho em aberto?";
+"What did the client ask for?" = "O que é que o cliente pediu?";
+"No answer found in your meetings" = "Não encontrei resposta nas tuas reuniões";
+"Looking through your meetings…" = "A procurar nas tuas reuniões…";
+"Move up" = "Subir";
+"Move down" = "Descer";
+
+/* Track 10B — template list explains itself without a navigation bar */
+"Your own summary formats. Ata writes the summary in the sections you choose." = "Os teus próprios formatos de resumo. A Ata escreve o resumo nas secções que escolheres.";
+"Your own templates are part of Ata Pro." = "Os teus próprios modelos fazem parte da Ata Pro.";
+"Unlock with Ata Pro" = "Desbloquear com a Ata Pro";
+"No templates yet. Add one to use it from any meeting's summary." = "Ainda não tens modelos. Adiciona um para o usares no resumo de qualquer reunião.";

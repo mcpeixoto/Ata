@@ -54,6 +54,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        ProGate.presentPaywall = { feature in
+            WindowManager.shared.showPro(trigger: .feature, feature: feature)
+        }
         if Snapshots.requested {
             Snapshots.run()
             return
@@ -241,7 +244,7 @@ final class WindowManager {
             return
         }
         let window = present(nil, title: L("Welcome to Ata"), size: NSSize(width: OnboardingView.width, height: 620)) {
-            OnboardingView()
+            OnboardingView(showPro: { WindowManager.shared.showPro(trigger: .onboarding) })
                 .environmentObject(AppStore.shared)
                 .environmentObject(AppStore.shared.setup)
         }
@@ -293,9 +296,10 @@ final class WindowManager {
 
     /// The Mac paywall. `enterKey` opens the licence field; it stays hidden
     /// until `AtaLicenceURL` is set, whatever this asks.
-    func showPro(trigger: Funnel.Trigger, enterKey: Bool = false) {
+    func showPro(trigger: Funnel.Trigger, enterKey: Bool = false, feature: ProFeature? = nil) {
         Funnel.count(.paywallShown(trigger))
         LicenceStore.shared.revealKeyField = enterKey
+        PaywallFocus.shared.feature = feature
         if let pro {
             comeForward(pro)
             return
@@ -343,10 +347,12 @@ final class WindowManager {
     }
 
     /// A meeting's own window, one per meeting. `play` starts the audio.
-    func showMeeting(_ id: String, play: Bool = false) {
+    /// `atMs` seeks there and plays, including when the window is already open.
+    func showMeeting(_ id: String, play: Bool = false, atMs: Int? = nil) {
         if let open = meetings[id] {
             comeForward(open.window)
-            if play { open.model.player.play() }
+            if let atMs { open.model.play(fromMs: atMs) }
+            else if play { open.model.player.play() }
             return
         }
         let model = MeetingModel(id: id)
@@ -364,7 +370,8 @@ final class WindowManager {
             MainActor.assumeIsolated { WindowManager.shared.forgetMeeting(id) }
         }
         meetings[id] = (w, model, closing)
-        if play { model.player.play() }
+        if let atMs { model.play(fromMs: atMs) }
+        else if play { model.player.play() }
     }
 
     func closeMeeting(_ id: String) {

@@ -688,10 +688,17 @@ private struct NotesTab: View {
     private var summary: some View {
         if let summary = model.summary {
             SummaryText(summary: summary)
-            Button { model.copyFollowUp() } label: {
-                Label("Copy follow-up draft", systemImage: "envelope")
+            HStack(spacing: Theme.Space.s) {
+                Button { model.copyFollowUp() } label: {
+                    Label("Copy follow-up draft", systemImage: "envelope")
+                }
+                .controlSize(.small)
+                #if os(macOS)
+                if AppleModel.isAvailable {
+                    rewriteMenu
+                }
+                #endif
             }
-            .controlSize(.small)
         } else if model.writingNotes {
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
@@ -733,6 +740,41 @@ private struct NotesTab: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
+
+    #if os(macOS)
+    /// Built-in templates, then the user's. A free user sees the lock and the
+    /// paywall; choosing one never reaches a custom prompt.
+    private var rewriteMenu: some View {
+        let custom = TemplateLibrary.load(from: Paths.supportDir).filter { !TemplateExample.isExample($0) }
+        let unlocked = ProGate.allows(.customTemplates)
+        return Menu("Rewrite summary with") {
+            ForEach(SummaryTemplate.allCases) { template in
+                Button {
+                    Task { await model.writeNotes(choice: .builtIn(template)) }
+                } label: {
+                    Text(verbatim: template.title)
+                }
+            }
+            if !custom.isEmpty {
+                Divider()
+                ForEach(custom) { template in
+                    Button {
+                        if ProGate.lockedTap(.customTemplates, isPro: unlocked) {
+                            Task { await model.writeNotes(choice: .custom(template)) }
+                        }
+                    } label: {
+                        if unlocked {
+                            Text(verbatim: template.name)
+                        } else {
+                            Label { Text(verbatim: template.name) } icon: { Image(systemName: "lock.fill") }
+                        }
+                    }
+                }
+            }
+        }
+        .disabled(model.writingNotes)
+    }
+    #endif
 }
 
 /// The summary, list items hanging-indented: a wrapped action item lines up
