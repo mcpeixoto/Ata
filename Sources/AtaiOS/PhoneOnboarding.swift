@@ -1,15 +1,14 @@
 import AVFoundation
+import StoreKit
 import SwiftUI
 import UIKit
 import UserNotifications
 
-/// First launch, in three steps: what Ata does, the microphone and
-/// notifications, then your name and the language of your meetings.
-/// A later recording with the microphone denied opens on the second step.
+/// First launch, in six steps. The step is remembered, so leaving and coming
+/// back continues there. A later recording with the microphone denied opens
+/// on the permissions step and closes there once the person is already set up.
 struct PhoneOnboarding: View {
-    enum Step: Int, CaseIterable {
-        case welcome, permissions, you
-    }
+    typealias Step = OnboardingFlow.Step
 
     /// Where this presentation opened. A return visit for the microphone
     /// starts on permissions and closes there once the person is already set up.
@@ -18,9 +17,11 @@ struct PhoneOnboarding: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject private var pro = ProStore.shared
     @AppStorage(Pref.myName) private var myName = ""
     @AppStorage(Pref.language) private var language = "auto"
     @AppStorage(Pref.shareUsage) private var shareUsage = true
+    @StateObject private var trial = OnboardingTrial()
     @State private var step: Step
     /// Which way the next change slides. Set before `step`, so the step that
     /// leaves and the one that arrives move as one gesture.
@@ -30,17 +31,41 @@ struct PhoneOnboarding: View {
 
     init(start: Step = .welcome) {
         openedAt = start
-        _step = State(initialValue: start)
+        _step = State(initialValue: Self.opening(start))
+    }
+
+    /// Permissions re-entry stays on permissions. A screenshot launch shows the
+    /// step it asked for. Anyone else continues from the furthest step reached.
+    private static func opening(_ start: Step) -> Step {
+        if Snapshots.rendering || start == .permissions { return start }
+        guard let raw = Pref.d.object(forKey: Pref.onboardingStep) as? Int,
+              let saved = Step(rawValue: raw) else { return start }
+        return saved.rawValue >= start.rawValue ? saved : start
+    }
+
+    /// The flow test pretends the microphone is granted so it can walk the
+    /// try-it step without the system prompt. A real launch uses the system.
+    private var micGranted: Bool {
+        if Snapshots.rendering, ProcessInfo.processInfo.arguments.contains("-AtaOnboardingMicGranted") {
+            return true
+        }
+        return mic == .granted
+    }
+
+    /// The yearly plan, once it has loaded. A screenshot of the last step
+    /// shows a stand-in: StoreKit does not answer a UI-test launch.
+    private var proPlan: OnboardingProPlan? {
+        if Snapshots.rendering, Snapshots.screen == .onboardingPro { return .snapshot }
+        guard let product = OnboardingYearly.product else { return nil }
+        return OnboardingYearly.plan(for: product)
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-                .padding(.horizontal, 24)
-                .padding(.top, 16)
-                .padding(.bottom, 8)
-            // One step at a time. The others are not built, so VoiceOver and
-            // the UI tests cannot land on a step that is off screen.
+        OnboardingScaffold(
+            step: step.rawValue,
+            count: Step.allCases.count,
+            back: step == .welcome ? nil : { goBack() }
+        ) {
             ZStack {
                 page(step)
                     .id(step)
@@ -48,83 +73,49 @@ struct PhoneOnboarding: View {
                         insertion: .move(edge: forward ? .trailing : .leading),
                         removal: .move(edge: forward ? .leading : .trailing)))
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .clipped()
+            .animation(.easeInOut(duration: 0.28), value: step)
+        } footer: {
+            stepFooter
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
+        .interactiveDismissDisabled()
         .presentationSizing(.page)
         .task { await refresh() }
+        .task {
+            guard !Snapshots.rendering, pro.product == nil else { return }
+            await pro.load()
+        }
+        .onAppear { note(step) }
+        .onChange(of: step) { _, new in note(new) }
         .onChange(of: scenePhase) { _, phase in
             // Coming back from Settings is how a denied microphone becomes granted.
             if phase == .active { Task { await refresh() } }
         }
-    }
-
-    private var header: some View {
-        HStack {
-            // A hidden copy on the welcome step keeps the dots from jumping
-            // when Back appears, and the one on the right keeps them centred.
-            backButton
-                .opacity(step == .welcome ? 0 : 1)
-                .accessibilityHidden(step == .welcome)
-                .allowsHitTesting(step != .welcome)
-            Spacer(minLength: 8)
-            HStack(spacing: 6) {
-                ForEach(Step.allCases, id: \.self) { item in
-                    Capsule()
-                        .fill(item == step ? Theme.meTint : Color.secondary.opacity(0.35))
-                        .frame(width: item == step ? 18 : 7, height: 7)
-                }
-            }
-            .accessibilityHidden(true)
-            Spacer(minLength: 8)
-            backButton
-                .hidden()
-                .accessibilityHidden(true)
-                .allowsHitTesting(false)
+        .onChange(of: pro.isPro) { _, isPro in
+            if isPro { finish() }
         }
-        .animation(.easeInOut(duration: 0.28), value: step)
-    }
-
-    private var backButton: some View {
-        Button { go(to: Step(rawValue: step.rawValue - 1) ?? .welcome) } label: {
-            Label("Back", systemImage: "chevron.left")
-        }
-    }
-
-    private func page(_ item: Step) -> some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                pageContent(item)
-                    .padding(.horizontal, 24)
-                    .padding(.top, 8)
-                    .padding(.bottom, 12)
-            }
-            .scrollBounceBehavior(.basedOnSize)
-            footer(item)
-                .padding(24)
-        }
-        .background(Color(.systemBackground))
     }
 
     @ViewBuilder
-    private func pageContent(_ item: Step) -> some View {
+    private func page(_ item: Step) -> some View {
         switch item {
         case .welcome: welcome
+        case .useCase: useCase
         case .permissions: permissions
         case .you: you
+        case .tryIt: tryIt
+        case .pro: proStep
         }
     }
 
     private var welcome: some View {
-        VStack(spacing: 22) {
-            AppGlyph(size: 72)
+        VStack(spacing: Theme.Space.xl) {
+            WelcomeStory()
             Text("Record it. Ata writes it up.")
                 .font(.largeTitle.bold())
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: Theme.Space.l) {
                 Feature(symbol: "lock.iphone",
                         title: L("Records with the screen locked"),
                         detail: L("A meeting, a lecture, a doctor's visit. Tap once and put the iPhone down."))
@@ -144,13 +135,43 @@ struct PhoneOnboarding: View {
         }
     }
 
+    private var useCase: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.l) {
+            Text("What will you record most?")
+                .font(.title.bold())
+                .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: Theme.Space.s) {
+                ForEach(UseCase.allCases, id: \.self) { item in
+                    Button { choose(item) } label: {
+                        Card {
+                            HStack(spacing: Theme.Space.m) {
+                                Image(systemName: item.symbol)
+                                    .foregroundStyle(Theme.accent)
+                                    .frame(width: 28)
+                                Text(verbatim: useCaseTitle(item))
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                Image(systemName: "chevron.right")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("onboarding-usecase-\(item.rawValue)")
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private var permissions: some View {
         VStack(alignment: .leading, spacing: Theme.Space.xl) {
             Text("Let Ata hear the room")
                 .font(.title.bold())
                 .fixedSize(horizontal: false, vertical: true)
             VStack(spacing: Theme.Space.m) {
-                PermissionCard(ok: mic == .granted, title: L("Microphone"),
+                PermissionCard(ok: micGranted, title: L("Microphone"),
                                detail: L("To record. Audio stays on this iPhone.")) {
                     // App Review rejects "Allow" before the system prompt (5.1.1(iv)):
                     // the choice is the system's, this button only leads to it.
@@ -220,35 +241,115 @@ struct PhoneOnboarding: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    @ViewBuilder
-    private func footer(_ item: Step) -> some View {
-        VStack(spacing: 12) {
-            if item == .you {
-                Text(L("%d minutes a month are free. Ata Pro removes the limit.", FreeQuota.limitMinutes))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
+    private var tryIt: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.l) {
+            Text("Try it: say a sentence")
+                .font(.title.bold())
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: Theme.Space.s) {
+                Circle()
+                    .fill(trial.phase == .recording ? Theme.recordingSolid : Theme.accent)
+                    .frame(width: 8, height: 8)
+                Text(verbatim: clock(trial.seconds))
+                    .font(.headline.monospacedDigit())
             }
-            switch item {
-            case .welcome:
-                bottomButton(L("Continue"), prominent: true, identifier: "onboarding-next") {
-                    go(to: .permissions)
+            .frame(maxWidth: .infinity)
+            LevelMeter(level: trial.level, tint: Theme.recordingSolid)
+            Text(verbatim: trial.transcript.isEmpty ? L("…your words appear here") : trial.transcript)
+                .ataBody()
+                .foregroundStyle(trial.transcript.isEmpty ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if trial.heard {
+                Label("Ata heard you", systemImage: "checkmark.circle.fill")
+                    .ataHeadline()
+                    .foregroundStyle(Theme.accent)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear { trial.begin(language: language) }
+    }
+
+    private var proStep: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.l) {
+            Text("You're set")
+                .font(.title.bold())
+                .fixedSize(horizontal: false, vertical: true)
+            Text(L("%d minutes a month are free. Ata Pro removes the limit.", FreeQuota.limitMinutes))
+                .ataCallout()
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let plan = proPlan {
+                PlanCard(title: plan.title, price: plan.price, detail: plan.detail,
+                         badge: plan.badge, selected: true) { buy() }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var stepFooter: some View {
+        switch step {
+        case .welcome:
+            bottomButton(L("Continue"), prominent: true, identifier: "onboarding-next") { advance() }
+        case .useCase:
+            EmptyView()
+        case .permissions:
+            // Without the microphone, Continue is the one thing to press; a second
+            // filled button saying "Not now" would compete with it.
+            // A grant does not move the step on, even when notifications were
+            // already answered: the person presses Next.
+            bottomButton(micGranted ? L("Next") : L("Not now"),
+                         prominent: micGranted,
+                         identifier: "onboarding-next") {
+                leavePermissions()
+            }
+        case .you:
+            bottomButton(L("Continue"), prominent: true, identifier: "onboarding-next") { advance() }
+        case .tryIt:
+            HStack(spacing: Theme.Space.s) {
+                Button {
+                    if trial.confirm(language: language) { advance() }
+                } label: {
+                    Text(L("Continue"))
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
                 }
-            case .permissions:
-                // Without the microphone, Continue is the one thing to press; a second
-                // filled button saying "Not now" would compete with it.
-                // A grant does not move the step on, even when notifications were
-                // already answered: the person presses Next.
-                bottomButton(mic == .granted ? L("Next") : L("Not now"),
-                             prominent: mic == .granted,
-                             identifier: "onboarding-next") {
-                    leavePermissions()
+                .buttonStyle(PrimaryButtonStyle())
+                .accessibilityIdentifier("onboarding-next")
+                Button {
+                    trial.abandon()
+                    advance()
+                } label: {
+                    Text("Skip")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
                 }
-            case .you:
+                .buttonStyle(SecondaryButtonStyle())
+                .accessibilityIdentifier("onboarding-skip")
+            }
+        case .pro:
+            if let plan = proPlan {
+                VStack(spacing: Theme.Space.s) {
+                    Button { buy() } label: {
+                        Text(verbatim: plan.offersTrial
+                             ? L("Try 7 days free")
+                             : L("Subscribe for %@", plan.price))
+                            .font(.headline)
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .disabled(pro.purchasing)
+                    .accessibilityIdentifier("onboarding-trial")
+                    Button { finish() } label: {
+                        Text("Continue free")
+                            .font(.headline)
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .accessibilityIdentifier("onboarding-finish")
+                }
+            } else {
                 bottomButton(L("Start using Ata"), prominent: true, identifier: "onboarding-finish") {
-                    Pref.d.set(true, forKey: Pref.onboarded)
-                    dismiss()
+                    finish()
                 }
             }
         }
@@ -257,11 +358,11 @@ struct PhoneOnboarding: View {
     private func bottomButton(_ title: String, prominent: Bool, identifier: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(verbatim: title)
+                .font(.headline)
                 .frame(maxWidth: .infinity)
                 .multilineTextAlignment(.center)
         }
         .modifier(FinishStyle(primary: prominent))
-        .controlSize(.large)
         .accessibilityIdentifier(identifier)
     }
 
@@ -270,16 +371,61 @@ struct PhoneOnboarding: View {
 
         func body(content: Content) -> some View {
             if primary {
-                content.buttonStyle(.borderedProminent)
+                content.buttonStyle(PrimaryButtonStyle())
             } else {
-                content.buttonStyle(.bordered)
+                content.buttonStyle(SecondaryButtonStyle())
             }
         }
+    }
+
+    private func useCaseTitle(_ useCase: UseCase) -> String {
+        switch useCase {
+        case .work: return L("Work meetings")
+        case .classes: return L("Classes")
+        case .interviews: return L("Interviews")
+        case .personal: return L("Personal")
+        }
+    }
+
+    private func choose(_ useCase: UseCase) {
+        // A screenshot launch must not write the simulator's defaults: the
+        // settings shot is taken in the same simulator afterwards.
+        if !Snapshots.rendering {
+            let choice = useCase.defaults
+            Pref.d.set(useCase.rawValue, forKey: Pref.useCase)
+            Pref.d.set(choice.category, forKey: Pref.defaultCategory)
+            if let mode = choice.mode, let parsed = RecordingMode(rawValue: mode) {
+                PhoneStore.shared.mode = parsed
+            }
+        }
+        advance()
+    }
+
+    private func note(_ step: Step) {
+        guard !Snapshots.rendering else { return }
+        let stored = (Pref.d.object(forKey: Pref.onboardingStep) as? Int) ?? -1
+        if step.rawValue > stored {
+            Pref.d.set(step.rawValue, forKey: Pref.onboardingStep)
+        }
+        Funnel.count(.onboardingStep(step.rawValue))
     }
 
     private func go(to next: Step) {
         forward = next.rawValue > step.rawValue
         withAnimation(.easeInOut(duration: 0.28)) { step = next }
+    }
+
+    private func goBack() {
+        guard let previous = OnboardingFlow.previous(from: step, micGranted: micGranted) else { return }
+        go(to: previous)
+    }
+
+    private func advance() {
+        guard let next = OnboardingFlow.next(from: step, micGranted: micGranted, productLoaded: proPlan != nil) else {
+            finish()
+            return
+        }
+        go(to: next)
     }
 
     private func leavePermissions() {
@@ -288,7 +434,26 @@ struct PhoneOnboarding: View {
             dismiss()
             return
         }
-        go(to: .you)
+        advance()
+    }
+
+    private func finish() {
+        trial.abandon()
+        if !Snapshots.rendering {
+            Pref.d.set(true, forKey: Pref.onboarded)
+        }
+        dismiss()
+    }
+
+    private func buy() {
+        Task {
+            await OnboardingYearly.purchase()
+            if pro.isPro { finish() }
+        }
+    }
+
+    private func clock(_ seconds: Int) -> String {
+        String(format: "%d:%02d", max(seconds, 0) / 60, max(seconds, 0) % 60)
     }
 
     private func requestMic() {
@@ -315,9 +480,273 @@ struct PhoneOnboarding: View {
     }
 }
 
-/// One permission on the second onboarding step. Same meaning as `CheckRow`:
-/// granted replaces the symbol with a check and hides the button. At the
-/// largest text sizes the button moves under the title so nothing is clipped.
+/// The yearly subscription, when ProStore has one. The monthly product is not
+/// offered here. Until Track 3 loads a yearly product this stays empty and the
+/// last step only offers the free minutes.
+@MainActor
+enum OnboardingYearly {
+    static var product: Product? {
+        guard let product = ProStore.shared.product, isYearly(product) else { return nil }
+        return product
+    }
+
+    static func isYearly(_ product: Product) -> Bool {
+        product.subscription?.subscriptionPeriod.unit == .year
+    }
+
+    static func plan(for product: Product) -> OnboardingProPlan {
+        let trial = product.subscription?.introductoryOffer?.paymentMode == .freeTrial
+        return OnboardingProPlan(
+            title: product.displayName,
+            price: product.displayPrice,
+            detail: L("Unlimited meetings, including your Mac"),
+            badge: trial ? L("7 days free") : nil,
+            offersTrial: trial)
+    }
+
+    /// Buys only when the product ProStore would purchase is this yearly one,
+    /// so a monthly product can never be sold from this step.
+    static func purchase() async {
+        guard let product = product, product.id == ProStore.shared.product?.id else { return }
+        await ProStore.shared.purchase()
+    }
+}
+
+/// What the last step's card shows. Built from StoreKit, or from `snapshot`
+/// when the screenshot run cannot ask the App Store.
+struct OnboardingProPlan: Equatable {
+    var title: String
+    var price: String
+    var detail: String
+    var badge: String?
+    var offersTrial: Bool
+
+    static var snapshot: OnboardingProPlan {
+        OnboardingProPlan(
+            title: L("Ata Pro"),
+            price: L("%@ / %@", "€44.99", L("year")),
+            detail: L("Unlimited meetings, including your Mac"),
+            badge: L("7 days free"),
+            offersTrial: true)
+    }
+}
+
+/// Ten seconds into a temporary WAV, then thrown away. Never a meeting, so it
+/// never joins the library and never counts toward the free minutes.
+@MainActor
+final class OnboardingTrial: ObservableObject {
+    enum Phase: Equatable { case idle, recording, done }
+
+    @Published private(set) var phase = Phase.idle
+    @Published private(set) var level: Float = 0
+    @Published private(set) var seconds = 0
+    @Published private(set) var heard = false
+    @Published private(set) var transcript = ""
+
+    private let recorder = PhoneRecorder()
+    private var clip: URL?
+    private var peak: Float = 0
+    private var sample: Task<Void, Never>?
+    private var transcribe: Task<Void, Never>?
+
+    func begin(language: String) {
+        guard phase == .idle, sample == nil else { return }
+        if Snapshots.rendering {
+            // The last frame: a sentence already heard, so the shot and the
+            // flow test do not open the microphone.
+            level = 0.62
+            seconds = 7
+            heard = true
+            phase = .done
+            return
+        }
+        guard AVAudioApplication.shared.recordPermission == .granted else { return }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ata-onboarding-\(UUID().uuidString).wav")
+        clip = url
+        do {
+            try recorder.startClip(at: url)
+        } catch {
+            deleteClip()
+            return
+        }
+        phase = .recording
+        let started = Date()
+        sample = Task { await self.watch(started: started, language: language) }
+    }
+
+    /// Continue. Stops a recording in progress and stays, so the result can
+    /// show; a second press, or a clip that never started, moves on.
+    func confirm(language: String) -> Bool {
+        if phase == .recording {
+            judge(language: language)
+            return false
+        }
+        abandon()
+        return true
+    }
+
+    func abandon() {
+        sample?.cancel()
+        sample = nil
+        transcribe?.cancel()
+        transcribe = nil
+        recorder.stopClip()
+        deleteClip()
+        if phase == .recording { phase = .done }
+    }
+
+    private func watch(started: Date, language: String) async {
+        while !Task.isCancelled {
+            let elapsed = Date().timeIntervalSince(started)
+            if elapsed >= 10 { break }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            if Task.isCancelled { return }
+            noteLevel()
+            seconds = min(10, Int(elapsed))
+        }
+        guard !Task.isCancelled else { return }
+        seconds = 10
+        judge(language: language)
+    }
+
+    private func noteLevel() {
+        level = recorder.level
+        peak = max(peak, level)
+        heard = TrialResult(peakMic: peak, peakMac: 0).heardMic
+    }
+
+    private func judge(language: String) {
+        guard phase == .recording else { return }
+        noteLevel()
+        phase = .done
+        recorder.stopClip()
+        let keep = heard && clip != nil
+        if keep {
+            transcribe = Task { await self.writeDown(language: language) }
+        } else {
+            deleteClip()
+        }
+        sample?.cancel()
+    }
+
+    /// Transcribes only a language whose model is already on the phone.
+    /// Asking for one that is not would start a download during the try-out.
+    private func writeDown(language: String) async {
+        defer { deleteClip() }
+        guard let clip, let code = await ready(language), !Task.isCancelled else { return }
+        let segments = try? await AppleSpeechEngine.transcribe(
+            audio: clip, speaker: Pref.myNameOrDefault, language: code,
+            plausible: [code], progress: { _ in })
+        let text = (segments ?? []).map(\.text).joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !text.isEmpty, !Task.isCancelled { transcript = text }
+    }
+
+    private func ready(_ language: String) async -> String? {
+        guard AppleSpeechEngine.isAvailable else { return nil }
+        let codes = language == "auto" ? LanguageChoice.plausible : [language]
+        for code in codes {
+            guard let id = await AppleSpeechEngine.localeID(for: code) else { continue }
+            if await AppleSpeechEngine.isInstalled(id) { return code }
+        }
+        return nil
+    }
+
+    private func deleteClip() {
+        if let clip { try? FileManager.default.removeItem(at: clip) }
+        clip = nil
+    }
+}
+
+/// Three cards — waveform, transcript, summary — cross-fading. Each holds for
+/// 3 seconds. Reduce Motion and screenshot runs stay on the summary, the last frame.
+private struct WelcomeStory: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var frame = 0
+
+    private var animates: Bool { !reduceMotion && !Snapshots.rendering }
+    private var index: Int { animates ? frame : 2 }
+
+    /// Shared height so the crossfade does not jump. The bars need the room.
+    private let cardHeight: CGFloat = 132
+
+    var body: some View {
+        ZStack {
+            if animates || index == 0 { waveform.opacity(index == 0 ? 1 : 0) }
+            if animates || index == 1 { transcript.opacity(index == 1 ? 1 : 0) }
+            if animates || index == 2 { summary.opacity(index == 2 ? 1 : 0) }
+        }
+        .frame(maxWidth: .infinity, minHeight: cardHeight)
+        .accessibilityHidden(true)
+        .task { await play() }
+    }
+
+    private func play() async {
+        guard animates else { return }
+        while !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.45)) { frame = (frame + 1) % 3 }
+        }
+    }
+
+    /// Width is below Space.xs so twenty bars read as one waveform, not a row of pills.
+    private var waveform: some View {
+        Card {
+            HStack(alignment: .center, spacing: 3) {
+                ForEach(Array(Self.bars.enumerated()), id: \.offset) { _, height in
+                    Capsule()
+                        .fill(Theme.recordingSolid)
+                        .frame(width: 4, height: height)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: cardHeight - Theme.Space.xl)
+        }
+    }
+
+    private var transcript: some View {
+        Card {
+            VStack(alignment: .leading, spacing: Theme.Space.s) {
+                Text(L("Alex: Let's ship it on Friday."))
+                    .ataBody()
+                Text(L("Sam: I'll send the notes."))
+                    .ataBody()
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, minHeight: cardHeight - Theme.Space.xl, alignment: .leading)
+        }
+    }
+
+    private var summary: some View {
+        Card {
+            VStack(alignment: .leading, spacing: Theme.Space.s) {
+                line(L("Ship on Friday"))
+                line(L("Notes go out today"))
+                line(L("Recorded on this iPhone"))
+            }
+            .frame(maxWidth: .infinity, minHeight: cardHeight - Theme.Space.xl, alignment: .leading)
+        }
+    }
+
+    private func line(_ text: String) -> some View {
+        HStack(spacing: Theme.Space.s) {
+            Image(systemName: "checkmark")
+                .foregroundStyle(Theme.accent)
+            Text(verbatim: text)
+                .ataBody()
+        }
+    }
+
+    private static let bars: [CGFloat] = [
+        14, 28, 18, 44, 32, 64, 40, 72, 48, 80,
+        36, 68, 24, 52, 18, 40, 22, 48, 16, 30,
+    ]
+}
+
+/// One permission on the permissions step. Granted replaces the symbol with a
+/// check and hides the button. At the largest text sizes the button moves
+/// under the title so nothing is clipped.
 private struct PermissionCard<Trailing: View>: View {
     let ok: Bool
     let title: String

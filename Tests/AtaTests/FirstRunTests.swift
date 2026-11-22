@@ -71,6 +71,14 @@ final class FirstRunTests: XCTestCase {
         XCTAssertFalse(Recorder.micIsSilent(micPeak: 0, systemPeak: 0, elapsed: 60), "nothing is happening yet")
     }
 
+    func testATrialHearsTheMicrophoneAndTheMacAtDifferentLevels() {
+        XCTAssertEqual(TrialResult(peakMic: 0.05, peakMac: 0), TrialResult(heardMic: true, heardMac: false))
+        XCTAssertFalse(TrialResult(peakMic: 0.049, peakMac: 0.4).heardMic)
+        XCTAssertEqual(TrialResult(peakMic: 0, peakMac: 0.01), TrialResult(heardMic: false, heardMac: true))
+        XCTAssertFalse(TrialResult(peakMic: 1, peakMac: 0.009).heardMac)
+        XCTAssertEqual(TrialResult(peakMic: 0.05, peakMac: 0.01), TrialResult(heardMic: true, heardMac: true))
+    }
+
     func testAMicrophoneThatSpeaksAgainClearsTheSilentWarning() {
         XCTAssertTrue(Recorder.clearMicWarning(micPeak: 0.01, warned: true))
         XCTAssertFalse(Recorder.clearMicWarning(micPeak: 0.009, warned: true), "still under the silence line")

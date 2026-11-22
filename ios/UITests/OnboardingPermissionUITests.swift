@@ -28,6 +28,12 @@ final class OnboardingPermissionUITests: XCTestCase {
         XCTAssertTrue(next.waitForExistence(timeout: 10))
         next.tap()
 
+        // What you record sits between welcome and the microphone. The checks
+        // below are the ones this test exists for: the button says Continue.
+        let work = app.buttons["onboarding-usecase-work"]
+        XCTAssertTrue(work.waitForExistence(timeout: 10))
+        work.tap()
+
         XCTAssertTrue(app.staticTexts["Let Ata hear the room"].waitForExistence(timeout: 10))
 
         let mic = app.buttons["microphone-permission"]
