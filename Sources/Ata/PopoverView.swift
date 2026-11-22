@@ -149,8 +149,22 @@ struct PopoverView: View {
         .tint(Theme.accent)
     }
 
+    private var freeMinutes: some View {
+        let left = FreeQuota.remaining(used: store.freeUsed)
+        return Text(left == 1
+                    ? L("1 free minute left this month")
+                    : L("%d free minutes left this month", left))
+            .ataCaption()
+            .foregroundStyle(left == 0 ? Theme.warning : Color.secondary)
+    }
+
     /// Picks audio files to import, from the footer.
     private func chooseAudio() {
+        store.updateQuota()
+        if store.atFreeLimit {
+            store.lastError = L("You have used this month's %d free minutes on this Mac.", FreeQuota.limitMinutes)
+            return
+        }
         let panel = NSOpenPanel()
         panel.allowedContentTypes = AudioImport.types
         panel.allowsMultipleSelection = true
@@ -261,12 +275,17 @@ struct PopoverView: View {
                         Text(L("Meeting in %@", app)).ataHeadline()
                     }
                     Text("Hit record to capture and transcribe it.").ataCaption().foregroundStyle(.secondary)
+                    if FreeQuota.appliesOnMac { freeMinutes }
                 } else {
                     Text(store.phase == .starting ? L("Getting ready…") : L("Record a meeting"))
                         .font(.system(size: 14, weight: .semibold))
                     Text("Your microphone and your Mac's audio. Works with any app.")
                         .ataCaption().foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                    if FreeQuota.appliesOnMac {
+                        freeMinutes
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
             Spacer(minLength: 0)

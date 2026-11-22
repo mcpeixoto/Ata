@@ -1,66 +1,87 @@
 import Foundation
 
-/// Ata on iPhone is free for five new meetings a calendar month; Ata Pro lifts
-/// the limit. The Mac is free without any limit, and nothing here runs there.
+/// Each device is free for 300 minutes of new audio a calendar month. Ata Pro
+/// lifts the limit on iPhone. The Mac counts the same allowance, and blocks on
+/// it only while `appliesOnMac` is on.
 ///
-/// What counts is a meeting this iPhone made: recorded (the button, Siri, the
-/// Control, the Watch through the iPhone), imported from Files or the share
-/// sheet, or recorded on the Watch and imported here. Meetings that came from
-/// the Mac through iCloud, a transcript run again, and reading or exporting
-/// never count.
+/// What counts is audio this device made. An iPhone counts its own recordings
+/// and imports; a Mac counts its own. A meeting that arrived through iCloud
+/// from the other device, a transcript run again, and reading or exporting
+/// never count. Any finished recording with audio and a duration above zero
+/// counts its seconds. One that is still
+/// recording has no duration yet and uses none of the allowance, so it is never
+/// cut off; the next recording or import is what waits.
 ///
-/// A recording counts only once it has finished with audio and lasted at least
-/// `minimumSeconds`. Anything shorter is a test tap: it is left out of the
-/// library count and never written to the ledger. While it is still recording
-/// its duration is unknown, and it counts, so it holds its place. An import
-/// counts as soon as it lands, however long the file is — the ledger is written
-/// then, and a short file already in the ledger still counts.
+/// The screen shows whole minutes, rounded up on the month's total, so a few
+/// leftover seconds still cost a minute and two short meetings share one rounding.
 ///
-/// Two sources, so neither deleting a meeting nor reinstalling Ata gives one
-/// back: the library (meetings whose origin is an iPhone and that started this
-/// month) and a ledger of the meetings made this month, kept in the keychain.
+/// Two sources, so neither deleting a meeting nor reinstalling Ata gives the
+/// minutes back: the library (meetings this device made that started this
+/// month) and a ledger of the seconds used this month, kept in the keychain.
 /// The ledger also catches an import of an old file, whose meeting is dated
-/// when the file was recorded.
+/// when the file was recorded. A line written by an older Ata is just an id:
+/// it is worth the duration still in the library, or nothing once deleted.
 enum FreeQuota {
-    static let limit = 5
-    /// A finished recording shorter than this did not use a free meeting.
-    static let minimumSeconds = 30.0
+    /// Five hours, as a round number of minutes.
+    static let limitMinutes = 300
 
-    /// How many of this month's free meetings are used.
+    /// The Mac has no way to buy Ata Pro yet, so the 300-minute limit is off
+    /// there until it can be unlocked.
+    static let appliesOnMac = false
+
+    /// One stored meeting. `seconds` is nil on a line written before durations
+    /// were kept: an id alone.
+    struct Entry: Equatable {
+        var seconds: Double?
+    }
+
+    /// How many of this month's free minutes are used, rounded up.
     /// - Parameters:
-    ///   - ledger: meeting ids recorded for the month `now` is in.
-    ///   - deviceID: this iPhone's id. Its own meetings from before devices had
+    ///   - ledger: meetings recorded for the month `now` is in.
+    ///   - deviceID: this device's id. Its own meetings from before devices had
     ///     a kind count too.
-    static func used(meetings: [Meeting], ledger: Set<String>, now: Date = Date(),
-                     calendar: Calendar = .current, deviceID: String? = nil) -> Int {
-        var counted = ledger
-        for m in meetings where madeOnAnIPhone(m, deviceID: deviceID)
-            && calendar.isDate(m.startedAt, equalTo: now, toGranularity: .month)
-            && countsInLibrary(m) {
-            counted.insert(m.id)
+    ///   - kind: `Device.kind`. iPhone and Mac each have their own 300 minutes.
+    static func used(meetings: [Meeting], ledger: [String: Entry], now: Date = Date(),
+                     calendar: Calendar = .current, deviceID: String? = nil,
+                     kind: String) -> Int {
+        var seconds = 0.0
+        var charged = Set<String>()
+        for (id, entry) in ledger {
+            charged.insert(id)
+            if let stored = entry.seconds {
+                if stored > 0 { seconds += stored }
+            } else if let meeting = meetings.first(where: { $0.id == id }) {
+                seconds += countedSeconds(meeting)
+            }
         }
-        return counted.count
+        for meeting in meetings where !charged.contains(meeting.id)
+            && madeHere(meeting, kind: kind, deviceID: deviceID)
+            && calendar.isDate(meeting.startedAt, equalTo: now, toGranularity: .month) {
+            seconds += countedSeconds(meeting)
+        }
+        return minutes(fromSeconds: seconds)
     }
 
-    /// Duration unknown (still recording) counts. A known length under
-    /// `minimumSeconds` does not — unless the ledger already has the id,
-    /// which is how a short import keeps counting.
-    static func countsInLibrary(_ m: Meeting) -> Bool {
-        guard let duration = m.duration else { return true }
-        return duration >= minimumSeconds
+    /// Whole minutes, rounded up on the total. Zero stays zero.
+    static func minutes(fromSeconds seconds: Double) -> Int {
+        guard seconds > 0 else { return 0 }
+        return Int(ceil(seconds / 60))
     }
 
-    /// Whether stopping a recording writes it to the keychain ledger.
+    /// A finished recording with audio uses its seconds. No audio does not.
     /// Imports do not come through here; they are recorded when they land.
     static func countsWhenStopped(duration: Double?, hasAudio: Bool) -> Bool {
-        hasAudio && (duration ?? 0) >= minimumSeconds
+        hasAudio && (duration ?? 0) > 0
     }
 
-    static func remaining(used: Int) -> Int { max(0, limit - used) }
+    static func remaining(used: Int) -> Int { max(0, limitMinutes - used) }
 
-    static func madeOnAnIPhone(_ m: Meeting, deviceID: String?) -> Bool {
+    /// A meeting this device made. One from the other device, or still a cloud
+    /// placeholder, does not count. A meeting from before devices had a kind
+    /// counts when its id is this device's.
+    static func madeHere(_ m: Meeting, kind: String, deviceID: String?) -> Bool {
         guard let origin = m.origin, m.cloudPlaceholder != true else { return false }
-        if let kind = origin.kind { return kind == DeviceRef.iPhone }
+        if let originKind = origin.kind { return originKind == kind }
         return deviceID != nil && origin.id == deviceID
     }
 
@@ -70,15 +91,48 @@ enum FreeQuota {
         return String(format: "quota-%04d-%02d", c.year ?? 0, c.month ?? 0)
     }
 
-    /// The ledger as it is stored: one id a line. Meeting ids are folder names,
-    /// which may hold a comma (an imported "Call, Bob.m4a") but never a newline
-    /// (`FolderNames.safe`).
-    static func decode(_ stored: String?) -> Set<String> {
-        guard let stored else { return [] }
-        return Set(stored.split(separator: "\n").map(String.init).filter { !$0.isEmpty })
+    /// The ledger as it is stored, one meeting a line. `id` is a legacy line.
+    /// `id<TAB>seconds` is the current line. Meeting ids are folder names, which
+    /// may hold a comma (an imported "Call, Bob.m4a") but never a tab or a
+    /// newline (`FolderNames.safe` turns both into spaces).
+    static func decode(_ stored: String?) -> [String: Entry] {
+        guard let stored else { return [:] }
+        var entries: [String: Entry] = [:]
+        for lineSub in stored.split(separator: "\n", omittingEmptySubsequences: true) {
+            let line = String(lineSub)
+            if let tab = line.firstIndex(of: "\t") {
+                let id = String(line[..<tab])
+                let rest = String(line[line.index(after: tab)...])
+                guard !id.isEmpty, let seconds = parseSeconds(rest) else { continue }
+                entries[id] = Entry(seconds: seconds)
+            } else {
+                entries[line] = Entry(seconds: nil)
+            }
+        }
+        return entries
     }
 
-    static func encode(_ ids: Set<String>) -> String {
-        ids.sorted().joined(separator: "\n")
+    static func encode(_ entries: [String: Entry]) -> String {
+        entries.keys.sorted().map { id in
+            guard let seconds = entries[id]?.seconds else { return id }
+            return id + "\t" + formatSeconds(seconds)
+        }.joined(separator: "\n")
+    }
+
+    /// A recording still going has no duration and uses none of the allowance.
+    private static func countedSeconds(_ meeting: Meeting) -> Double {
+        guard let duration = meeting.duration, duration > 0 else { return 0 }
+        return duration
+    }
+
+    private static func formatSeconds(_ seconds: Double) -> String {
+        String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), seconds)
+    }
+
+    private static func parseSeconds(_ text: String) -> Double? {
+        let scanner = Scanner(string: text)
+        scanner.locale = Locale(identifier: "en_US_POSIX")
+        guard let value = scanner.scanDouble(), scanner.isAtEnd, value >= 0 else { return nil }
+        return value
     }
 }

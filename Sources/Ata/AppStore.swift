@@ -32,6 +32,8 @@ final class AppStore: ObservableObject {
     @Published private(set) var bookmarkCount = 0
     /// Audio files still being decoded into meetings.
     @Published private(set) var importing = 0
+    /// Free minutes used on this Mac this month; see `FreeQuota`.
+    @Published private(set) var freeUsed = 0
     @Published var lastError: String?
 
     let setup = SetupModel()
@@ -173,6 +175,7 @@ final class AppStore: ObservableObject {
         Task {
             let all = await Task.detached(priority: .userInitiated) { Library.loadAll() }.value
             meetings = all
+            updateQuota()
             reloading = false
             // It reads `meetings`, which the callers that asked for it before
             // this reload became asynchronous expected to be current.
@@ -182,6 +185,19 @@ final class AppStore: ObservableObject {
                 reload()
             }
         }
+    }
+
+    /// This month's 300 minutes are used, and the limit is being enforced.
+    /// While `FreeQuota.appliesOnMac` is false the Mac still writes the seconds
+    /// into the ledger and blocks nothing, until the limit can be unlocked.
+    var atFreeLimit: Bool { FreeQuota.appliesOnMac && freeUsed >= FreeQuota.limitMinutes }
+
+    /// Counted from the library and the keychain. A meeting still recording
+    /// has no duration and is not included.
+    func updateQuota() {
+        guard !Snapshots.rendering else { return }
+        freeUsed = FreeQuota.used(meetings: meetings, ledger: QuotaLedger.entries(),
+                                   deviceID: Device.id, kind: Device.kind)
     }
 
     /// Nothing is recording, transcribing, importing or compressing a finished
@@ -323,6 +339,12 @@ final class AppStore: ObservableObject {
     func startRecording(app: String?, event: MeetingEvent? = nil,
                         started: (@MainActor (Bool) -> Void)? = nil) {
         guard phase == .idle else { started?(false); return }
+        updateQuota()
+        if atFreeLimit {
+            lastError = L("You have used this month's %d free minutes on this Mac.", FreeQuota.limitMinutes)
+            started?(false)
+            return
+        }
         // An auto-stop armed for an earlier meeting must never end this one.
         pendingAutoStop = false
         setup.refresh()
@@ -438,6 +460,10 @@ final class AppStore: ObservableObject {
                 Library.save(filed)
                 return Library.publish(filed)
             }.value
+            if FreeQuota.countsWhenStopped(duration: m.duration, hasAudio: m.hasAudio) {
+                QuotaLedger.record(m.id, seconds: m.duration ?? 0)
+            }
+            store.updateQuota()
             store.reload()
             // Ready to listen to in seconds, long before the transcript is.
             if m.hasAudio { store.saveMergedAudio(of: m) }
@@ -535,16 +561,30 @@ final class AppStore: ObservableObject {
             if !urls.isEmpty { lastError = L("Ata can only import audio files.") }
             return
         }
+        updateQuota()
+        if atFreeLimit {
+            lastError = L("You have used this month's %d free minutes on this Mac.", FreeQuota.limitMinutes)
+            return
+        }
         importing += files.count
         Task {
             for url in files {
                 do {
-                    try await Task.detached(priority: .userInitiated) { _ = try AudioImport.meeting(from: url) }.value
+                    let m = try await Task.detached(priority: .userInitiated) {
+                        try AudioImport.meeting(from: url)
+                    }.value
+                    if FreeQuota.countsWhenStopped(duration: m.duration, hasAudio: m.hasAudio) {
+                        QuotaLedger.record(m.id, seconds: m.duration ?? 0)
+                    }
+                    updateQuota()
                 } catch {
                     lastError = L("Could not import %@: %@", url.lastPathComponent, error.localizedDescription)
                 }
                 importing -= 1
                 reload()
+            }
+            if atFreeLimit {
+                lastError = L("You have used this month's %d free minutes on this Mac.", FreeQuota.limitMinutes)
             }
             pump()
         }

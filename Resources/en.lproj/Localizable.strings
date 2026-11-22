@@ -498,13 +498,13 @@
 /* Ata Pro (iPhone) */
 "Ata Pro" = "Ata Pro";
 "You have Ata Pro. Thank you!" = "You have Ata Pro. Thank you!";
-"%d of %d free meetings left this month" = "%d of %d free meetings left this month";
+"%d of %d free minutes left this month" = "%d of %d free minutes left this month";
 "Unlimited meetings on iPhone" = "Unlimited meetings on iPhone";
-"Record and import as many as you like. Without Pro, %d new meetings a month are free." = "Record and import as many as you like. Without Pro, %d new meetings a month are free.";
+"Record and import as many as you like. Without Pro, %d minutes a month are free." = "Record and import as many as you like. Without Pro, %d minutes a month are free.";
 "Transcribed on your iPhone" = "Transcribed on your iPhone";
 "Transcripts and voices are made on the device, with or without Pro." = "Transcripts and voices are made on the device, with or without Pro.";
-"Ata for Mac stays free" = "Ata for Mac stays free";
-"Meetings recorded on your Mac never count, and the Mac app needs no subscription." = "Meetings recorded on your Mac never count, and the Mac app needs no subscription.";
+"The same free minutes on Mac" = "The same free minutes on Mac";
+"The Mac has %d free minutes a month too. A meeting counts only on the device that recorded it." = "The Mac has %d free minutes a month too. A meeting counts only on the device that recorded it.";
 "Terms of Use" = "Terms of Use";
 "Privacy Policy" = "Privacy Policy";
 "Subscribe for %@" = "Subscribe for %@";
@@ -523,13 +523,15 @@
 "%d years" = "%d years";
 "%d weeks" = "%d weeks";
 "%d days" = "%d days";
-"1 free meeting left this month" = "1 free meeting left this month";
-"%d free meetings left this month" = "%d free meetings left this month";
+"1 free minute left this month" = "1 free minute left this month";
+"%d free minutes left this month" = "%d free minutes left this month";
 "Active" = "Active";
 "Manage subscription" = "Manage subscription";
 "Upgrade to Ata Pro" = "Upgrade to Ata Pro";
-"Unlimited meetings on this iPhone. Ata for Mac is free and stays free." = "Unlimited meetings on this iPhone. Ata for Mac is free and stays free.";
-"You have used this month's %d free meetings on iPhone. Ata Pro records without a limit." = "You have used this month's %d free meetings on iPhone. Ata Pro records without a limit.";
+"Unlimited recording on this iPhone. The Mac has its own %d free minutes a month." = "Unlimited recording on this iPhone. The Mac has its own %d free minutes a month.";
+"Free minutes" = "Free minutes";
+"You have used this month's %d free minutes on this Mac." = "You have used this month's %d free minutes on this Mac.";
+"You have used this month's %d free minutes on iPhone. Ata Pro records without a limit." = "You have used this month's %d free minutes on iPhone. Ata Pro records without a limit.";
 
 /* Feedback and accessibility labels */
 "Transcript copied." = "Transcript copied.";
@@ -639,7 +641,7 @@
 "Two questions" = "Two questions";
 "Language of your meetings" = "Language of your meetings";
 "Automatic chooses among your iPhone's languages. Pick one if your meetings are in another." = "Automatic chooses among your iPhone's languages. Pick one if your meetings are in another.";
-"%d meetings a month are free. Ata Pro removes the limit." = "%d meetings a month are free. Ata Pro removes the limit.";
+"%d minutes a month are free. Ata Pro removes the limit." = "%d minutes a month are free. Ata Pro removes the limit.";
 "This iPhone's storage is full, so the recording stopped growing." = "This iPhone's storage is full, so the recording stopped growing.";
 "This iPhone's storage is almost full. Free some up and try again." = "This iPhone's storage is almost full. Free some up and try again.";
 "Recording paused. Open Ata to resume." = "Recording paused. Open Ata to resume.";
@@ -657,3 +659,6 @@
 "Copy configuration" = "Copy configuration";
 "Paste it into your agent's MCP settings. For Claude Code: %@" = "Paste it into your agent's MCP settings. For Claude Code: %@";
 "Copied." = "Copied.";
+/* Track 0 */
+"%d shared recordings are waiting" = "%d shared recordings are waiting";
+"They import with Ata Pro or when next month's free minutes start." = "They import with Ata Pro or when next month's free minutes start.";

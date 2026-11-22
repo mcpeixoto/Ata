@@ -221,7 +221,7 @@ struct RecordView: View {
     private var freeMeetings: some View {
         let left = FreeQuota.remaining(used: store.freeUsed)
         return Button { PhoneNavigation.shared.showPaywall() } label: {
-            Text(left == 1 ? L("1 free meeting left this month") : L("%d free meetings left this month", left))
+            Text(left == 1 ? L("1 free minute left this month") : L("%d free minutes left this month", left))
                 .font(.footnote)
                 .foregroundStyle(left == 0 ? Theme.warning : Color.secondary)
                 .multilineTextAlignment(.center)

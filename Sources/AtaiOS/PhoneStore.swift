@@ -33,11 +33,14 @@ final class PhoneStore: ObservableObject {
     }
     /// Moments marked during this recording, in ms from its start.
     @Published private(set) var bookmarks: [Int] = []
-    /// Free meetings made on this iPhone this month; see `FreeQuota`.
+    /// Free minutes used on this iPhone this month; see `FreeQuota`.
     @Published private(set) var freeUsed = 0
+    /// Shared files still sitting in the inbox. At the free limit they stay
+    /// there, and the meetings list says how many are waiting.
+    @Published private(set) var inboxWaiting = 0
 
-    /// No free meeting left this month, and no Ata Pro.
-    var needsPro: Bool { !ProStore.shared.isPro && freeUsed >= FreeQuota.limit }
+    /// No free minute left this month, and no Ata Pro.
+    var needsPro: Bool { !ProStore.shared.isPro && freeUsed >= FreeQuota.limitMinutes }
 
     var isRecording: Bool { phase == .recording || phase == .interrupted }
     /// Seconds of audio recorded so far, kept current in the background too (unlike `elapsed`).
@@ -54,6 +57,9 @@ final class PhoneStore: ObservableObject {
     private var searchCache: [String: (stamp: Date?, text: String)] = [:]
     private var bootstrapped = false
     private var drainingInbox = false
+    /// The inbox paywall was already presented this launch. Later returns to
+    /// the foreground leave the files and do not present it again.
+    private var offeredProForInbox = false
     /// Meetings whose speech model could not be downloaded. Retried when Ata is in front.
     private var waitingForSpeechModel: Set<String> = []
     private var lastHealth = Date.distantPast
@@ -140,18 +146,20 @@ final class PhoneStore: ObservableObject {
     /// Counted again before every start too: the month may have turned since.
     func updateQuota() {
         guard !Snapshots.rendering else { return }
-        freeUsed = FreeQuota.used(meetings: meetings, ledger: QuotaLedger.ids(), deviceID: Device.id)
+        freeUsed = FreeQuota.used(meetings: meetings, ledger: QuotaLedger.entries(), deviceID: Device.id,
+                                   kind: Device.kind)
     }
 
-    /// Made on this iPhone: counted against this month's free meetings.
-    private func counted(_ meetingID: String) {
-        QuotaLedger.record(meetingID)
+    /// Made on this iPhone: counted against this month's free minutes.
+    private func counted(_ meetingID: String, seconds: Double) {
+        QuotaLedger.record(meetingID, seconds: seconds)
         updateQuota()
     }
 
-    /// After an import, which is never refused: past the free meetings, Pro is offered.
+    /// After an import that was allowed to start. Crossing 300 offers Pro; the
+    /// file itself is kept.
     private func offerProIfOverLimit() {
-        if !ProStore.shared.isPro && freeUsed > FreeQuota.limit { PhoneNavigation.shared.showPaywall() }
+        if needsPro { PhoneNavigation.shared.showPaywall() }
     }
 
     /// Nothing is recording, transcribing or importing: the library can move
@@ -216,7 +224,8 @@ final class PhoneStore: ObservableObject {
         // At the limit, record nothing. From an intent the sheet is armed only
         // after Ata is in front; see `presentBlockedStart`.
         do {
-            try RecordingStart.begin(needsPro: needsPro, record: {})
+            try RecordingStart.begin(usedMinutes: freeUsed, isPro: ProStore.shared.isPro,
+                                     limitMinutes: FreeQuota.limitMinutes, record: {})
         } catch {
             if !fromIntent { PhoneNavigation.shared.showPaywall() }
             throw error
@@ -284,7 +293,7 @@ final class PhoneStore: ObservableObject {
         activity.end()
         if let finished, FreeQuota.countsWhenStopped(duration: finished.meeting.duration,
                                                      hasAudio: finished.meeting.status != .failed) {
-            counted(finished.meeting.id)
+            counted(finished.meeting.id, seconds: finished.meeting.duration ?? 0)
         }
         if finished?.moved == false {
             lastError = L("The recording could not be moved into your meetings. It is safe and will be tried again next time Ata opens.")
@@ -488,6 +497,11 @@ final class PhoneStore: ObservableObject {
             if !urls.isEmpty { importError = L("Ata can only import audio files.") }
             return
         }
+        updateQuota()
+        if needsPro {
+            PhoneNavigation.shared.showPaywall()
+            return
+        }
         importing += files.count
         Task {
             for url in files {
@@ -497,7 +511,7 @@ final class PhoneStore: ObservableObject {
                         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
                         return try AudioImport.meeting(from: url)
                     }.value
-                    counted(m.id)
+                    counted(m.id, seconds: m.duration ?? 0)
                     if Self.isHandedOverCopy(url) { try? FileManager.default.removeItem(at: url) }
                 } catch {
                     importError = L("Could not import %@: %@", url.lastPathComponent, error.localizedDescription)
@@ -522,17 +536,27 @@ final class PhoneStore: ObservableObject {
     /// Audio shared to Ata from another app waits in the app group's inbox (see
     /// `ShareInbox`). Each file becomes a meeting here; its copy is removed only
     /// once that meeting exists, and one that fails stays for the next time.
+    /// At the free limit the files stay too, and the paywall is presented at
+    /// most once this launch. Coming back to the app does not present it again.
     func drainShareInbox() {
         guard !drainingInbox, let folder = ShareInbox.folder else { return }
         let entries = ShareInbox.pending(in: folder)
+        inboxWaiting = entries.count
         guard !entries.isEmpty else { return }
+        updateQuota()
+        if InboxOffer.shouldPresent(alreadyOffered: offeredProForInbox, atLimit: needsPro,
+                                    pending: entries.count) {
+            offeredProForInbox = true
+            PhoneNavigation.shared.showPaywall()
+        }
+        if needsPro { return }
         drainingInbox = true
         importing += entries.count
         Task {
             let report = await Task.detached(priority: .userInitiated) {
                 ShareInbox.drain(entries) { entry in
                     let m = try AudioImport.meeting(from: entry.audio, named: entry.item.originalName, at: entry.item.date)
-                    QuotaLedger.record(m.id)
+                    QuotaLedger.record(m.id, seconds: m.duration ?? 0)
                 }
             }.value
             if !report.failed.isEmpty {
@@ -542,6 +566,7 @@ final class PhoneStore: ObservableObject {
             }
             importing -= entries.count
             drainingInbox = false
+            inboxWaiting = ShareInbox.pending(in: folder).count
             reload()
             offerProIfOverLimit()
             pump()
@@ -783,6 +808,6 @@ final class PhoneLive: ObservableObject {
 
 extension FreeQuotaError: LocalizedError {
     var errorDescription: String? {
-        L("You have used this month's %d free meetings on iPhone. Ata Pro records without a limit.", FreeQuota.limit)
+        L("You have used this month's %d free minutes on iPhone. Ata Pro records without a limit.", FreeQuota.limitMinutes)
     }
 }

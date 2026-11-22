@@ -224,7 +224,7 @@ struct PhoneOnboarding: View {
     private func footer(_ item: Step) -> some View {
         VStack(spacing: 12) {
             if item == .you {
-                Text(L("%d meetings a month are free. Ata Pro removes the limit.", FreeQuota.limit))
+                Text(L("%d minutes a month are free. Ata Pro removes the limit.", FreeQuota.limitMinutes))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

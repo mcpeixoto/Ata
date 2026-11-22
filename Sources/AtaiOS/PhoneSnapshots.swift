@@ -69,7 +69,7 @@ extension Snapshots {
                                                transcribingID: recording ? nil : transcribingID,
                                                progress: recording ? 0 : 0.62,
                                                // Two left on the record tab; none on the paywall, which is when it shows.
-                                               freeUsed: screen == .paywall ? FreeQuota.limit : 3)
+                                               freeUsed: screen == .paywall ? FreeQuota.limitMinutes : FreeQuota.limitMinutes - 2)
 
         let navigation = PhoneNavigation.shared
         switch screen {

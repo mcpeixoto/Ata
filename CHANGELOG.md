@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.10.0
+
+- **300 free minutes a month on iPhone**, instead of 5 meetings. The counter shows whole minutes, rounded up. A recording already going finishes even past 300; the next one asks for Ata Pro. The Mac stays free with no limit for now.
+- **Audio shared to Ata at the limit waits** in the inbox instead of reopening the Ata Pro sheet every time you come back to the app. The Meetings list says how many are waiting.
+
 ## 3.9.0
 
 Ata is open source again, this time under the Apache License 2.0.

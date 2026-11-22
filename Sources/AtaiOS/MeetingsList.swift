@@ -69,7 +69,17 @@ struct MeetingsList: View {
             }
             .safeAreaInset(edge: .top, spacing: 0) {
                 // Above the list, and above the empty state, so a filter that
-                // matches nothing can still be cleared.
+                // matches nothing can still be cleared. Shared files left in
+                // the inbox at the free limit sit here too: the list itself
+                // may have nothing in it yet.
+                if store.needsPro, store.inboxWaiting > 0 {
+                    Banner(kind: .info, mark: .symbol("square.and.arrow.down"),
+                           title: Text(verbatim: L("%d shared recordings are waiting", store.inboxWaiting)),
+                           detail: Text(verbatim: L("They import with Ata Pro or when next month's free minutes start.")),
+                           action: { PhoneNavigation.shared.showPaywall() })
+                        .padding(.horizontal, Theme.Space.l)
+                        .padding(.vertical, Theme.Space.s)
+                }
                 if query.trimmingCharacters(in: .whitespaces).isEmpty,
                    !categoryFilter.isEmpty, let name = MeetingCategory(rawValue: categoryFilter)?.name {
                     HStack(spacing: 8) {
@@ -94,8 +104,8 @@ struct MeetingsList: View {
             // Audio recorded elsewhere: Voice Memos, a recorder, a file someone sent.
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    // Past the free meetings, Pro comes first. Files already on
-                    // their way in (shared, opened in Ata) are never refused.
+                    // Past the free minutes, Pro comes first. A file already shared
+                    // in is refused too, once the month is used; see PhoneStore.
                     Button {
                         store.updateQuota()
                         if store.needsPro { PhoneNavigation.shared.showPaywall() } else { choosingAudio = true }
