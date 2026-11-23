@@ -214,7 +214,9 @@ jobs:
       # 3.5.2, whose meeting screen froze on opening while this step failed
       # quietly: these UI tests are the only ones that open the real screens.
       - name: Take iPhone screenshots
-        timeout-minutes: 20
+        # 18-20 min on main already; a busy runner tipped it over 20 and failed
+        # PRs that changed nothing on the phone. The 60-minute job cap still holds.
+        timeout-minutes: 30
         run: ./ios/snapshots.sh "${{ steps.sim.outputs.udid }}"
 
       - name: Upload iPhone screenshots
