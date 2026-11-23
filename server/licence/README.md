@@ -54,6 +54,8 @@ configuration and the webhook endpoint, and prints the `[vars]` for
 Then: `wrangler d1 create ata-licence` (its id into `wrangler.toml`),
 `wrangler d1 migrations apply ata-licence --remote`,
 `wrangler secret put STRIPE_SECRET_KEY`, `wrangler secret put STRIPE_WEBHOOK_SECRET`,
-`wrangler deploy`. For `/v1/recover` to send mail, onboard the sender domain to
-Cloudflare Email Sending, set `EMAIL_FROM`, and add the `send_email` binding
-named `EMAIL`; without it recover answers 200 and sends nothing.
+`wrangler deploy`. For `/v1/recover` to send mail, set `SMTP_HOST`
+(`mail-eu.smtp2go.com`), `SMTP_PORT` (`465`), `SMTP_USER` and `EMAIL_FROM`,
+and `wrangler secret put SMTP_PASSWORD`. The Cloudflare Email Sending binding
+also works when `EMAIL` and `EMAIL_FROM` are set. Without either, recover
+answers 200 and sends nothing.

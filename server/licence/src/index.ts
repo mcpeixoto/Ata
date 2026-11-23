@@ -27,6 +27,11 @@ export interface Env {
   AUTOMATIC_TAX?: string;
   EMAIL_FROM?: string;
   EMAIL?: SendEmail;
+  // Implicit TLS. SMTP_PASSWORD is a secret (`wrangler secret put`), not a var.
+  SMTP_HOST?: string;
+  SMTP_PORT?: string;
+  SMTP_USER?: string;
+  SMTP_PASSWORD?: string;
   LIMITER?: RateLimit;
 }
 
