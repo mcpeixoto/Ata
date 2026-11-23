@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.1.0
+
+- **Transcribed while you talk.** During a meeting, Ata transcribes what has been said every few minutes, so when you stop only the last minutes are left. On the Mac and the iPhone; turn it off in Settings → Transcription.
+- **Calls no longer stutter while Ata transcribes.** During a call, transcription runs at low priority on half the performance cores, older meetings wait until the call ends, and voice recognition stays off the GPU. Saving the MP3 and compressing audio wait for the call to end too.
+
 ## 4.0.1
 
 - **Your own summary formats work on the iPhone**: "Rewrite summary with" is under a meeting's summary, as on the Mac.
