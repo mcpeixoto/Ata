@@ -10,6 +10,7 @@ enabled = false
 # Secrets, set with `wrangler secret put`, never in this file:
 #   STRIPE_SECRET_KEY      sk_live_… / sk_test_…
 #   STRIPE_WEBHOOK_SECRET  whsec_… of the endpoint scripts/stripe-setup.ts registers
+#   SMTP_PASSWORD          password for the SMTP sender (SMTP_HOST / SMTP_USER)
 [vars]
 # Live-mode ids from scripts/stripe-setup.ts (PeixotoLabs account). Price ids are public.
 PRICE_MONTHLY = "price_1UeekbD4ESXr1ceQqin9WqAG"
@@ -18,8 +19,12 @@ PRICE_LIFETIME = "price_1UeekcD4ESXr1ceQRoVmWcpj"
 PORTAL_CONFIGURATION = "bpc_1UeekcD4ESXr1ceQ5FiU5Hp6"
 # "true" only when Stripe Tax is active on the account (the setup script says).
 AUTOMATIC_TAX = "true"
-# Sender for /v1/recover; the domain must be onboarded to Cloudflare Email Sending.
-EMAIL_FROM = ""
+# Sender for /v1/recover, through the SMTP2GO account the other Peixoto Labs
+# apps use (implicit TLS; SMTP_PASSWORD is a secret).
+EMAIL_FROM = "noreply@peixotolabs.com"
+SMTP_HOST = "mail-eu.smtp2go.com"
+SMTP_PORT = "465"
+SMTP_USER = "noreply@peixotolabs.com"
 
 [[d1_databases]]
 binding = "DB"
@@ -34,8 +39,32 @@ name = "LIMITER"
 namespace_id = "2401"
 simple = { limit = 10, period = 60 }
 
-# The Email Sending binding is added at deploy time, once the sender domain is
-# onboarded:
+# Cloudflare Email Sending would also work (it needs Workers Paid, so it is off):
 #   [[send_email]]
 #   name = "EMAIL"
-# Without it /v1/recover still answers 200 and sends nothing.
+# With neither it nor the SMTP settings, /v1/recover answers 200 and sends nothing.
+
+# Sandbox copy for end-to-end checks with Stripe test cards: `wrangler deploy --env test`.
+# Its own Worker (ata-licence-test), database and test-mode Stripe secrets; no real money.
+[env.test]
+name = "ata-licence-test"
+
+[env.test.vars]
+# From scripts/stripe-setup.ts run with the PeixotoLabs sandbox key.
+PRICE_MONTHLY = "price_1Uf1N6DpeMKKjREif6HA0zGW"
+PRICE_YEARLY = "price_1Uf1N6DpeMKKjREiNPK2X8Q6"
+PRICE_LIFETIME = "price_1Uf1N6DpeMKKjREifoUHzil9"
+PORTAL_CONFIGURATION = "bpc_1UebuvDpeMKKjREiViBs3C0a"
+AUTOMATIC_TAX = "false"
+EMAIL_FROM = ""
+
+[[env.test.d1_databases]]
+binding = "DB"
+database_name = "ata-licence-test"
+database_id = "896c8dbe-779c-443d-a720-26c36131e187"
+migrations_dir = "migrations"
+
+[[env.test.ratelimits]]
+name = "LIMITER"
+namespace_id = "2402"
+simple = { limit = 10, period = 60 }
