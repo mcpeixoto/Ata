@@ -7,6 +7,7 @@ struct SettingsTranscriptionPane: View {
     @AppStorage(Pref.myName) private var myName = ""
     @AppStorage(Pref.summarize) private var summarize = true
     @AppStorage(Pref.cancelEcho) private var cancelEcho = true
+    @AppStorage(Pref.transcribeLive) private var transcribeLive = true
     @AppStorage(Pref.summaryTemplate) private var summaryTemplate = SummaryTemplate.standard.rawValue
     @AppStorage(Pref.dictionary) private var dictionary = ""
     @State private var showingTemplates = false
@@ -27,6 +28,8 @@ struct SettingsTranscriptionPane: View {
                 SettingsNote(L("People you have named are included on their own. In a summary, they are spelled as written here."))
                 Toggle("Remove the others' voices from your microphone", isOn: $cancelEcho)
                 SettingsNote(L("For calls without headphones: Ata takes what your Mac played out of your microphone before transcribing. The recording itself is not changed."))
+                Toggle("Transcribe during the meeting", isOn: $transcribeLive)
+                SettingsNote(L("When it can, Ata transcribes while you record, at low priority so the call isn't slowed, and only the last minutes are left when you stop."))
                 Toggle("Add an AI summary with the key points", isOn: $summarize)
                 if summarize {
                     Picker("Note template", selection: $summaryTemplate) {

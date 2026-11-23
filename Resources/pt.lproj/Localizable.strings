@@ -843,3 +843,6 @@
 "Starting" = "A iniciar";
 "Granted" = "Concedido";
 "Locked" = "Bloqueado";
+"Transcribe during the meeting" = "Transcrever durante a reunião";
+"When it can, Ata transcribes while you record, at low priority so the call isn't slowed, and only the last minutes are left when you stop." = "Quando pode, a Ata transcreve enquanto gravas, com prioridade baixa para não abrandar a chamada, e quando paras só faltam os últimos minutos.";
+"When it can, Ata transcribes while you record, so only the last minutes are left when you stop." = "Quando pode, a Ata transcreve enquanto gravas, e quando paras só faltam os últimos minutos.";

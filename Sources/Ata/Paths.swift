@@ -157,6 +157,9 @@ enum Pref {
     static let reviewTranscripts = "reviewTranscripts"
     /// The version that last asked for an App Store review. One ask per version.
     static let reviewPromptedVersion = "reviewPromptedVersion"
+    /// Transcribe finished stretches while the meeting is still recording.
+    /// The final pass does the rest either way.
+    static let transcribeLive = "transcribeLive"
 
     /// The languages Ata offers for transcription, by their own names: Settings on
     /// both platforms, and "Transcribe again in" on the iPhone. Endonyms, so they
@@ -190,6 +193,9 @@ enum Pref {
             recogniseVoices: true,
             cancelEcho: true,
             iCloudSync: false,
+            // On: the final pass only has the tail left. Off, or a machine too
+            // hot or too low on battery to do it, the final pass does it all.
+            transcribeLive: true,
         ]) { platform, _ in platform })
     }
 

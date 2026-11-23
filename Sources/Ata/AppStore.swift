@@ -49,6 +49,8 @@ final class AppStore: ObservableObject {
     private var mergeTasks: [String: Task<Void, Never>] = [:]
     /// The transcription running now, so it can stop if another device takes it over.
     private var transcribeJob: Task<Void, Never>?
+    /// Transcribes finished stretches while this recording is still open.
+    private var liveTranscriber: LiveTranscriber?
     /// Meetings the launch repair scan has not reached yet. Their system track
     /// may be rewritten under them, so they are neither transcribed nor pruned
     /// until it has.
@@ -404,6 +406,7 @@ final class AppStore: ObservableObject {
                 bookmarkCount = 0
                 current = m
                 try await recorder.start(in: m.dir)
+                startLiveTranscription(of: m)
                 startedAt = Date()
                 lastSystemSoundAt = Date()
                 phase = .recording
@@ -426,6 +429,25 @@ final class AppStore: ObservableObject {
         }
     }
 
+    /// Mic and system, whichever writers the recorder opened. Read once, here:
+    /// turning the setting off mid-meeting does not stop a chunk already going,
+    /// and turning it on does not start one for a meeting already underway.
+    private func startLiveTranscription(of meeting: Meeting) {
+        guard Pref.d.bool(forKey: Pref.transcribeLive) else { return }
+        var tracks: [LiveTrack] = []
+        if let mic = recorder.mic {
+            tracks.append(LiveTrack(speaker: Speakers.me, url: mic.url, frames: { mic.framesWritten }))
+        }
+        if let sys = recorder.sys {
+            tracks.append(LiveTrack(speaker: Speakers.others, url: sys.url, frames: { sys.framesWritten }))
+        }
+        guard !tracks.isEmpty else { return }
+        let transcriber = LiveTranscriber()
+        transcriber.start(meeting: meeting, folder: meeting.dir, tracks: tracks,
+                          options: TranscribeOptions.current(for: meeting))
+        liveTranscriber = transcriber
+    }
+
     /// Back to idle at once, so the next meeting can be recorded straight
     /// away: closing the files and filing the meeting finish in the background.
     func stopRecording() {
@@ -439,6 +461,10 @@ final class AppStore: ObservableObject {
             let store = self
             var m = snapshot
             let duration = await store.recorder.stop()
+            // After the tracks close, so waiting on a chunk never records past Stop;
+            // before the folder moves into the library, so the chunk finishes writing first.
+            await store.liveTranscriber?.stop()
+            store.liveTranscriber = nil
             m.endedAt = stoppedAt
             m.duration = duration
             if m.hasAudio { Metrics.recorded(seconds: duration) }
@@ -499,6 +525,8 @@ final class AppStore: ObservableObject {
         endSession()
         finishing.run { [unowned self] in
             let store = self
+            await store.liveTranscriber?.stop()
+            store.liveTranscriber = nil
             _ = await store.recorder.stop()
             try? FileManager.default.removeItem(at: m.dir)
             store.reload()
@@ -519,6 +547,8 @@ final class AppStore: ObservableObject {
     func prepareForQuit() async {
         // A meeting stopped a moment ago is filed before Ata goes.
         await finishing.wait()
+        await liveTranscriber?.stop()
+        liveTranscriber = nil
         if phase == .recording, var m = current {
             let duration = await recorder.stop()
             m.endedAt = Date()
@@ -528,7 +558,7 @@ final class AppStore: ObservableObject {
             Library.save(m)
             Library.publish(m)
         }
-        LocalEngine.currentProcess?.terminate()
+        LocalEngine.terminateAll()
     }
 
     /// Marks this moment of the recording in progress. The time comes from the
@@ -636,6 +666,8 @@ final class AppStore: ObservableObject {
         m.status = .pending
         m.error = nil
         m.override = override
+        // Asked for by hand: the whole recording, not the stretches done live.
+        LiveReuse.decline(m.id)
         Library.save(m)
         reload()
         pump()
@@ -741,6 +773,8 @@ final class AppStore: ObservableObject {
         // meeting queued behind this one waited for it.
         var run = options
         run.summarize = false
+        if LiveReuse.declined(m.id) { run.useLiveState = false }
+        LiveReuse.forget(m.id)
         live.stage = .preparing
         live.transcribeStartedAt = Date()
         live.expectedSeconds = expectedSeconds(for: job, model: options.modelID)

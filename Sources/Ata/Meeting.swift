@@ -98,6 +98,11 @@ struct Meeting: Codable, Identifiable, Equatable {
     /// How loud you and the others were over time, for the player; see `Waveform`.
     var waveformURL: URL { dir.appendingPathComponent("waveform.bin") }
 
+    /// Segments transcribed while this meeting was still being recorded.
+    /// The folder is moved whole out of staging (`Library.publish`), so this
+    /// file goes with the tracks. The final pass deletes it once the transcript is saved.
+    var liveURL: URL { dir.appendingPathComponent("live.json") }
+
     /// Your own notes, typed in the meeting window.
     var notesURL: URL { dir.appendingPathComponent("notes.md") }
 

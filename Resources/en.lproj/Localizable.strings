@@ -843,3 +843,6 @@
 "Starting" = "Starting";
 "Granted" = "Granted";
 "Locked" = "Locked";
+"Transcribe during the meeting" = "Transcribe during the meeting";
+"When it can, Ata transcribes while you record, at low priority so the call isn't slowed, and only the last minutes are left when you stop." = "When it can, Ata transcribes while you record, at low priority so the call isn't slowed, and only the last minutes are left when you stop.";
+"When it can, Ata transcribes while you record, so only the last minutes are left when you stop." = "When it can, Ata transcribes while you record, so only the last minutes are left when you stop.";

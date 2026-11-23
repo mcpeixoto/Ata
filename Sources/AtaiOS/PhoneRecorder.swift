@@ -41,6 +41,13 @@ final class PhoneRecorder {
 
     /// Seconds of audio in the file so far.
     var recordedSeconds: Double { writer?.duration ?? 0 }
+
+    /// The microphone track while a meeting is recording. Nil for a voice clip:
+    /// that file is not a meeting and is never transcribed live.
+    var liveMicTrack: LiveTrack? {
+        guard meeting != nil, let writer else { return nil }
+        return LiveTrack(speaker: Speakers.me, url: writer.url, frames: { writer.framesWritten })
+    }
     var level: Float { state.isCapturing ? (writer?.level ?? 0) : 0 }
     var isCapturing: Bool { state.isCapturing }
     /// A write failed, usually because storage filled up. The meter keeps moving.
