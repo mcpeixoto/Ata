@@ -9,6 +9,7 @@ struct PhoneSettings: View {
     @AppStorage(Pref.keepAudio) private var keepAudio = true
     @AppStorage(Pref.shareUsage) private var shareUsage = true
     @AppStorage(Pref.summarize) private var summarize = true
+    @AppStorage(Pref.transcribeLive) private var transcribeLive = true
     @AppStorage(Pref.defaultCategory) private var defaultCategory = ""
     @StateObject private var cloud = CloudSync.shared
     @ObservedObject private var pro = ProStore.shared
@@ -92,6 +93,12 @@ struct PhoneSettings: View {
                     Text("Work and personal")
                 } footer: {
                     Text("What a new recording is filed under. You can change it in the meeting.")
+                }
+
+                Section {
+                    Toggle("Transcribe during the meeting", isOn: $transcribeLive)
+                } footer: {
+                    Text("When it can, Ata transcribes while you record, so only the last minutes are left when you stop.")
                 }
 
                 Section {

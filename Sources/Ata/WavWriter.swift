@@ -72,6 +72,10 @@ final class WavWriter: @unchecked Sendable {
     var inputFormats: [String] { lock.lock(); defer { lock.unlock() }; return _inputFormats }
     var duration: Double { lock.lock(); defer { lock.unlock() }; return Double(frames) / Self.sampleRate }
 
+    /// Samples written so far. Live transcription reads this while the file is
+    /// still open: the header is rewritten every few seconds and lags the audio.
+    var framesWritten: Int { lock.lock(); defer { lock.unlock() }; return Int(frames) }
+
     /// Audio actually received, with the silence used to fill gaps left out.
     var contentDuration: Double {
         lock.lock(); defer { lock.unlock() }

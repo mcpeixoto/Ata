@@ -196,7 +196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // to install while either is true, so it never takes this path.
         let store = AppStore.shared
         guard QuitShutdown.waits(recording: store.phase == .recording, finishing: store.isFinishing) else {
-            LocalEngine.currentProcess?.terminate()
+            LocalEngine.terminateAll()
             return .terminateNow
         }
         Task { @MainActor in

@@ -268,7 +268,7 @@ enum CloudFiles {
     /// What the meeting list and the meeting window read, fetched as soon as it
     /// appears. Audio waits until it is played or transcribed.
     static let eagerNames: Set<String> = ["meeting.json", "transcript.json", "transcript.md", "transcricao.md",
-                                          "notes.md", "speakers.json", "waveform.bin"]
+                                          "notes.md", "speakers.json", "waveform.bin", "live.json"]
 
     static func wantsEagerDownload(_ url: URL) -> Bool {
         let parent = url.deletingLastPathComponent()

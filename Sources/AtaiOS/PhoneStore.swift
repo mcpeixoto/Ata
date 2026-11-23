@@ -47,6 +47,11 @@ final class PhoneStore: ObservableObject {
     var recordedSeconds: Double { recorder.recordedSeconds }
 
     private let recorder = PhoneRecorder()
+    /// Transcribes finished stretches of the microphone while a meeting is recording.
+    private var liveTranscriber: LiveTranscriber?
+    /// `willTerminate` has to file the recording before it returns. The live
+    /// chunk is cancelled and not waited on; a normal stop waits for it first.
+    private var stopImmediately = false
     private let activity = LiveRecordingActivity()
     private var ticker: Timer?
     private var job: Task<Void, Never>?
@@ -93,7 +98,11 @@ final class PhoneStore: ObservableObject {
         // date covers that; this covers a termination iOS does announce.
         terminateObserver = NotificationCenter.default.addObserver(
             forName: UIApplication.willTerminateNotification, object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { PhoneStore.shared.stopRecording() }
+            MainActor.assumeIsolated {
+                let store = PhoneStore.shared
+                store.stopImmediately = true
+                store.stopRecording()
+            }
         }
         recoverInterrupted()
         MeetingSharing.cleanUp()
@@ -252,7 +261,8 @@ final class PhoneStore: ObservableObject {
             guard RecordingHealth.hasRoom(available: Self.freeBytes()) else {
                 throw PhoneRecorderError.notEnoughSpace
             }
-            _ = try recorder.start(mode: mode)
+            let meeting = try recorder.start(mode: mode)
+            startLiveTranscription(of: meeting)
             bookmarks = []
             lastHealth = .distantPast
             lastStallRestart = .distantPast
@@ -291,6 +301,25 @@ final class PhoneStore: ObservableObject {
         phase = .stopping
         warning = nil
         Notifier.shared.clear("paused")
+        let marks = bookmarks
+        bookmarks = []
+        let live = liveTranscriber
+        liveTranscriber = nil
+        // Termination can't wait: the process is about to be gone, and the
+        // recording has to be in the library before that. The chunk is cancelled
+        // so it stops writing; a normal stop lets it finish the file first.
+        if stopImmediately {
+            Task { await live?.stop() }
+            finishStop(bookmarks: marks)
+            return
+        }
+        Task { @MainActor in
+            await live?.stop()
+            self.finishStop(bookmarks: marks)
+        }
+    }
+
+    private func finishStop(bookmarks: [Int]) {
         let finished = recorder.stop(bookmarks: bookmarks.map { Bookmark(ms: $0) })
         stopTicker()
         activity.end()
@@ -301,7 +330,6 @@ final class PhoneStore: ObservableObject {
         if finished?.moved == false {
             lastError = L("The recording could not be moved into your meetings. It is safe and will be tried again next time Ata opens.")
         }
-        bookmarks = []
         phase = .idle
         // The queue was paused for the recording. It can take the next meeting.
         applyQueue(.recordingStopped)
@@ -312,6 +340,15 @@ final class PhoneStore: ObservableObject {
             saveMergedAudio(of: m)
         }
         pump()
+    }
+
+    private func startLiveTranscription(of meeting: Meeting) {
+        guard Pref.d.bool(forKey: Pref.transcribeLive), let track = recorder.liveMicTrack,
+              let folder = recorder.folder else { return }
+        let transcriber = LiveTranscriber()
+        transcriber.start(meeting: meeting, folder: folder, tracks: [track],
+                          options: TranscribeOptions.current(for: meeting))
+        liveTranscriber = transcriber
     }
 
     func stopFromIntent() async {
@@ -433,6 +470,8 @@ final class PhoneStore: ObservableObject {
         m.status = .pending
         m.error = nil
         m.override = override
+        // Asked for by hand: the whole recording, not the stretches done live.
+        LiveReuse.decline(m.id)
         Library.save(m)
         reload()
         pump()
@@ -602,11 +641,13 @@ final class PhoneStore: ObservableObject {
             waitingForEngine = false
             return
         }
-        let options = TranscribeOptions.current(for: m)
+        var options = TranscribeOptions.current(for: m)
         guard Self.canRun(options) else {
             waitingForEngine = true
             return
         }
+        if LiveReuse.declined(m.id) { options.useLiveState = false }
+        LiveReuse.forget(m.id)
         waitingForEngine = false
 
         transcribingID = m.id

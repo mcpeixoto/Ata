@@ -12,6 +12,65 @@ enum LanguagePieces {
     }
 }
 
+/// Tags whisper-cli with the meeting it is working on. A live chunk and the
+/// final pass of the meeting before it can run at the same time; each task
+/// sees only its own id.
+enum WhisperScope {
+    static func adopt<T>(_ meetingID: String, operation: () async throws -> T) async rethrows -> T {
+        #if os(macOS)
+        try await WhisperProcesses.$meetingID.withValue(meetingID, operation: operation)
+        #else
+        try await operation()
+        #endif
+    }
+}
+
+#if os(macOS)
+/// Every whisper-cli this process has started and not yet reaped.
+/// One global used to be enough, until a live chunk could overlap the final
+/// pass of the previous meeting.
+enum WhisperProcesses {
+    struct Entry {
+        let process: Process
+        let meeting: String
+    }
+
+    @TaskLocal static var meetingID: String?
+
+    private static let lock = NSLock()
+    private static var entries: [ObjectIdentifier: Entry] = [:]
+
+    static func add(_ process: Process, meeting: String? = nil) {
+        let id = meeting ?? meetingID ?? ""
+        lock.lock()
+        entries[ObjectIdentifier(process)] = Entry(process: process, meeting: id)
+        lock.unlock()
+    }
+
+    static func remove(_ process: Process) {
+        lock.lock()
+        entries.removeValue(forKey: ObjectIdentifier(process))
+        lock.unlock()
+    }
+
+    static func all() -> [Process] {
+        lock.lock()
+        let processes = entries.values.map(\.process)
+        lock.unlock()
+        return processes
+    }
+
+    /// A whisper run for some other meeting is using the machine.
+    /// Live chunks wait; they never share the GPU with that pass.
+    static func busyBesides(_ meetingID: String) -> Bool {
+        lock.lock()
+        let busy = entries.values.contains { $0.meeting != meetingID && $0.process.isRunning }
+        lock.unlock()
+        return busy
+    }
+}
+#endif
+
 /// Transcribes with whisper.cpp on the Mac's own GPU (Metal). Nothing leaves the machine.
 ///
 /// whisper.cpp runs as a separate program (whisper-cli), which only a Mac can
@@ -19,16 +78,23 @@ enum LanguagePieces {
 /// reports the engine as missing instead.
 enum LocalEngine {
     #if os(macOS)
-    /// Current whisper process, so it can be terminated when the app quits.
-    nonisolated(unsafe) static var currentProcess: Process?
-
     /// A whisper run that started before a call keeps its threads, so while the
     /// call is on it goes into Darwin's background band (CPU and disk throttled)
-    /// instead, and comes back out when the call ends.
-    static func applyCallPriority(to process: Process? = currentProcess) {
-        guard let process, process.isRunning else { return }
+    /// instead, and comes back out when the call ends. Every running whisper,
+    /// not just the one that happened to start last.
+    static func applyCallPriority(to process: Process? = nil) {
+        let targets = process.map { [$0] } ?? WhisperProcesses.all()
         let band = TranscriptionLoad.callActive ? PRIO_DARWIN_BG : 0
-        setpriority(PRIO_DARWIN_PROCESS, id_t(process.processIdentifier), band)
+        for process in targets where process.isRunning {
+            setpriority(PRIO_DARWIN_PROCESS, id_t(process.processIdentifier), band)
+        }
+    }
+
+    /// Kills every whisper this app started. Quitting used to kill only the last one.
+    static func terminateAll() {
+        for process in WhisperProcesses.all() where process.isRunning {
+            process.terminate()
+        }
     }
     #endif
 
@@ -307,7 +373,9 @@ enum LocalEngine {
 
     private static func startProcess(_ exe: URL, _ args: [String], box: ProcessBox,
                                      progress: @escaping @Sendable (Double) -> Void) async throws -> String {
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
+        // Read on this task. The continuation below may not still see the task local.
+        let meeting = WhisperProcesses.meetingID ?? ""
+        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
             let p = Process()
             p.executableURL = exe
             p.arguments = args
@@ -335,7 +403,7 @@ enum LocalEngine {
                 pipe.fileHandleForReading.readabilityHandler = nil
                 // Whatever was still buffered when the process exited.
                 log.append(pipe.fileHandleForReading.readDataToEndOfFile())
-                LocalEngine.currentProcess = nil
+                WhisperProcesses.remove(proc)
                 if proc.terminationStatus == 0 {
                     cont.resume(returning: log.text)
                 } else if watchdog.didStall() {
@@ -357,13 +425,14 @@ enum LocalEngine {
                 cont.resume(throwing: TranscriberError.cancelled)
                 return
             }
+            WhisperProcesses.add(p, meeting: meeting)
             do {
                 try p.run()
-                LocalEngine.currentProcess = p
                 watchdog.watch(p)
                 // Cancelled between handing the process over and starting it.
                 if box.isCancelled { p.terminate() }
             } catch {
+                WhisperProcesses.remove(p)
                 pipe.fileHandleForReading.readabilityHandler = nil
                 cont.resume(throwing: error)
             }

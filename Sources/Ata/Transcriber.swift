@@ -15,7 +15,7 @@ enum TranscriberError: LocalizedError {
     }
 }
 
-struct Segment {
+struct Segment: Codable, Equatable, Sendable {
     let speaker: String
     let start: Int // ms
     let end: Int   // ms
@@ -24,7 +24,7 @@ struct Segment {
     /// where the speaker changes, since Whisper's segments ignore turns.
     var words: [Word] = []
 
-    struct Word: Equatable {
+    struct Word: Codable, Equatable, Sendable {
         let start: Int // ms
         let end: Int   // ms
         let text: String
@@ -59,7 +59,7 @@ enum Engine: String, CaseIterable {
 
 /// Everything the transcription job needs, captured when the job is queued so
 /// changing a setting mid-run cannot alter a transcript already in flight.
-struct TranscribeOptions {
+struct TranscribeOptions: Sendable {
     var engine: Engine
     var myName: String
     var language: String
@@ -75,6 +75,10 @@ struct TranscribeOptions {
     /// Names and words to spell right: the dictionary plus everyone named in
     /// People. Built by `Transcriber`, where the voice library is at hand.
     var vocabulary: [String] = []
+    /// Reuse segments transcribed while the meeting was still recording.
+    /// A "Transcribe again" from the meeting window turns this off: that run
+    /// is the whole file, whatever live work did or didn't finish.
+    var useLiveState = true
 
     /// The model that will actually run, for records and file names.
     var modelID: String {
@@ -101,6 +105,9 @@ struct TranscribeOptions {
     static func current(for meeting: Meeting) -> TranscribeOptions {
         var o = current()
         guard let override = meeting.override else { return o }
+        // "Transcribe again with…" is a full run. Live coverage was made with
+        // the settings of the recording, not with the engine just picked.
+        o.useLiveState = false
         if let language = override.language { o.language = language }
         // An engine Ata no longer has (a meeting queued with OpenAI) runs on this device.
         guard let engine = Engine(rawValue: override.engine) else { return o }
@@ -111,6 +118,16 @@ struct TranscribeOptions {
         }
         return o
     }
+}
+
+/// Meetings sent back through "Transcribe again". Live coverage belongs to the
+/// first pass; a request from the meeting window or the menu runs the whole file.
+enum LiveReuse {
+    private static let ids = LockedValue<Set<String>>([])
+
+    static func decline(_ id: String) { ids.withLock { _ = $0.insert(id) } }
+    static func declined(_ id: String) -> Bool { ids.withLock { $0.contains(id) } }
+    static func forget(_ id: String) { ids.withLock { _ = $0.remove(id) } }
 }
 
 /// The transcript as data: segments with speaker *labels* rather than names,
@@ -347,11 +364,74 @@ enum Transcriber {
         static func forSpeech(_ p: Double) -> Double { prepared + (speech - prepared) * min(max(p, 0), 1) }
     }
 
+    /// Echo cancellation, on the whole tracks and on a live chunk: on when the
+    /// setting is on, the system side is actually audible, and this microphone
+    /// is one the others can leak into.
+    static func cancelsEcho(_ options: TranscribeOptions, audible: Double, soloMicrophone: Bool,
+                            systemLevels: [UInt8]?) -> Bool {
+        options.cancelEcho && audible >= TrackHealth.silentBelowSeconds
+            && SpeakerRoute.removesEcho(soloMicrophone: soloMicrophone, systemLevels: systemLevels)
+    }
+
+    /// One track, on whichever engine `options` names. Live chunks and the final
+    /// pass both come through here, so a chunk and the tail of the same meeting
+    /// are read the same way.
+    static func transcribeTrack(audio: URL, speaker: String, options: TranscribeOptions, language: String,
+                                progress: @escaping @Sendable (Double) -> Void,
+                                stage: @escaping @Sendable (TranscribeStage) -> Void = { _ in })
+        async throws -> [Segment] {
+        switch options.engine {
+        case .local:
+            guard let model = LocalModel.find(options.localModel), model.isInstalled else {
+                throw TranscriberError.modelMissing
+            }
+            if options.language == "auto", LanguageChoice.plausible.count > 1 {
+                // Someone who speaks more than one language may switch mid-call:
+                // each stretch of speech is transcribed in its own language.
+                return try await LocalEngine.transcribeMixed(audio: audio, speaker: speaker,
+                                                             model: model, fallback: language,
+                                                             plausible: LanguageChoice.plausible,
+                                                             progress: progress, stage: stage)
+            }
+            return try await LocalEngine.transcribe(audio: audio, speaker: speaker,
+                                                    model: model, language: language, progress: progress)
+        case .apple:
+            return try await AppleSpeechEngine.transcribe(audio: audio, speaker: speaker,
+                                                          language: options.language,
+                                                          plausible: LanguageChoice.plausible,
+                                                          progress: progress, stage: stage)
+        }
+    }
+
+    /// Lines already transcribed while recording, then the tail transcribed on
+    /// its own, shifted onto the meeting's clock. Sorted, so the join reads in
+    /// the same order as a pass that saw the whole track at once.
+    static func mergeLive(stored: [Segment], tail: [Segment], tailOffsetMs: Int) -> [Segment] {
+        let shifted = tail.map { $0.shifted(by: tailOffsetMs) }
+        return (stored + shifted).sorted { lhs, rhs in
+            if lhs.start != rhs.start { return lhs.start < rhs.start }
+            if lhs.end != rhs.end { return lhs.end < rhs.end }
+            return lhs.speaker < rhs.speaker
+        }
+    }
+
     static func transcribe(_ meeting: Meeting, options: TranscribeOptions,
                            progress: @escaping @Sendable (Double) -> Void,
                            stage: @escaping @Sendable (TranscribeStage) -> Void = { _ in })
         async throws -> TranscriptionOutcome {
+        // whisper-cli started below is this meeting's, so a live chunk of the
+        // next recording can tell it apart from its own.
+        try await WhisperScope.adopt(meeting.id) {
+            try await transcribeNow(meeting, options: options, progress: progress, stage: stage)
+        }
+    }
+
+    private static func transcribeNow(_ meeting: Meeting, options: TranscribeOptions,
+                                      progress: @escaping @Sendable (Double) -> Void,
+                                      stage: @escaping @Sendable (TranscribeStage) -> Void)
+        async throws -> TranscriptionOutcome {
         let started = Date()
+        LiveTranscriber.removeScratch(in: meeting.dir)
         stage(.preparing)
         var options = options
         // The words Ata should get right, resolved now that the voice library
@@ -403,8 +483,8 @@ enum Transcriber {
         // one in this run) is skipped rather than run to prove it. On the laptop's
         // one microphone the same pass is skipped unless that track really is a
         // call: a chime is not the other people, and they only exist on this mic.
-        if options.cancelEcho, systemAudible >= TrackHealth.silentBelowSeconds,
-           SpeakerRoute.removesEcho(soloMicrophone: meeting.soloMicrophone == true, systemLevels: systemLevels),
+        if cancelsEcho(options, audible: systemAudible, soloMicrophone: meeting.soloMicrophone == true,
+                       systemLevels: systemLevels),
            let micIndex = prepared.firstIndex(where: { $0.speaker == Speakers.me }),
            let system = prepared.first(where: { $0.speaker == Speakers.others }) {
             let mic = prepared[micIndex]
@@ -432,9 +512,21 @@ enum Transcriber {
         }
         let audioSeconds = prepared.reduce(0) { $0 + WavWriter.duration(of: $1.audio) }
 
+        // Live chunks are an accelerator. A file that does not match this run
+        // (other engine, coverage past the end, or the user asked to start over)
+        // is ignored and the tracks are transcribed whole, as they always were.
+        let live = LiveState.load(from: meeting.liveURL).flatMap { saved -> LiveState? in
+            let frames = prepared.map { LiveAudio.samples(in: $0.audio) }
+            return saved.matches(options: options, trackFrames: frames) ? saved : nil
+        }
+
         // The local engine gets an explicit language per track; see LanguageChoice.
+        // A live file already decided, once, on its first chunk.
         var languages = Array(repeating: options.language, count: prepared.count)
-        if options.engine == .local, options.language == "auto", let model = LocalModel.find(options.localModel) {
+        if let live {
+            let fallback = options.language == "auto" ? (LanguageChoice.plausible.first ?? "en") : options.language
+            languages = prepared.map { live.languages[$0.speaker] ?? fallback }
+        } else if options.engine == .local, options.language == "auto", let model = LocalModel.find(options.localModel) {
             stage(.languages)
             var detections: [(code: String, p: Double)?] = []
             for track in prepared { detections.append(await LocalEngine.detectLanguage(audio: track.audio, model: model)) }
@@ -445,6 +537,12 @@ enum Transcriber {
         let spans = ProgressShare.trackSpans(audible: prepared.map {
             $0.speaker == Speakers.me ? micAudible : systemAudible
         })
+        let tailDir = live == nil ? nil : meeting.dir.appendingPathComponent(
+            "live-\(UUID().uuidString.prefix(8))", isDirectory: true)
+        if let tailDir {
+            try FileManager.default.createDirectory(at: tailDir, withIntermediateDirectories: true)
+        }
+        defer { if let tailDir { try? FileManager.default.removeItem(at: tailDir) } }
         var segments: [Segment] = []
         for (i, track) in prepared.enumerated() {
             // Taken over by another device, or Ata is quitting: the next track
@@ -454,29 +552,26 @@ enum Transcriber {
             let (base, span) = spans[i]
             let step: @Sendable (Double) -> Void = { p in progress(ProgressShare.forSpeech(base + p * span)) }
             stage(.speech)
-
-            switch options.engine {
-            case .local:
-                guard let model = LocalModel.find(options.localModel), model.isInstalled else {
-                    throw TranscriberError.modelMissing
+            let stored = live?.segments.filter { $0.speaker == track.speaker } ?? []
+            if let live, let tailDir {
+                let total = LiveAudio.samples(in: track.audio)
+                let start = live.coveredUntilFrame
+                // The last fraction of a second is not worth a model load; the
+                // lines already saved cover the meeting.
+                if total - start < LiveCut.minTailFrames {
+                    segments += stored
+                    continue
                 }
-                if options.language == "auto", LanguageChoice.plausible.count > 1 {
-                    // Someone who speaks more than one language may switch mid-call:
-                    // each stretch of speech is transcribed in its own language.
-                    segments += try await LocalEngine.transcribeMixed(audio: track.audio, speaker: track.speaker,
-                                                                      model: model, fallback: languages[i],
-                                                                      plausible: LanguageChoice.plausible,
-                                                                      progress: step, stage: stage)
-                } else {
-                    segments += try await LocalEngine.transcribe(audio: track.audio, speaker: track.speaker,
-                                                                 model: model, language: languages[i],
-                                                                 progress: step)
-                }
-            case .apple:
-                segments += try await AppleSpeechEngine.transcribe(audio: track.audio, speaker: track.speaker,
-                                                                   language: options.language,
-                                                                   plausible: LanguageChoice.plausible,
-                                                                   progress: step, stage: stage)
+                let file = tailDir.appendingPathComponent("\(i).wav")
+                try AudioFiles.copySamples(track.audio, start..<total, to: file)
+                let tail = try await transcribeTrack(audio: file, speaker: track.speaker, options: options,
+                                                     language: languages[i], progress: step, stage: stage)
+                // The tail file starts at `start`, so its clock is that far behind the meeting's.
+                let offset = start * 1000 / Int(WavWriter.sampleRate)
+                segments += mergeLive(stored: stored, tail: tail, tailOffsetMs: offset)
+            } else {
+                segments += try await transcribeTrack(audio: track.audio, speaker: track.speaker, options: options,
+                                                      language: languages[i], progress: step, stage: stage)
             }
         }
 
@@ -538,6 +633,8 @@ enum Transcriber {
         // Never overwrite an earlier transcript: move it into versions/ first.
         let archived = try replaceTranscript(of: meeting, with: md)
         try stored.save(to: meeting.storedTranscriptURL)
+        // Only now: a failed run leaves live.json, and the next attempt can still use it.
+        try? FileManager.default.removeItem(at: meeting.liveURL)
 
         let talk = talkTime(segments, me: Speakers.me, coarse: false)
         let record = TranscriptionRecord(
