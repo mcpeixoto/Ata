@@ -1,3 +1,4 @@
+import CoreML
 import FluidAudio
 import Foundation
 
@@ -52,7 +53,10 @@ struct FluidDiarizer: Diarizer {
     func diarize(_ wav: URL, minimumSecondsToLearn: Double) async throws
         -> (turns: [SpeakerTurn], embeddings: [String: [Float]]) {
         let manager = OfflineDiarizerManager(config: OfflineDiarizerConfig())
-        try await manager.prepareModels()
+        // Not the GPU: a call is often drawing video on it while a meeting is diarized.
+        let compute = MLModelConfiguration()
+        compute.computeUnits = .cpuAndNeuralEngine
+        try await manager.prepareModels(configuration: compute)
         let samples = try AudioConverter().resampleAudioFile(wav)
         let result = try await manager.process(audio: samples)
 

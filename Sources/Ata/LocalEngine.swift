@@ -21,9 +21,18 @@ enum LocalEngine {
     #if os(macOS)
     /// Current whisper process, so it can be terminated when the app quits.
     nonisolated(unsafe) static var currentProcess: Process?
+
+    /// A whisper run that started before a call keeps its threads, so while the
+    /// call is on it goes into Darwin's background band (CPU and disk throttled)
+    /// instead, and comes back out when the call ends.
+    static func applyCallPriority(to process: Process? = currentProcess) {
+        guard let process, process.isRunning else { return }
+        let band = TranscriptionLoad.callActive ? PRIO_DARWIN_BG : 0
+        setpriority(PRIO_DARWIN_PROCESS, id_t(process.processIdentifier), band)
+    }
     #endif
 
-    private static var threads: Int { max(4, ProcessInfo.processInfo.activeProcessorCount - 2) }
+    private static var threads: Int { TranscriptionLoad.threads }
 
     /// Decoding settings, measured on real European Portuguese and English
     /// speech (clean, VoIP and phone quality; see docs/plans):
@@ -303,7 +312,7 @@ enum LocalEngine {
             p.executableURL = exe
             p.arguments = args
             p.standardOutput = FileHandle.nullDevice
-            p.qualityOfService = .userInitiated
+            p.qualityOfService = TranscriptionLoad.processQoS
             let pipe = Pipe()
             p.standardError = pipe
 

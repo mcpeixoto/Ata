@@ -10,7 +10,7 @@ final class AppStore: ObservableObject {
 
     enum Phase: Equatable { case idle, starting, recording, stopping }
 
-    @Published private(set) var phase: Phase = .idle
+    @Published private(set) var phase: Phase = .idle { didSet { callActivityChanged() } }
     @Published private(set) var startedAt: Date?
     /// The clock, the meters and the progress live in `LiveValues`, which
     /// changes many times a second: published from here, every view that
@@ -23,7 +23,7 @@ final class AppStore: ObservableObject {
     @Published private(set) var warning: String?
     private var writingOwedSummaries = false
     private var triedOwedSummaries = Set<String>()
-    @Published private(set) var detectedApp: String?
+    @Published private(set) var detectedApp: String? { didSet { callActivityChanged() } }
     @Published private(set) var meetings: [Meeting] = []
     @Published private(set) var transcribingID: String?
     /// The meeting whose summary is being written, after its transcript.
@@ -281,6 +281,17 @@ final class AppStore: ObservableObject {
     }
 
     // MARK: - Detection
+
+    /// A call is on while Ata records or another app holds the microphone.
+    /// Transcription backs off for it (`TranscriptionLoad`); when it ends, the
+    /// meetings that waited start and the deferred audio jobs run.
+    private func callActivityChanged() {
+        let active = phase != .idle || detectedApp != nil
+        guard active != TranscriptionLoad.callActive else { return }
+        TranscriptionLoad.callActive = active
+        LocalEngine.applyCallPriority()
+        if !active { pump() }
+    }
 
     private func meetingStarted(_ app: String) {
         detectedApp = app
@@ -659,8 +670,9 @@ final class AppStore: ObservableObject {
         pumping = true
         let repairing = repairingIDs
         Task {
-            let next = await Task.detached(priority: .userInitiated) {
-                Self.nextInQueue(Library.loadAll(), repairing: repairing, now: Date())
+            let callActive = TranscriptionLoad.callActive
+            let next = await Task.detached(priority: .utility) {
+                Self.nextInQueue(Library.loadAll(), repairing: repairing, now: Date(), callActive: callActive)
             }.value
             pumping = false
             if let next {
@@ -677,8 +689,13 @@ final class AppStore: ObservableObject {
     }
 
     /// The meeting the queue takes next: the oldest one waiting (the list is newest first).
-    nonisolated static func nextInQueue(_ all: [Meeting], repairing: Set<String>, now: Date) -> Meeting? {
-        all.last { !repairing.contains($0.id) && RunEnd.awaits($0, now: now) && ($0.isMine || $0.hasAudio) }
+    /// During a call only a meeting that just ended may start (`TranscriptionLoad.mayStart`).
+    nonisolated static func nextInQueue(_ all: [Meeting], repairing: Set<String>, now: Date,
+                                        callActive: Bool = false) -> Meeting? {
+        all.last {
+            !repairing.contains($0.id) && RunEnd.awaits($0, now: now) && ($0.isMine || $0.hasAudio)
+                && TranscriptionLoad.mayStart($0, callActive: callActive, now: now)
+        }
     }
 
     private func startTranscribing(_ found: Meeting) {
@@ -728,7 +745,9 @@ final class AppStore: ObservableObject {
         live.transcribeStartedAt = Date()
         live.expectedSeconds = expectedSeconds(for: job, model: options.modelID)
 
-        transcribeJob = Task {
+        // Utility, not inherited from the main actor: echo removal, waveforms and
+        // diarization run in this task and used to take the cores a call needed.
+        transcribeJob = Task(priority: .utility) {
             let heartbeat = renewClaim(of: job.id)
             // Saved onto meeting.json as it is now, and only while the claim is still this
             // run's (see `RunEnd`): a device that took it over owns the meeting, so nothing
@@ -840,6 +859,7 @@ final class AppStore: ObservableObject {
             return
         }
         guard Pref.d.bool(forKey: Pref.compressAudio) else { return }
+        await TranscriptionLoad.waitForQuiet()
         for wav in [m.micURL, m.systemURL] where Paths.fileSize(wav) > 44 {
             _ = await AudioFiles.compressToM4A(wav)
         }
@@ -857,8 +877,10 @@ final class AppStore: ObservableObject {
               m.isMine, m.status != .recording, m.hasAudio, !m.hasMergedAudio else { return nil }
         let task = Task {
             let job = m
+            // LAME over two tracks is minutes of CPU: not while a call is on.
+            await TranscriptionLoad.waitForQuiet()
             do {
-                try await Task.detached(priority: .utility) { try MergedAudio.write(job) }.value
+                try await Task.detached(priority: .background) { try MergedAudio.write(job) }.value
             } catch {
                 // The tracks are untouched, so nothing is lost: the next attempt starts over.
                 NSLog("Ata: could not write meeting.mp3 for \(job.id): \(error.localizedDescription)")
