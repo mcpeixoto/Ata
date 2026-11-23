@@ -159,13 +159,6 @@ final class PeopleModel: ObservableObject {
         rerender(meetings: voice.meetingIDs)
     }
 
-    /// Your voice as the library knows it now, read fresh: an in-person meeting
-    /// looks for it among the people in the room.
-    func myFingerprints() -> [[Float]] {
-        reload()
-        return library.myFingerprints
-    }
-
     /// Voices only this meeting introduced go, with their samples; see `VoiceLibrary.save`.
     func removeMeeting(_ meetingID: String) {
         library = VoiceLibrary()

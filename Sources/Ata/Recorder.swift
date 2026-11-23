@@ -102,7 +102,9 @@ final class Recorder: NSObject {
     private var engine: AVAudioEngine?
     private var tap: SystemAudioTap?
     private var outputWatcher: AudioObjectPropertyListenerBlock?
-    nonisolated private let sysQueue = DispatchQueue(label: "ai.interactive.ata.system-audio", qos: .userInitiated)
+    /// Above whisper and the call app: Core Audio waits on this queue for every
+    /// buffer, and at equal priority a busy transcription made it miss deadlines.
+    nonisolated private let sysQueue = DispatchQueue(label: "ai.interactive.ata.system-audio", qos: .userInteractive)
     private var running = false
     private var startedAt = Date()
     /// The "we cannot hear the other side" warning is showing: it clears

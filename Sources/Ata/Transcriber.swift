@@ -704,7 +704,9 @@ enum Transcriber {
             return segments
         }
         let clusters = InPerson.clusters(found.turns, embeddings: found.embeddings)
-        let fingerprints = await MainActor.run { PeopleModel.shared.myFingerprints() }
+        // Read from disk here, not through PeopleModel: that reloaded on the main
+        // thread and republished every voice, so each open meeting reparsed its transcript.
+        let fingerprints = VoiceLibrary().myFingerprints
         guard let me = InPerson.me(among: clusters, fingerprints: fingerprints) else {
             saveVoices(priorSpeakers, turns: priorTurns, for: meeting)
             return segments
