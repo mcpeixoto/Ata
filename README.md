@@ -10,14 +10,20 @@
 ![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-arm64-black)
 ![Swift 5.9](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/mcpeixoto/Ata?style=flat&color=7c4dff)](https://github.com/mcpeixoto/Ata/stargazers)
+[![Downloads](https://img.shields.io/github/downloads/mcpeixoto/Ata/total?color=7c4dff)](https://github.com/mcpeixoto/Ata/releases)
 [![Buy me a coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/mcpeixoto)
+
+### The open-source alternative to Otter, Granola and Fireflies — that never uploads your meeting.
 
 **Ata** is a tiny menu bar app that records your meetings — Slack, Zoom, Meet, Teams, FaceTime,
 anything in the browser — and turns them into clean Markdown transcripts.
 All of it on your Mac: Whisper for the words, Apple Intelligence for the summary.
 
 [**Download**](https://github.com/mcpeixoto/Ata/releases/latest) ·
+[Website](https://ata.peixotolabs.com) ·
 [How it works](docs/ARCHITECTURE.md) ·
+[Discussions](https://github.com/mcpeixoto/Ata/discussions) ·
 [Contributing](CONTRIBUTING.md) ·
 [Changelog](CHANGELOG.md)
 
@@ -64,6 +70,18 @@ All of it on your Mac: Whisper for the words, Apple Intelligence for the summary
 - **Hard to lose a recording.** Survives switching microphones, sleep, crashes and power loss.
 - **Plain files.** Every meeting is a folder with a `transcript.md` and the audio. Grep it, sync it,
   feed it to anything.
+
+## How it compares
+
+| | Ata | Otter | Granola | Fireflies |
+|---|:---:|:---:|:---:|:---:|
+| Open source | ✅ Apache 2.0 | ❌ | ❌ | ❌ |
+| Transcribes on your Mac — audio never uploaded | ✅ | ❌ cloud | ❌ cloud | ❌ cloud |
+| Works without an account | ✅ | ❌ | ❌ | ❌ |
+| Stores every meeting as plain files on your disk | ✅ | ❌ | ❌ | ❌ |
+
+<sub>Accurate to the best of our knowledge on 2026-11-27 — if something has changed, a PR with a
+source is welcome. Otter, Granola and Fireflies are trademarks of their respective owners.</sub>
 
 ## Install
 
@@ -281,7 +299,12 @@ Ideas with an issue attached are up for grabs — see
 Bug reports, translations and pull requests are all welcome — [CONTRIBUTING.md](CONTRIBUTING.md)
 has the five-minute setup, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains how the
 pieces fit. Please read the [code of conduct](CODE_OF_CONDUCT.md) first, and report security issues
-[privately](SECURITY.md).
+[privately](SECURITY.md). Questions and ideas go to
+[Discussions](https://github.com/mcpeixoto/Ata/discussions).
+
+<a href="https://github.com/mcpeixoto/Ata/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=mcpeixoto/Ata" alt="Contributors">
+</a>
 
 ## Credits
 
@@ -301,6 +324,18 @@ on this repository to ask for one.
 
 Versions up to and including 3.4.0 were released under the MIT licence, and those
 copies stay under it.
+
+## Star history
+
+If Ata is useful to you, a ⭐ helps other people find it — and **Watch → Custom → Releases**
+tells you the moment a new version ships.
+
+<a href="https://star-history.com/#mcpeixoto/Ata&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=mcpeixoto/Ata&type=Date&theme=dark">
+    <img src="https://api.star-history.com/svg?repos=mcpeixoto/Ata&type=Date" alt="Star history chart" width="600">
+  </picture>
+</a>
 
 <p align="center">
 If Ata saved you from taking notes, <a href="https://buymeacoffee.com/mcpeixoto">buy me a coffee</a> ☕
